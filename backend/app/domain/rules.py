@@ -182,6 +182,30 @@ def access_ok(kind: str, applied: bool | None) -> bool:
     return True
 
 
+def is_provisional(schedule_confirmed: bool | None) -> bool:
+    """결과에 잠정 표시를 달지 (schedule.md unconfirmed_is_provisional).
+
+    시각이 아직 아니라고 말한 경우에만 잠정이다. 언급이 없으면(None) 확정으로 본다.
+    말하지 않은 것을 미확정으로 잡으면 거의 모든 결과에 잠정 딱지가 붙는다.
+    """
+    if not load_rule("schedule")["unconfirmed_is_provisional"]:
+        return False
+    return schedule_confirmed is False
+
+
+def is_night(hhmm: str | None) -> bool:
+    """이 시각이 야간인가 (schedule.md night_start ~ night_end).
+
+    야간이면 귀가가 문제다. 막차를 넘겼는지, 첫차가 몇 시인지를 같이 봐야 한다.
+    구간이 자정을 넘으므로(22:00~06:00) 시작보다 크거나 끝보다 작으면 야간이다.
+    """
+    if not hhmm:
+        return False
+    rules = load_rule("schedule")
+    start, end = str(rules["night_start"]), str(rules["night_end"])
+    return hhmm >= start or hhmm <= end
+
+
 def candidate_score(kind: str, access_required: bool) -> int:
     """후보를 줄 세우는 점수. 클수록 앞. 대형 모델을 부르지 않는 경우에 쓴다 (SDD 5절 라우팅 small).
 

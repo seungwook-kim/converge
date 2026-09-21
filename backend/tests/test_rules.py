@@ -51,3 +51,20 @@ def test_도착이_어긋나면_부두_밖으로_전환한다():
 def test_출발_시각은_도착_기한에서_거꾸로_뺀다():
     out = rules.calc_departure("08:00", 40 * 60, 20, 20)
     assert out == {"depart_at": "06:40", "arrive_by_adjusted": "07:40", "day_offset": 0}
+
+
+def test_시각이_아니라고_말한_경우에만_잠정이다():
+    """언급이 없으면 확정으로 본다. 아니면 거의 모든 결과에 잠정 딱지가 붙는다."""
+    assert rules.is_provisional(False) is True
+    assert rules.is_provisional(True) is False
+    assert rules.is_provisional(None) is False
+
+
+def test_야간은_자정을_넘는_구간이다():
+    """22:00~06:00 처럼 구간이 날짜를 넘는다 (schedule.md)."""
+    schedule = rules.load_rule("schedule")
+    assert rules.is_night(schedule["night_start"]) is True
+    assert rules.is_night("23:30") is True
+    assert rules.is_night("02:00") is True
+    assert rules.is_night("14:00") is False
+    assert rules.is_night(None) is False

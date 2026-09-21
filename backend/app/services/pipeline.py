@@ -634,7 +634,7 @@ def _build_result(
 
     return Result(
         candidates=candidates,
-        provisional=slots.schedule_confirmed is False,
+        provisional=domain_rules.is_provisional(slots.schedule_confirmed),
         per_participant=rows,
         rendezvous_departure=None,
         confidence=0.8,

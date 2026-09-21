@@ -103,7 +103,7 @@ converge/
       agent.ts                2·3·4절 타입을 손으로 옮긴 것. api-types.ts 가 생기면 대체한다
   skills/converge/
     SKILL.md
-    rules/  access.md  session.md  transport.md  checklist.md
+    rules/  access.md  session.md  transport.md  checklist.md  schedule.md
     presets/  meeting.md  visit.md
     failures.md
     output-contract.md
@@ -466,6 +466,10 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | transport.md | max_pickup_per_car | 1 | 차 1대당 1명. 다중 픽업 순서 최적화는 범위 밖 |
 | transport.md | route_cache_ttl_hours | 24 | 경로 응답 캐시 보관 시간 (테이블정의서 4절) |
 | transport.md | geocode_cache_ttl_hours | 720 | 지오코딩 응답 캐시 보관 시간 |
+| schedule.md | unconfirmed_is_provisional | true | 시각이 확정이 아니면 결과에 잠정 표시 |
+| schedule.md | night_start / night_end | 22:00 / 06:00 | 이 사이에 끝나면 야간으로 본다 |
+| schedule.md | night_check_last_train | true | 야간이면 막차·첫차를 같이 알려 준다 |
+| schedule.md | late_arrival_switch_min | 30 | 도착이 이만큼 벌어지면 집결 방식을 다시 본다 |
 | checklist.md | visit_access | 방문자 등록(+차로 가면 차량번호), 신분증·출입증 수령 | 출입 절차가 있을 때의 준비물 |
 | checklist.md | luggage | 장비 반입 신고, 장비·전원 어댑터 | 장비는 절차와 별도로 걸린다 |
 | checklist.md | not_applied_prefix | "[미완료] " | 신청 전 항목은 늦으면 되돌릴 수 없다 |
