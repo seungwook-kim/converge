@@ -103,7 +103,8 @@ SDD 1절이 가리키지만 아직 안 만든 파일. 만들면 여기서 지운
 - `mcp_server/tools/`: 도구 6개가 모두 있다.
   `geocode.py` `search_places.py` `route_car.py` `route_transit.py` `first_last_train.py` `departure_calc.py`
 - `frontend/`: `app/about/page.tsx`. `lib/api-types.ts`는 생성물이고 지금은 `types/agent.ts`가 대신함
-- `skills/converge/`: `failures.md` `output-contract.md` `presets/` 2개(`meeting.md` `visit.md`)
+- `skills/converge/`: `failures.md` `output-contract.md`
+  (있는 것: `SKILL.md`, `rules/` 4개, `presets/meeting.md` `presets/visit.md`)
   (있는 것: `rules/access.md` `rules/session.md` `rules/transport.md` `rules/checklist.md`)
 - `evals/run_eval.py`
 - `finetune/`: `gen_dataset.py`, `data/finetune_dataset.jsonl` (Info/에 있음, 아직 안 옮김)

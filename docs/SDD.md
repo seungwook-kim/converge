@@ -414,7 +414,7 @@ session_id가 있으면 먼저 잠금 검사: 세션의 user_id가 토큰과 다
 | tool | 입력 | 출력 | 호출 API |
 |---|---|---|---|
 | geocode | query: str, bias_lng: float, bias_lat: float, radius_m: int = 20000 | {lng, lat, name, address, confidence, alternatives[]} | 카카오 로컬 키워드 검색 (x, y, radius). 지하철역 우선 규칙 |
-| search_places | lng, lat, radius_m, kind: "gate" or "landmark" or "lobby" or "cafe", limit: int | [{name, address, lng, lat, kind}] | 카카오 로컬 키워드 검색 (정문·역·로비·주차장 입구·카페) |
+| search_places | lng, lat, radius_m, kind: "gate" or "landmark", limit: int | [{name, address, lng, lat, kind}] | 카카오 로컬 키워드 검색 (정문·출입구·역). lobby 는 목적지 건물 자체라 검색하지 않는다 |
 | route_car | origin: [lng, lat], destination: [lng, lat], departure_time: "yyyyMMddHHmm" or None, waypoint: [lng, lat] or None | {duration_sec, distance_m, polyline[], toll, fare_taxi} | 카카오모빌리티 미래 운행(시각 있음) / 자동차 길찾기(없음) |
 | route_transit | origin, destination | {duration_sec, transfer_count, walk_m, fare, polyline[], legs[]} | TMAP 대중교통 |
 | first_last_train | station_name: str, city: "seoul" or "busan", weekday: "weekday" or "sat" or "holiday", direction | {first: "05:30", last: "00:48", last_next_day: bool, line, station} | 서울: 열린데이터광장 `SearchLastTrainTimeByIDService` (역명→`SearchInfoBySubwayNameService`로 STATION_CD 선행, 1~9호선). 부산: `apis.data.go.kr/B551542/trainTime/getTrainTime` (역외부코드는 레포 CSV `backend/app/data/busan_stations.csv`). 양쪽 다 전체 시각표를 받아 우리가 min·max로 고른다 |
@@ -475,13 +475,14 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | 키 | meeting (일반 약속) | visit (출입 절차가 있는 방문) |
 |---|---|---|
 | access.required 기본 | false | true |
-| candidate_kinds | landmark, lobby, cafe | gate, lobby, hq |
+| candidate_kinds | landmark, lobby | gate, lobby, hq |
 | entry_lead_min 적용 | 안 함 (0) | 함 |
 | buffer | buffer_meeting_min | buffer_visit_min |
 | checklist | 없음 | visit_access (+ luggage) |
 
 preset 은 사용자가 고르거나(AgentRequest.preset) 슬롯 추출이 문장에서 판정한다. 절차 단서가 아예 없으면
-지어내지 않고 되묻는다 (5절 1-2).
+지어내지 않고 되묻는다 (5절 1-2). 프리셋마다 달라지는 값은 `skills/converge/presets/meeting.md`,
+`visit.md` 의 프론트매터에 있고, 공통 규칙값은 `rules/` 에 있다.
 
 ### 핀 소유권 (2026-09-18 변경: 표시용으로만 둔다)
 
