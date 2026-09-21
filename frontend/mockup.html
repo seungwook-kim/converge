@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<!-- 목업 v2: Converge 상황판(Situation Board) 컨셉.
+     - 앱 코드가 아니다. 브라우저로 여는 단일 파일.
+     - 컨셉: 야간 배포·위병소 절차가 핵심인 현장 조율 = 관제 보드.
+       잉크 네이비 + 세이프티 오렌지(강조만) + 모노 숫자(시각·순위).
+     - 지도 자리는 개략도(SVG)이며 카카오맵이 아니다.
+     - 결과표 숫자는 목업 수치다. 실측이 아니다. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Converge 목업 v2</title>
+<style>
+  :root {
+    --paper: #f2f4f3;
+    --panel: #ffffff;
+    --ink: #101c2c;
+    --ink-soft: #33445a;
+    --muted: #64748b;
+    --line: #dde3e8;
+    --signal: #e4572e;
+    --signal-ink: #b23c17;
+    --ok: #047857;
+    --warn-bg: #fef3c7; --warn-tx: #92400e;
+    --error: #b91c1c;
+    --mono: "JetBrains Mono", "D2Coding", "Consolas", "Menlo", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  button, input, select, textarea { font: inherit; }
+  button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; cursor: pointer; color: var(--ink); }
+  button:active { transform: translateY(1px); }
+  button.go { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 700; }
+  .muted { color: var(--muted); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .mockbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; gap: 8px; align-items: center;
+    background: var(--ink); color: #fff; padding: 8px 16px; font-size: 13px;
+  }
+  .mockbar .tabs { display: flex; gap: 6px; margin-left: 12px; }
+  .mockbar .tabs button { background: transparent; color: #cbd5e1; border-color: #33445a; }
+  .mockbar .tabs button.active { background: #fff; color: var(--ink); border-color: #fff; font-weight: 700; }
+
+  .app { display: flex; flex-direction: column; min-height: calc(100vh - 41px); }
+  .topbar {
+    display: flex; gap: 10px; align-items: center;
+    padding: 10px 16px; background: var(--ink); color: #fff;
+  }
+  .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: 0.06em; color: #fff; text-decoration: none; }
+  .wordmark small { font-family: var(--mono); font-weight: 400; font-size: 11px; color: #9fb0c3; letter-spacing: 0.12em; }
+  .topbar .sub { color: #9fb0c3; font-size: 13px; }
+  .topbar .right { margin-left: auto; color: #9fb0c3; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  .share-chip {
+    font-family: var(--mono); font-size: 12px; color: #ffd9c7;
+    border: 1px solid var(--signal); border-radius: 999px; padding: 2px 10px;
+  }
+
+  /* 메인 */
+  .landing-body { max-width: 780px; margin: 0 auto; padding: 40px 16px 64px; width: 100%; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; color: var(--signal-ink); margin: 0 0 8px; }
+  .intro h1 { font-size: 30px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .intro h1 em { font-style: normal; color: var(--signal-ink); }
+  .intro p { color: var(--ink-soft); margin: 0 0 16px; max-width: 60ch; }
+  .how { margin: 0 0 28px; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .how li { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--signal); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--ink-soft); }
+  .how strong { display: block; color: var(--ink); margin-bottom: 2px; }
+  .how .n { font-family: var(--mono); color: var(--signal-ink); font-size: 12px; }
+  @media (max-width: 700px) { .how { grid-template-columns: 1fr; } }
+  .compose { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .compose-label { display: block; font-weight: 700; margin-bottom: 8px; }
+  .compose textarea { width: 100%; resize: vertical; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .compose-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .compose-row select { padding: 6px; border: 1px solid var(--line); border-radius: 6px; }
+  .compose-row .go { margin-left: auto; }
+  .file-btn { border: 1px dashed var(--line); border-radius: 6px; padding: 4px 10px; color: var(--muted); }
+  .examples { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+  .example { text-align: left; font-size: 13px; color: var(--ink-soft); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+
+  /* 공유 */
+  .board-head {
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 10px 16px; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap;
+  }
+  .board-head .title { font-weight: 800; font-size: 16px; }
+  .board-head .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .board-head .meta b { color: var(--signal-ink); }
+  .progress { display: flex; gap: 4px; list-style: none; margin: 0 0 0 auto; padding: 0; font-size: 12px; color: var(--muted); }
+  .progress-step { display: flex; align-items: center; gap: 4px; }
+  .progress-step + .progress-step::before { content: ""; width: 12px; border-top: 1px solid var(--line); }
+  .progress-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .progress-step.done { color: var(--ok); }
+  .progress-step.done .progress-dot { background: var(--ok); }
+  .progress-step.active { color: var(--signal-ink); font-weight: 700; }
+  .progress-step.active .progress-dot { background: var(--signal); }
+
+  .split { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 440px; min-height: 0; }
+  .split-map { position: relative; min-height: 480px; background: #e8ecef; }
+  .split-side { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding: 12px; border-left: 1px solid var(--line); background: var(--paper); }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } .split-map { height: 55vh; min-height: 0; } .split-side { border-left: 0; } }
+
+  .map-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map-panel {
+    position: absolute; left: 12px; bottom: 12px; z-index: 10; max-width: 250px;
+    background: var(--ink); color: #e6ebf1; padding: 10px 12px; border-radius: 8px; font-size: 12px;
+  }
+  .map-panel h4 { margin: 0 0 6px; font-size: 13px; color: #fff; }
+  .legend { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; color: #c6d0dc; }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+  .legend-line { display: inline-block; width: 28px; border-top: 4px solid var(--signal); border-radius: 2px; }
+
+  .stage-switch { background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; font-size: 12px; }
+  .stage-switch .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .stage-switch button.active { border-color: var(--signal-ink); color: var(--signal-ink); font-weight: 700; }
+
+  .chat { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .chat-list { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 90%; padding: 8px 10px; border-radius: 8px; }
+  .msg p { margin: 0; white-space: pre-wrap; }
+  .msg-user { align-self: flex-end; background: #ffe9dd; }
+  .msg-agent { align-self: flex-start; background: #eef1f4; }
+  .msg-error { align-self: flex-start; background: #fee2e2; color: var(--error); }
+  .questions { margin: 6px 0 0; padding-left: 18px; }
+  .chat-form { border-top: 1px solid var(--line); padding: 8px 12px; display: flex; gap: 8px; }
+  .chat-form input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+
+  .step { background: #fff4ec; border: 1px solid #f5c9ae; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .step p { margin: 0 0 6px; }
+  .step.notice { background: var(--warn-bg); border-color: #fde68a; }
+  .badge { display: inline-block; font-family: var(--mono); font-size: 12px; padding: 1px 8px; border-radius: 999px; background: #e6ebf1; color: var(--ink-soft); margin-left: 4px; }
+  .badge-warn { background: var(--warn-bg); color: var(--warn-tx); font-weight: 700; }
+
+  .result, .share { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 12px; }
+  .result { border-top: 3px solid var(--signal); }
+  .candidates { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .cand { display: flex; gap: 8px; width: 100%; text-align: left; align-items: flex-start; }
+  .cand.active { border-color: var(--ink); }
+  .cand-rank { flex: none; width: 22px; height: 22px; border-radius: 5px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-family: var(--mono); }
+  .cand-body { display: flex; flex-direction: column; }
+  .reason { font-size: 12px; }
+  .table-scroll { overflow-x: auto; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 4px; text-align: left; white-space: nowrap; }
+  td.mono, th.mono { font-family: var(--mono); }
+  .share-row { display: flex; gap: 6px; margin-top: 6px; }
+  .share-row input { flex: 1; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+  .people { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
+  .people li { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .people li button { margin-left: auto; font-size: 12px; padding: 2px 8px; }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .mock-note { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <strong>목업 v2 미리보기</strong>
+  <span>앱 코드 아님. 컨셉: 현장 상황판.</span>
+  <div class="tabs">
+    <button id="tab-main" class="active" onclick="showScreen('main')">메인 (/)</button>
+    <button id="tab-share" onclick="showScreen('share')">공유 (/s)</button>
+  </div>
+</div>
+
+<!-- ============ 화면 1: 메인 ============ -->
+<div id="screen-main" class="screen active">
+  <main class="app">
+    <header class="topbar">
+      <span class="wordmark">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+          <g stroke="#e4572e" stroke-width="2" fill="none" stroke-linecap="round">
+            <path d="M3 4 C 8 8, 10 10, 13 13"/>
+            <path d="M19 4 C 14 8, 12 10, 13 13"/>
+            <path d="M11 19 L11 15"/>
+          </g>
+          <circle cx="11" cy="13.5" r="2.6" fill="#e4572e"/>
+        </svg>
+        CONVERGE <small>FIELD RENDEZVOUS</small>
+      </span>
+      <span class="right">user@example.com</span>
+    </header>
+    <div class="landing-body">
+      <section class="intro">
+        <p class="kicker">SHIP MAINTENANCE / SI NIGHT DEPLOY</p>
+        <h1>모이는 자리와 시각을 <em>문장 하나</em>로 정합니다</h1>
+        <p>출입조치와 인솔 절차가 집결 장소를 가르는 현장에서, Converge 는 절차까지 계산해 집결지와 참석자별 출발 시각을 냅니다.</p>
+        <ol class="how">
+          <li><span class="n">01</span><strong>문장을 넣습니다</strong>누가 어디서 무엇을 타고 오는지, 언제 어디서 하는 일인지</li>
+          <li><span class="n">02</span><strong>링크가 만들어집니다</strong>그 주소를 단톡방에 전달합니다</li>
+          <li><span class="n">03</span><strong>참석자들이 모입니다</strong>링크에서 각자 출발지를 고치고 결과를 함께 봅니다</li>
+        </ol>
+      </section>
+      <section class="compose">
+        <label class="compose-label" for="text">상황을 적어 주세요</label>
+        <textarea id="text" rows="5">오후 2시 마곡 고객사 미팅. 대리님이 차 있어서 부천 지하철역 앞에서 나 태우고 감. 장비 있어서 대리님 성북구, 나 부천. 각자 언제 나가?</textarea>
+        <div class="compose-row">
+          <select aria-label="작업 종류">
+            <option>작업 종류 자동</option>
+            <option selected>SI 배포·미팅</option>
+            <option>함정 정비</option>
+          </select>
+          <span class="file-btn">카톡 캡처 올리기</span>
+          <button type="button" class="go" style="margin-left:auto">계획 만들기</button>
+        </div>
+        <div class="examples">
+          <span class="muted">이렇게 적어도 됩니다</span>
+          <button type="button" class="example">목요일 아침 8시 진해 기지 레이더 정기점검. 저는 창원시청에서 차로, 최동료는 마산역에서 대중교통으로 옵니다. 출입조치는 신청했습니다.</button>
+          <button type="button" class="example">오늘 밤 10시 여의도 고객사 야간 배포. 저는 강남역에서 지하철, 윤업체는 판교역에서 지하철로 옵니다. 1층에서 인솔받습니다.</button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ============ 화면 2: 공유 ============ -->
+<div id="screen-share" class="screen">
+  <main class="app">
+    <header class="topbar">
+      <span class="wordmark">
+        <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true">
+          <g stroke="#e4572e" stroke-width="2" fill="none" stroke-linecap="round">
+            <path d="M3 4 C 8 8, 10 10, 13 13"/>
+            <path d="M19 4 C 14 8, 12 10, 13 13"/>
+            <path d="M11 19 L11 15"/>
+          </g>
+          <circle cx="11" cy="13.5" r="2.6" fill="#e4572e"/>
+        </svg>
+        CONVERGE
+      </span>
+      <span class="sub">집결 계획</span>
+      <span class="right">
+        <span class="share-chip">/s/9f3k · 공유 중</span>
+        <span>user@example.com</span>
+      </span>
+    </header>
+    <div class="board-head">
+      <span class="title">마곡 고객사 미팅 <span class="muted">· 화요일 14:00</span></span>
+      <span class="meta">참석 <b>2</b> · 후보 <b>2</b> · 장비 <b>luggage</b></span>
+      <ol class="progress" id="progress">
+        <li class="progress-step done"><span class="progress-dot"></span>문장 읽기</li>
+        <li class="progress-step done"><span class="progress-dot"></span>위치 찾기</li>
+        <li class="progress-step active"><span class="progress-dot"></span>확인</li>
+        <li class="progress-step"><span class="progress-dot"></span>결과</li>
+      </ol>
+    </div>
+    <div class="split">
+      <div class="split-map">
+        <!-- 개략도: 카카오맵 아님. 핀·경로선 배치 검토용 -->
+        <svg class="map-svg" viewBox="0 0 600 520" preserveAspectRatio="xMidYMid slice" role="img" aria-label="집결지 개략도">
+          <defs>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#d5dbe1" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect x="0" y="0" width="600" height="520" fill="#e8ecef"/>
+          <rect x="0" y="0" width="600" height="520" fill="url(#grid)"/>
+          <g stroke="#b9c2cb" stroke-width="10">
+            <line x1="0" y1="140" x2="600" y2="110"/>
+            <line x1="80" y1="0" x2="120" y2="520"/>
+            <line x1="0" y1="360" x2="600" y2="400"/>
+            <line x1="330" y1="0" x2="300" y2="520"/>
+          </g>
+          <g stroke="#ffffff" stroke-width="3">
+            <line x1="0" y1="140" x2="600" y2="110"/>
+            <line x1="80" y1="0" x2="120" y2="520"/>
+            <line x1="0" y1="360" x2="600" y2="400"/>
+            <line x1="330" y1="0" x2="300" y2="520"/>
+          </g>
+          <text x="480" y="60" font-size="13" fill="#8a94a0">성북구</text>
+          <text x="60" y="470" font-size="13" fill="#8a94a0">부천</text>
+          <text x="430" y="330" font-size="13" fill="#8a94a0">마곡</text>
+          <!-- 경로선 (목업) -->
+          <g fill="none" stroke-linecap="round">
+            <path d="M 495 70 C 460 140, 440 220, 445 300" stroke="#101c2c" stroke-width="4" opacity="0.85"/>
+            <path d="M 110 450 C 200 430, 330 380, 430 320" stroke="#101c2c" stroke-width="4" opacity="0.85"/>
+            <path d="M 150 430 C 220 410, 300 370, 430 320" stroke="#e4572e" stroke-width="4" stroke-dasharray="8 6"/>
+          </g>
+          <!-- 핀 -->
+          <g font-size="12" font-weight="700">
+            <circle cx="495" cy="70" r="9" fill="#101c2c"/><text x="495" y="52" text-anchor="middle" fill="#101c2c">대리님 · 성북구</text>
+            <circle cx="110" cy="450" r="9" fill="#101c2c"/><text x="110" y="472" text-anchor="middle" fill="#101c2c">나 · 부천</text>
+            <circle cx="150" cy="430" r="8" fill="#e4572e"/><text x="150" y="452" text-anchor="middle" fill="#b23c17">픽업 · 부천 지하철역 앞</text>
+            <circle cx="445" cy="300" r="11" fill="#e4572e"/><text x="445" y="282" text-anchor="middle" fill="#b23c17">1순위 · 마곡 고객사 1층</text>
+            <circle cx="250" cy="200" r="8" fill="#64748b"/><text x="250" y="182" text-anchor="middle" fill="#64748b">2순위 · 본사</text>
+          </g>
+        </svg>
+        <div class="map-panel">
+          <h4>범례 <span style="color:#9fb0c3">(목업)</span></h4>
+          <ul class="legend">
+            <li><span class="dot" style="background:#e6ebf1"></span>참석자 출발지</li>
+            <li><span class="dot" style="background:#e4572e"></span>픽업 · 1순위</li>
+            <li><span class="legend-line"></span>경로 (실선 단독 / 점선 픽업)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="split-side">
+        <div class="stage-switch">
+          <span class="muted">스테이지 미리보기 (목업 전환기)</span>
+          <div class="row">
+            <button data-stage="need_confirm" class="active" onclick="showStage('need_confirm')">need_confirm</button>
+            <button data-stage="need_info" onclick="showStage('need_info')">need_info</button>
+            <button data-stage="done" onclick="showStage('done')">done</button>
+            <button data-stage="failed" onclick="showStage('failed')">failed</button>
+          </div>
+        </div>
+
+        <div class="chat">
+          <div class="chat-list" id="chat-list"></div>
+          <div class="chat-form">
+            <input value="" placeholder="추가로 물을 말을 적습니다">
+            <button type="button" class="go">보내기</button>
+          </div>
+        </div>
+
+        <div id="panel-need_confirm">
+          <div class="step">
+            <p><strong>출발 위치가 맞나요?</strong> <span class="badge">conf 0.72</span></p>
+            <p class="muted" style="margin:0">핀을 끌어서 고친 뒤 계산을 누르세요. 본인 핀은 직접 고를 수 있습니다.</p>
+          </div>
+          <div class="share">
+            <strong>참석자</strong>
+            <ul class="people">
+              <li>나 · 부천 <button type="button">내 핀으로 등록</button></li>
+              <li>대리님 · 성북구 <span class="muted">미등록</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="panel-need_info" style="display:none">
+          <div class="step notice">
+            <p><strong>계산하려면 몇 가지가 더 필요합니다.</strong></p>
+            <p class="muted" style="margin:0">질문에 답하면 이어서 계산합니다.</p>
+          </div>
+        </div>
+
+        <div id="panel-done" style="display:none">
+          <div class="result">
+            <strong>마곡 고객사 1층 로비에서 <span class="mono">13:40</span>까지 모이는 안을 1순위로 제안합니다.</strong>
+            <span class="badge-warn">목업 수치</span>
+            <ul class="candidates">
+              <li><button type="button" class="cand active">
+                <span class="cand-rank" style="background:#e4572e">1</span>
+                <span class="cand-body"><strong>마곡 고객사 1층 로비</strong>
+                <span class="reason">인솔 절차가 시작되는 자리에서 합류합니다</span></span>
+              </button></li>
+              <li><button type="button" class="cand">
+                <span class="cand-rank" style="background:#64748b">2</span>
+                <span class="cand-body"><strong>문정동 본사</strong>
+                <span class="reason">출입증 공동 작성이면 본사 집결 후 이동합니다</span></span>
+              </button></li>
+            </ul>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>참석자</th><th>이동</th><th>소요</th><th class="mono">출발</th><th class="mono">도착기한</th></tr></thead>
+                <tbody>
+                  <tr><td>대리님</td><td>차</td><td class="mono">42분</td><td class="mono">12:53</td><td class="mono">13:40</td></tr>
+                  <tr><td>나 (픽업)</td><td>차 탑승</td><td class="mono">18분</td><td class="mono">13:17</td><td class="mono">13:40</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="share" style="margin-top:12px">
+            <strong>공유 링크</strong>
+            <div class="share-row">
+              <input readonly value="https://converge.vercel.app/s/9f3kab12">
+              <button type="button">복사</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-failed" style="display:none">
+          <div class="step notice">
+            <p><strong>경로를 구하지 못했습니다. 잠시 후 다시 시도해 주세요.</strong></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  var CHAT = {
+    need_confirm: [
+      { who: "user", text: "오후 2시 마곡 고객사 미팅. 대리님이 차 있어서 부천 지하철역 앞에서 나 태우고 감. 장비 있어서 대리님 성북구, 나 부천. 각자 언제 나가?" },
+      { who: "agent", text: "출발 위치가 맞나요? 핀을 끌어서 고친 뒤 계산을 누르세요." }
+    ],
+    need_info: [
+      { who: "user", text: "오늘 밤 10시 여의도 고객사 야간 배포. 저는 강남역에서 지하철로 갑니다." },
+      { who: "agent", text: "계산하려면 몇 가지가 더 필요합니다.", questions: ["누가 함께 가나요?", "어디서 출발하시나요?", "출입조치는 해 두셨나요?"] }
+    ],
+    done: [
+      { who: "user", text: "오후 2시 마곡 고객사 미팅. 대리님이 차 있어서 부천 지하철역 앞에서 나 태우고 감." },
+      { who: "agent", text: "마곡 고객사 1층 로비에서 13:40까지 모이는 안을 1순위로 제안합니다. (목업 수치)" }
+    ],
+    failed: [
+      { who: "user", text: "오후 2시 마곡 고객사 미팅." },
+      { who: "error", text: "경로를 구하지 못했습니다. 잠시 후 다시 시도해 주세요." }
+    ]
+  };
+  var PROGRESS = {
+    need_confirm: [1, 1, 2, 0],
+    need_info: [1, 0, 0, 0],
+    done: [1, 1, 1, 1],
+    failed: [1, 1, 0, 0]
+  };
+  function showScreen(name) {
+    document.getElementById("screen-main").classList.toggle("active", name === "main");
+    document.getElementById("screen-share").classList.toggle("active", name === "share");
+    document.getElementById("tab-main").classList.toggle("active", name === "main");
+    document.getElementById("tab-share").classList.toggle("active", name === "share");
+    window.scrollTo(0, 0);
+  }
+  function showStage(stage) {
+    var buttons = document.querySelectorAll(".stage-switch button");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].classList.toggle("active", buttons[i].getAttribute("data-stage") === stage);
+    }
+    ["need_confirm", "need_info", "done", "failed"].forEach(function (s) {
+      document.getElementById("panel-" + s).style.display = s === stage ? "" : "none";
+    });
+    var list = document.getElementById("chat-list");
+    list.innerHTML = "";
+    CHAT[stage].forEach(function (m) {
+      var div = document.createElement("div");
+      div.className = "msg msg-" + m.who;
+      var p = document.createElement("p");
+      p.textContent = m.text;
+      div.appendChild(p);
+      if (m.questions) {
+        var ul = document.createElement("ul");
+        ul.className = "questions";
+        m.questions.forEach(function (q) {
+          var li = document.createElement("li");
+          li.textContent = q;
+          ul.appendChild(li);
+        });
+        div.appendChild(ul);
+      }
+      list.appendChild(div);
+    });
+    var steps = document.querySelectorAll("#progress .progress-step");
+    var state = PROGRESS[stage];
+    for (var j = 0; j < steps.length; j++) {
+      steps[j].classList.toggle("done", state[j] === 1);
+      steps[j].classList.toggle("active", state[j] === 2);
+    }
+  }
+  showStage("need_confirm");
+</script>
+</body>
+</html>

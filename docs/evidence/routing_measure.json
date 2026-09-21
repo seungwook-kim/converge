@@ -1,0 +1,308 @@
+[
+  {
+    "index": 1,
+    "small": {
+      "ok": true,
+      "seconds": 35.127891063690186,
+      "model": "local/kanana_2.1b-Q4_K_M",
+      "cost_usd": 0.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "attempts": 1,
+      "fingerprint": "{\"constraints\": [], \"datetime\": \"목요일 08:00\", \"destination\": \"진해 기지\", \"missing\": [], \"participants\": [[\"나\", \"창원시청\", \"car\", null, null, \"site\"], [\"최동료\", \"마산역\", \"transit\", null, null, \"colleague\"]], \"preset\": \"ship_maintenance\"}",
+      "slots": {
+        "constraints": [],
+        "datetime": "목요일 08:00",
+        "destination": "진해 기지",
+        "missing": [],
+        "participants": [
+          [
+            "나",
+            "창원시청",
+            "car",
+            null,
+            null,
+            "site"
+          ],
+          [
+            "최동료",
+            "마산역",
+            "transit",
+            null,
+            null,
+            "colleague"
+          ]
+        ],
+        "preset": "ship_maintenance"
+      }
+    },
+    "large": {
+      "ok": true,
+      "seconds": 9.47946572303772,
+      "model": "anthropic/claude-sonnet-5",
+      "cost_usd": 0.015774,
+      "tokens_in": 2568,
+      "tokens_out": 538,
+      "attempts": 1,
+      "fingerprint": "{\"constraints\": [], \"datetime\": \"목요일 아침 8시\", \"destination\": \"진해 기지\", \"missing\": [], \"participants\": [[\"나\", \"창원시청\", \"car\", null, null, \"site\"], [\"최동료\", \"마산역\", \"transit\", null, null, \"colleague\"]], \"preset\": \"ship_maintenance\"}",
+      "slots": {
+        "constraints": [],
+        "datetime": "목요일 아침 8시",
+        "destination": "진해 기지",
+        "missing": [],
+        "participants": [
+          [
+            "나",
+            "창원시청",
+            "car",
+            null,
+            null,
+            "site"
+          ],
+          [
+            "최동료",
+            "마산역",
+            "transit",
+            null,
+            null,
+            "colleague"
+          ]
+        ],
+        "preset": "ship_maintenance"
+      }
+    },
+    "same": false
+  },
+  {
+    "index": 2,
+    "small": {
+      "ok": true,
+      "seconds": 17.45838189125061,
+      "model": "local/kanana_2.1b-Q4_K_M",
+      "cost_usd": 0.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "attempts": 1,
+      "fingerprint": "{\"constraints\": [\"luggage\"], \"datetime\": \"금요일 09:00\", \"destination\": \"진해 기지\", \"missing\": [\"participants[1].origin\"], \"participants\": [[\"박업체 과장님\", \"부산 사상\", \"car\", null, null, \"vendor\"], [\"이업체 기사님\", null, \"car\", \"박업체 과장님\", \"김해시청 앞\", \"vendor\"]], \"preset\": \"ship_maintenance\"}",
+      "slots": {
+        "constraints": [
+          "luggage"
+        ],
+        "datetime": "금요일 09:00",
+        "destination": "진해 기지",
+        "missing": [
+          "participants[1].origin"
+        ],
+        "participants": [
+          [
+            "박업체 과장님",
+            "부산 사상",
+            "car",
+            null,
+            null,
+            "vendor"
+          ],
+          [
+            "이업체 기사님",
+            null,
+            "car",
+            "박업체 과장님",
+            "김해시청 앞",
+            "vendor"
+          ]
+        ],
+        "preset": "ship_maintenance"
+      }
+    },
+    "large": {
+      "ok": true,
+      "seconds": 10.643028736114502,
+      "model": "anthropic/claude-sonnet-5",
+      "cost_usd": 0.020079,
+      "tokens_in": 2563,
+      "tokens_out": 826,
+      "attempts": 1,
+      "fingerprint": "{\"constraints\": [], \"datetime\": \"금요일 9시\", \"destination\": \"진해 기지\", \"missing\": [\"participants[1].origin\"], \"participants\": [[\"박업체 과장님\", \"부산 사상\", \"car\", null, null, \"vendor\"], [\"이업체 기사님\", null, \"car\", \"박업체 과장님\", \"김해시청 앞\", \"vendor\"]], \"preset\": \"ship_maintenance\"}",
+      "slots": {
+        "constraints": [],
+        "datetime": "금요일 9시",
+        "destination": "진해 기지",
+        "missing": [
+          "participants[1].origin"
+        ],
+        "participants": [
+          [
+            "박업체 과장님",
+            "부산 사상",
+            "car",
+            null,
+            null,
+            "vendor"
+          ],
+          [
+            "이업체 기사님",
+            null,
+            "car",
+            "박업체 과장님",
+            "김해시청 앞",
+            "vendor"
+          ]
+        ],
+        "preset": "ship_maintenance"
+      }
+    },
+    "same": false
+  },
+  {
+    "index": 3,
+    "small": {
+      "ok": true,
+      "seconds": 18.21936535835266,
+      "model": "local/kanana_2.1b-Q4_K_M",
+      "cost_usd": 0.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "attempts": 1,
+      "fingerprint": "{\"constraints\": [], \"datetime\": \"오늘 22:00\", \"destination\": \"여의도 고객사\", \"missing\": [\"access.applied\"], \"participants\": [[\"나\", \"강남역\", \"transit\", null, null, \"site\"], [\"윤업체\", \"판교역\", \"transit\", null, null, \"colleague\"]], \"preset\": \"si_deploy\"}",
+      "slots": {
+        "constraints": [],
+        "datetime": "오늘 22:00",
+        "destination": "여의도 고객사",
+        "missing": [
+          "access.applied"
+        ],
+        "participants": [
+          [
+            "나",
+            "강남역",
+            "transit",
+            null,
+            null,
+            "site"
+          ],
+          [
+            "윤업체",
+            "판교역",
+            "transit",
+            null,
+            null,
+            "colleague"
+          ]
+        ],
+        "preset": "si_deploy"
+      }
+    },
+    "large": {
+      "ok": true,
+      "seconds": 9.78520655632019,
+      "model": "anthropic/claude-sonnet-5",
+      "cost_usd": 0.018582,
+      "tokens_in": 2564,
+      "tokens_out": 726,
+      "attempts": 1,
+      "fingerprint": "{\"constraints\": [], \"datetime\": \"오늘 밤 10시\", \"destination\": \"여의도\", \"missing\": [\"access.applied\"], \"participants\": [[\"나\", \"강남역\", \"transit\", null, null, \"site\"], [\"윤업체\", \"판교역\", \"transit\", null, null, \"vendor\"]], \"preset\": \"si_deploy\"}",
+      "slots": {
+        "constraints": [],
+        "datetime": "오늘 밤 10시",
+        "destination": "여의도",
+        "missing": [
+          "access.applied"
+        ],
+        "participants": [
+          [
+            "나",
+            "강남역",
+            "transit",
+            null,
+            null,
+            "site"
+          ],
+          [
+            "윤업체",
+            "판교역",
+            "transit",
+            null,
+            null,
+            "vendor"
+          ]
+        ],
+        "preset": "si_deploy"
+      }
+    },
+    "same": false
+  },
+  {
+    "index": 4,
+    "small": {
+      "ok": true,
+      "seconds": 23.817755460739136,
+      "model": "anthropic/claude-sonnet-5",
+      "cost_usd": 0.013995,
+      "tokens_in": 2625,
+      "tokens_out": 408,
+      "attempts": 2,
+      "fingerprint": "{\"constraints\": [], \"datetime\": \"내일 오후 2시\", \"destination\": \"여의도\", \"missing\": [], \"participants\": [[\"나\", \"수원시청\", \"car\", null, null, \"colleague\"], [\"한동료\", \"강남역\", \"transit\", null, null, \"colleague\"]], \"preset\": \"si_deploy\"}",
+      "slots": {
+        "constraints": [],
+        "datetime": "내일 오후 2시",
+        "destination": "여의도",
+        "missing": [],
+        "participants": [
+          [
+            "나",
+            "수원시청",
+            "car",
+            null,
+            null,
+            "colleague"
+          ],
+          [
+            "한동료",
+            "강남역",
+            "transit",
+            null,
+            null,
+            "colleague"
+          ]
+        ],
+        "preset": "si_deploy"
+      }
+    },
+    "large": {
+      "ok": true,
+      "seconds": 8.994275331497192,
+      "model": "anthropic/claude-sonnet-5",
+      "cost_usd": 0.015549,
+      "tokens_in": 2548,
+      "tokens_out": 527,
+      "attempts": 1,
+      "fingerprint": "{\"constraints\": [], \"datetime\": \"내일 오후 2시\", \"destination\": \"여의도\", \"missing\": [], \"participants\": [[\"나\", \"수원시청\", \"car\", null, null, \"site\"], [\"동료\", \"강남역\", \"transit\", null, null, \"colleague\"]], \"preset\": \"si_deploy\"}",
+      "slots": {
+        "constraints": [],
+        "datetime": "내일 오후 2시",
+        "destination": "여의도",
+        "missing": [],
+        "participants": [
+          [
+            "나",
+            "수원시청",
+            "car",
+            null,
+            null,
+            "site"
+          ],
+          [
+            "동료",
+            "강남역",
+            "transit",
+            null,
+            null,
+            "colleague"
+          ]
+        ],
+        "preset": "si_deploy"
+      }
+    },
+    "same": false
+  }
+]
