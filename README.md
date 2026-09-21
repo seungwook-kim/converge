@@ -171,10 +171,13 @@ pytest backend/tests     # API 키 없이 실행
 소형 모델은 `.env` 의 `MODEL_SMALL` 한 줄로 갈아끼운다.
 
 ```
-MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 구글 AI Studio 직접 호출 (무료 할당)
-MODEL_SMALL=google/gemini-3.1-flash-lite      # OpenRouter 경유 (유료)
-# MODEL_SMALL=                                # 주석 처리하면 로컬 GGUF
+MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 슬롯 추출. 구글 직접 호출 (무료 할당, 하루 500회 안팎)
+MODEL_LARGE=google-ai/gemini-3.1-flash-lite   # 승격·판정 (무료 할당, 하루 1000회 안팎)
+GEMINI_API_KEY=AQ...                          # aistudio.google.com/apikey
 ```
+
+무료 할당을 넘기면 OpenRouter 로 바꾼다. `google/gemini-3.1-flash-lite` 가 요청당 약 $0.0005 다.
+`MODEL_SMALL` 을 주석 처리하면 로컬 GGUF 로 돌아간다.
 
 지금은 제미나이를 쓴다. 회귀셋 10건으로 잰 값은 이렇다 ([docs/measurements.md](./docs/measurements.md)).
 
