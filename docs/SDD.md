@@ -44,7 +44,7 @@ converge/
         result.py             최종 결과 (LLM 출력 계약 2, API 응답)
         request.py            API 요청
       services/               바깥과 통신하는 것만 둔다
-        llm.py                모든 LLM 호출은 여기만. OpenRouter + 로컬 GGUF
+        llm.py                모든 LLM 호출은 여기만. 구글 AI Studio·OpenRouter·로컬 GGUF 를 모델 이름으로 가른다
         vision.py             캡처 → 텍스트
         geo.py                지오코딩·장소 검색 (MCP 클라이언트 경유)
         routes.py             경로·소요시간 (MCP 클라이언트 경유), 캐시
@@ -514,10 +514,20 @@ Langfuse Prompt 이름과 역할. 코드에 문자열로 두지 않는다.
 
 | 이름 | 모델 | 역할 |
 |---|---|---|
-| converge/slot-extract | 소형 (GGUF) 또는 대형 폴백 | 텍스트 → Slots JSON. GBNF 문법 강제. 출입 절차·집결지·픽업·참석자 역할 추출. 범위 밖이면 out_of_scope true 에 preset null |
+| converge/slot-extract | 소형 (MODEL_SMALL) 또는 대형 폴백 | 텍스트 → Slots JSON. GBNF 문법 강제. 출입 절차·집결지·픽업·참석자 역할 추출. 범위 밖이면 out_of_scope true 에 preset null |
 | converge/vision-transcribe | Gemini Flash | 캡처 → 대화 텍스트 (이름·시각·말풍선 유지) |
 | converge/judge | Sonnet 5 | 후보 표 + 규칙 문서 → rankings JSON (rank·reason·switched_from) |
 | converge/eval-judge | GPT-5.6 Luna | reason이 규칙과 계산값에 부합하는지 0~2점 |
+
+### 슬롯 추출 모델 (2026-09-21 결정)
+
+`google-ai/gemini-3.5-flash-lite` 를 쓴다. 회귀셋 10건에서 슬롯 정확도 0.778, 지연 p50 3.1초였고
+구글 무료 할당 안에서 돈다 (docs/measurements.md).
+
+파인튜닝한 Kanana 2.1B GGUF 도 돌아간다. 검증 62건 exact match 85.5% 까지 갔지만 CPU 서빙이
+요청당 16~20초라 쓰지 못한다. GPU 서버를 띄우면 되는데 사이드 프로젝트에 그 고정비를 들이지 않기로 했다.
+코드(`services/slot_model.py`)와 학습 파이프라인(`finetune/`)은 후보로 남긴다.
+`MODEL_SMALL` 을 주석 처리하면 그쪽으로 돌아간다.
 
 ---
 
@@ -540,7 +550,10 @@ LANGFUSE_HOST=           # https://cloud.langfuse.com
 MCP_TOKEN=               # /mcp Bearer 토큰
 INTERNAL_TOKEN=          # /internal/cleanup
 MODEL_SMALL_PATH=backend/app/models/kanana_2.1b-Q4_K_M.gguf   # HF kimseunguk/converge-slot-extractor (공개). 빌드 시 받는다
-MODEL_SMALL=            # 비우면 처음부터 대형으로 추출한다. 로컬 GGUF 서빙이 붙기 전 임시로 OpenRouter 소형 모델을 넣어 볼 때 쓴다
+MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 슬롯 추출 소형 모델. 이 값이 로컬 GGUF 보다 우선한다
+                        # google-ai/ 로 시작하면 구글 AI Studio 직접 호출(무료 할당), 아니면 OpenRouter
+                        # 비우고 주석 처리하면 로컬 GGUF, 그것도 없으면 처음부터 대형
+GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다
 MODEL_LARGE=anthropic/claude-sonnet-5
 MODEL_VISION=google/gemini-3.8-flash
 MODEL_EVAL_JUDGE=openai/gpt-5.6-luna

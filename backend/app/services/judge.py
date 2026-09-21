@@ -14,7 +14,7 @@ from typing import Any
 from backend.app.domain import rules as domain_rules
 from backend.app.observability import langfuse
 from backend.app.schemas.slots import Slots
-from backend.app.services.llm import _client, _parse_json_block, model_large
+from backend.app.services.llm import _api_model, _client, _parse_json_block, model_large
 
 # 프리셋이 둘로 갈려 프롬프트도 둘이었는데, 범용으로 바꾸면서 하나로 합쳤다 (2026-09-21).
 JUDGE_PROMPT = "converge/judge"
@@ -88,8 +88,8 @@ async def rank(
         .replace("{{participants}}", _participants_text(participant_rows))
     )
 
-    client = _client()
     model = model_large()
+    client = _client(model)
     last_error: Exception | None = None
 
     for attempt in (1, 2):
@@ -102,7 +102,7 @@ async def rank(
                 }
             )
         res = await client.chat.completions.create(
-            model=model,
+            model=_api_model(model),
             messages=messages,
             temperature=0,
             response_format={"type": "json_object"},

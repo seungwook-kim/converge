@@ -120,7 +120,7 @@ AgentResponse (need_confirm | need_info | done | out_of_scope | failed)
 ├── frontend/             Next.js. 지도·채팅, 공유 링크
 ├── skills/converge/      규칙 문서 (rules/)
 ├── evals/                평가셋과 실행 스크립트
-├── finetune/             슬롯 추출용 소형 모델 학습 (배포 이미지에 없음)
+├── finetune/             소형 모델 학습 파이프라인. 지금은 쓰지 않고 후보로 남겨 둔다
 ├── scripts/              타입 생성 등 수동 실행 스크립트
 └── docs/                 SDD, 테이블정의서, 측정 기록
 ```
@@ -158,25 +158,39 @@ pytest backend/tests     # API 키 없이 실행
 |---|---|
 | Backend | FastAPI, Docker |
 | Frontend | Next.js, Kakao Map SDK |
-| LLM | OpenRouter (대형), 파인튜닝 소형 모델 (GGUF, llama.cpp) |
+| LLM | 구글 AI Studio (소형), OpenRouter (대형). 로컬 GGUF 서빙 경로도 남아 있다 |
 | 도구 | FastMCP, Kakao Local/Mobility, TMAP, 서울·부산 지하철 공공데이터 |
 | 데이터 | PostgreSQL (Supabase), Supabase Auth |
 | 관측 | Langfuse (트레이스, Prompt) |
 
 ---
 
-## 4. 소형 모델
+## 4. 슬롯 추출 모델
 
-슬롯 추출은 파인튜닝한 소형 모델이 먼저 맡고, 실패하거나 결과가 미심쩍으면 대형 모델로 넘긴다.
-측정 기록은 [docs/compare.md](./docs/compare.md) 에 있다.
+문장에서 슬롯을 뽑는 일은 소형 모델이 먼저 맡고, 형식을 어기거나 결과가 미심쩍으면 대형 모델로 넘긴다.
+소형 모델은 `.env` 의 `MODEL_SMALL` 한 줄로 갈아끼운다.
 
-| 항목 | 값 |
-|---|---|
-| 모델 | Kanana-1.5-2.1B-Instruct + QLoRA, Q4_K_M GGUF |
-| 학습 데이터 | 911건 |
-| 검증 정확도 | exact match 85.5% (62건, fp16 기준) |
-| 대형 모델 승격률 | 4건 중 1건 |
-| 요청당 비용 | 대형 단독 대비 80% 절감 |
+```
+MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 구글 AI Studio 직접 호출 (무료 할당)
+MODEL_SMALL=google/gemini-3.1-flash-lite      # OpenRouter 경유 (유료)
+# MODEL_SMALL=                                # 주석 처리하면 로컬 GGUF
+```
+
+지금은 제미나이를 쓴다. 회귀셋 10건으로 잰 값은 이렇다 ([docs/measurements.md](./docs/measurements.md)).
+
+| 모델 | 슬롯 정확도 | 지연 p50 | 비용 | 준비물 |
+|---|---|---|---|---|
+| gemini-3.5-flash-lite | 0.778 | 3.1초 | $0 (무료 할당) | 키 한 줄 |
+| 로컬 GGUF (파인튜닝) | 0.556 | 18.2초 | $0 (CPU) | GPU 학습, 1.3GiB |
+
+### 파인튜닝은 해봤고, 후보로 남겨 뒀다
+
+Kanana-1.5-2.1B 에 QLoRA 를 붙여 학습했고 검증 62건에서 exact match 85.5% 까지 갔다
+([docs/compare.md](./docs/compare.md)). 그런데 CPU 서빙은 요청당 16~20초라 쓸 수 없고,
+제대로 쓰려면 GPU 서버를 띄워야 한다. 사이드 프로젝트에 그 고정비를 들일 이유가 없어 보류했다.
+
+코드와 학습 파이프라인은 그대로 둔다. 호출량이 무료 할당을 넘거나 외부 API 없이 돌려야 할 일이
+생기면 `MODEL_SMALL` 을 주석 처리하는 것으로 돌아간다.
 
 ---
 

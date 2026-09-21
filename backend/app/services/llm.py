@@ -44,13 +44,46 @@ class LlmUnavailable(RuntimeError):
     """키가 없어 LLM 을 부를 수 없다. 파이프라인이 failed 로 답하게 한다."""
 
 
-def _client() -> Any:
+GOOGLE_PREFIX = "google-ai/"
+GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+def _client(model: str = "") -> Any:
+    """모델 이름을 보고 어디로 부를지 정한다.
+
+    기본은 OpenRouter 다. 모델 이름이 "google-ai/" 로 시작하면 구글 AI Studio 로 직접 부른다.
+    둘 다 OpenAI 호환 엔드포인트라 클라이언트는 주소와 키만 바꾸면 된다.
+
+    구글로 직접 부르는 길을 둔 이유: 무료 할당이 있어서 사이드 프로젝트에서 크레딧 없이 돌릴 수 있다.
+    """
+    from openai import AsyncOpenAI  # 지연 import: 키 없는 테스트가 이 파일을 건드리지 않게
+
+    if model.startswith(GOOGLE_PREFIX):
+        key = os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise LlmUnavailable("GEMINI_API_KEY 가 없습니다 (aistudio.google.com 에서 발급)")
+        return AsyncOpenAI(api_key=key, base_url=GOOGLE_BASE_URL)
+
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise LlmUnavailable("OPENROUTER_API_KEY 가 없습니다")
-    from openai import AsyncOpenAI  # 지연 import: 키 없는 테스트가 이 파일을 건드리지 않게
-
     return AsyncOpenAI(api_key=key, base_url=OPENROUTER_BASE_URL)
+
+
+def _extra_body(model: str) -> dict[str, Any]:
+    """공급자마다 받는 옵션이 다르다.
+
+    OpenRouter 는 usage.include 를 주면 응답에 실제 과금액을 실어 준다. 구글 엔드포인트는
+    그 이름을 모르고 400 으로 거절한다 (09-21 실측). 그래서 OpenRouter 일 때만 붙인다.
+    """
+    if model.startswith(GOOGLE_PREFIX):
+        return {}
+    return {"extra_body": {"usage": {"include": True}}}
+
+
+def _api_model(model: str) -> str:
+    """API 에 보낼 이름. 우리 쪽 접두어는 떼고 보낸다."""
+    return model[len(GOOGLE_PREFIX):] if model.startswith(GOOGLE_PREFIX) else model
 
 
 def model_large() -> str:
@@ -58,16 +91,20 @@ def model_large() -> str:
 
 
 def model_small() -> str | None:
-    """소형 모델 이름. 없으면 None.
+    """소형 모델 이름. 없으면 None (그때는 대형이 처음부터 맡는다).
 
-    1순위는 로컬 GGUF (SDD 8절). backend/app/models/ 에 모델·프롬프트 설정·문법이 다 있으면 그것을 쓴다.
-    2순위는 MODEL_SMALL 환경변수. GGUF 가 없는 환경에서 OpenRouter 소형 모델로 대신 돌려 볼 때 쓴다.
+    1순위는 MODEL_SMALL 환경변수다. 값을 적어 둔 사람이 그걸 쓰겠다고 정한 것이므로,
+    로컬에 모델 파일이 있어도 그쪽을 따른다 (2026-09-21 변경).
+    2순위는 로컬 GGUF. backend/app/models/ 에 모델·프롬프트 설정·문법이 다 있으면 쓴다 (SDD 8절).
     """
     from backend.app.services import slot_model
 
+    configured = os.environ.get("MODEL_SMALL")
+    if configured:
+        return configured
     if slot_model.available():
         return slot_model.model_name()
-    return os.environ.get("MODEL_SMALL") or None
+    return None
 
 
 def attempt_models() -> list[str]:
@@ -177,7 +214,6 @@ async def extract_slots(
     재시도 때는 무엇이 틀렸는지 모델에 붙여 준다. 그래도 어기면 예외를 올리고, 파이프라인이 failed 로 답한다.
     """
     prompt, version = langfuse.get_prompt(SLOT_PROMPT)
-    client = _client()
     filled = _fill(prompt, text, previous, preset)
     models = attempt_models()
 
@@ -205,12 +241,13 @@ async def extract_slots(
                     "content": f"방금 출력이 형식을 어겼습니다: {last_error}. 형식을 지켜 JSON 만 다시 출력하세요.",
                 }
             )
-        res = await client.chat.completions.create(
-            model=model,
+        # 클라이언트는 모델마다 고른다. 소형은 구글, 대형은 OpenRouter 처럼 섞일 수 있다
+        res = await _client(model).chat.completions.create(
+            model=_api_model(model),
             messages=messages,
             temperature=0,
             response_format={"type": "json_object"},
-            extra_body={"usage": {"include": True}},
+            **_extra_body(model),
         )
         raw = res.choices[0].message.content or ""
         usage = getattr(res, "usage", None)
