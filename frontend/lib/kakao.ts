@@ -1,5 +1,7 @@
 // 카카오 지도 JS SDK 로더. autoload=false 로 스크립트를 한 번만 넣고 kakao.maps.load 로 초기화한다.
 // 키는 NEXT_PUBLIC_KAKAO_JS_KEY 하나만 쓴다. 카카오 콘솔에 도메인(localhost:3000, Vercel)이 등록돼 있어야 지도가 뜬다.
+// libraries=services 는 장소 검색(Places)에 필요하다. 이 라이브러리는 SDK URL 에 적어야만 들어오고
+// 나중에 따로 불러올 수 없어서, 검색을 안 쓰는 화면에서도 항상 같이 싣는다.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -36,7 +38,7 @@ export function loadKakao(): Promise<Kakao> {
       script = document.createElement("script");
       script.id = SDK_ID;
       script.async = true;
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false&libraries=services`;
       document.head.appendChild(script);
     }
     script.addEventListener("load", ready);
@@ -46,6 +48,43 @@ export function loadKakao(): Promise<Kakao> {
     });
   });
   return loading;
+}
+
+// 장소 검색. services 라이브러리의 Places 를 콜백에서 Promise 로 바꿔 화면 코드가 await 만 하게 한다.
+
+export interface PlaceHit {
+  id: string;
+  name: string;
+  address: string;
+  lng: number;
+  lat: number;
+}
+
+export const PLACE_HIT_LIMIT = 5; // 결과가 많아도 5개까지만. 지도 위 패널이라 목록이 길면 지도를 덮는다
+
+export function searchPlaces(kakao: Kakao, query: string): Promise<PlaceHit[]> {
+  const places = kakao.maps.services?.Places;
+  if (!places) {
+    return Promise.reject(new Error("장소 검색을 쓸 수 없습니다 (SDK services 라이브러리 없음)"));
+  }
+  return new Promise<PlaceHit[]>((resolve, reject) => {
+    new places().keywordSearch(query, (data: any[], status: string) => {
+      const S = kakao.maps.services.Status;
+      // 결과 없음은 실패가 아니다. 빈 배열로 돌려주고 화면이 "찾지 못했습니다"를 띄운다
+      if (status === S.ZERO_RESULT) return resolve([]);
+      if (status !== S.OK) return reject(new Error("장소를 검색하지 못했습니다. 잠시 후 다시 시도하세요"));
+      resolve(
+        data.slice(0, PLACE_HIT_LIMIT).map((p, i) => ({
+          id: String(p.id ?? `${p.place_name}:${i}`),
+          name: String(p.place_name ?? ""),
+          // 도로명이 있으면 그쪽이 사람에게 익숙하다. 없는 장소도 있어서 지번 주소로 떨어뜨린다
+          address: String(p.road_address_name || p.address_name || ""),
+          lng: Number(p.x),
+          lat: Number(p.y),
+        })),
+      );
+    });
+  });
 }
 
 // 핀 모양. SVG 를 data URL 로 만들어 MarkerImage 에 넣는다.

@@ -17,13 +17,14 @@ Next.js. Vercel에 배포. Root Directory = `frontend`.
 | `app/api/session/[id]/route.ts` | `GET /api/session/{id}` 와 `DELETE` 프록시 |
 | `app/api/session/[id]/participants/route.ts` | `PATCH /api/session/{id}/participants` 프록시 |
 | `components/MapView.tsx` | 지도 한 장. stage별 핀 구성, 후보·픽업·목적지 핀, 경로선 토글과 범례, bounds 맞춤 |
-| `components/ParticipantPins.tsx` | 참석자 출발지 핀. 핀 소유권에 따른 드래그 허용(`canEdit`) |
+| `components/ParticipantPins.tsx` | 참석자 출발지 핀. 누구 핀이든 드래그로 옮긴다 |
+| `components/PinPicker.tsx` | 출발지 지정 패널(지도 왼쪽 위). 사람을 고른 뒤 지도 클릭 또는 장소 검색으로 좌표를 찍는다. 저장은 드래그와 같은 `onMove` 경로 |
 | `components/RouteLines.tsx` | `per_participant[].polyline`. 이동수단별 색 3가지 |
 | `components/ChatPanel.tsx` | 문장 입력, 캡처 업로드, 되묻기 표시, 입력 가이드 |
 | `components/ResultTable.tsx` | 집결 후보(순위·근거), 참석자별 출발 시각·소요·여유·첫차, 선택되지 않은 후보와 이유,
   준비물(사전 신청·당일 지참), 집결 계획서와 복사 버튼. 아래 세 칸은 서버가 보낸 값을 꺼내 놓기만 한다 |
 | `components/AuthGate.tsx` | 로그인 전에는 로그인 버튼만 보여준다 |
-| `lib/kakao.ts` | 지도 SDK 로더(autoload=false, 한 번만), 핀 이미지 |
+| `lib/kakao.ts` | 지도 SDK 로더(autoload=false, `libraries=services`, 한 번만), 장소 검색 `searchPlaces`, 핀 이미지 |
 | `lib/auth.ts` | 구글 로그인(Supabase Auth), 토큰 헤더 |
 | `lib/proxy.ts` | `app/api/` 라우트 공용. `NEXT_PUBLIC_API_BASE`로 전달, 없으면 mock |
 | `lib/mock.ts` | 백엔드 없이 화면을 확인할 고정 응답. 입력 문장으로 시나리오(`meeting`·`visit`)와 stage를 고른다(파일 상단 주석). 서버에서만 import |
@@ -57,6 +58,8 @@ Next.js. Vercel에 배포. Root Directory = `frontend`.
 - 참석자 4명 이하면 경로선 기본 켬, 5명 이상이면 기본 끔. 꺼져 있을 때 참석자 핀을 누르면 그 사람 것만 보인다
 - `via_pickup`이 true인 참석자는 선을 그리지 않고 픽업 지점에 핀만 찍는다. 좌표는 `geocoded`의 `kind: "pickup"`, 없으면 그 사람 `polyline[0]`(탑승 지점)
 - 핀 구성이 바뀌면(새 응답) bounds를 맞춘다. 드래그로는 다시 맞추지 않는다
+- 출발지를 고치는 길은 셋이고 저장 경로는 하나다(`MapView`의 `onMove` → PATCH). 드래그는 사람을 고르지 않아도 되고, 지도 클릭과 장소 검색은 `PinPicker`에서 사람을 고른 뒤에만 동작한다. 사람을 고르지 않았거나 "지도 클릭으로 지정"을 켜지 않았으면 지도 클릭 리스너를 아예 달지 않는다(실수로 옮기는 것을 막는다)
+- 장소 검색은 카카오 `services.Places().keywordSearch`. 결과는 5개까지, 없으면 "찾지 못했습니다". SDK URL에 `libraries=services`가 빠지면 검색만 죽는다
 - mock 경로는 실제 API에서 받아 둔 값이다. mock에서 핀을 옮기면 그 사람 선은 두 점 직선이 된다(백엔드가 붙으면 다시 계산된다). 시나리오 좌표를 바꾸면 `python scripts/fetch_mock_routes.py --force`
 
 ## 지킬 것

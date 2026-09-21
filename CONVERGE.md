@@ -102,7 +102,7 @@ SDD 1절이 가리키지만 아직 안 만든 파일. 만들면 여기서 지운
 - `backend/app/`: `routers/internal.py`, `services/`의 vision·geo·routes·judge, `domain/rules.py`의 계산식(로드 함수는 있음), `services/pipeline.py`의 3~8단계
 - `mcp_server/tools/`: 도구 6개가 모두 있다.
   `geocode.py` `search_places.py` `route_car.py` `route_transit.py` `first_last_train.py` `departure_calc.py`
-- `frontend/`: `app/about/page.tsx`. `lib/api-types.ts`는 생성물이고 지금은 `types/agent.ts`가 대신함
+- `frontend/`: 없는 것 없음. `lib/api-types.ts`는 생성물이고 화면은 `types/agent.ts`를 쓴다
 - `skills/converge/` 는 다 있다: `SKILL.md`, `failures.md`, `output-contract.md`,
   `rules/` 5개(access·session·transport·checklist·schedule), `presets/` 2개(meeting·visit)
   (있는 것: `rules/access.md` `rules/session.md` `rules/transport.md` `rules/checklist.md`)

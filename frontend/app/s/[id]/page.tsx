@@ -285,7 +285,8 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
           {stage === "need_confirm" && (
             <div className="step">
               <p>
-                <strong>위치가 맞나요?</strong> 주황 핀은 위치가 불확실합니다. 끌어서 고친 뒤 계산하세요.
+                <strong>위치가 맞나요?</strong> 주황 핀은 위치가 불확실합니다. 핀을 끌거나, 지도 왼쪽 위에서 사람을
+                고른 뒤 지도를 클릭하거나 장소를 검색해 고친 다음 계산하세요.
               </p>
               <button type="button" className="primary" disabled={busy} onClick={recompute}>
                 이 위치로 계산

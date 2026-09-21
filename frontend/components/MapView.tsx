@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadKakao, nameLabel, pinImage, type Kakao, type PinStyle } from "@/lib/kakao";
 import type { AgentResponse, CandidateKind, ParticipantResult } from "@/types/agent";
 import ParticipantPins, { PIN_COLORS, type ParticipantPin, type Viewer } from "./ParticipantPins";
+import PinPicker from "./PinPicker";
 import RouteLines, { ROUTE_STYLES } from "./RouteLines";
 
 const DEFAULT_CENTER = { lat: 36.35, lng: 127.8 }; // 국토 중앙쯤. 핀이 생기면 bounds 로 옮긴다
@@ -44,6 +45,8 @@ export default function MapView({ response, participantPins, viewer, selectedRan
   const [map, setMap] = useState<Kakao | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // 지도 클릭으로 위치를 찍는 중인지. 커서를 바꾸려고 여기까지 올린다 (판정은 PinPicker 가 한다)
+  const [picking, setPicking] = useState(false);
 
   // SDK 로드와 지도 생성
   useEffect(() => {
@@ -219,7 +222,7 @@ export default function MapView({ response, participantPins, viewer, selectedRan
 
   return (
     <div className="map-wrap">
-      <div ref={box} className="map-root" />
+      <div ref={box} className={picking ? "map-root map-picking" : "map-root"} />
       {error && <div className="map-error">{error}</div>}
       {!error && !map && <div className="map-loading">지도를 불러오는 중…</div>}
 
@@ -235,6 +238,13 @@ export default function MapView({ response, participantPins, viewer, selectedRan
             onMove={onMove}
           />
           <RouteLines kakao={kakao} map={map} rows={visibleRows} highlighted={selected} />
+          <PinPicker
+            kakao={kakao}
+            map={map}
+            pins={shownParticipants}
+            onMove={onMove}
+            onArmedChange={setPicking}
+          />
         </>
       )}
 

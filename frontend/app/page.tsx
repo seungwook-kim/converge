@@ -131,6 +131,9 @@ function Compose({ auth }: { auth: AuthState }) {
             <strong>참석자들이 모입니다.</strong> 링크에서 각자 출발지를 고치고 결과를 함께 봅니다
           </li>
         </ol>
+        <p className="muted">
+          처음이라면 <Link href="/about">무엇을 해주는 도구인지</Link> 먼저 보세요.
+        </p>
       </section>
 
       <section className="compose">
