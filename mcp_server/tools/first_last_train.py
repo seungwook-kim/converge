@@ -41,7 +41,7 @@ async def first_last_train(
     weekday: Literal["weekday", "sat", "holiday"] = "weekday",
     city: Literal["seoul", "busan"] = "seoul",
 ) -> FirstLastResult:
-    """지하철역의 첫차·막차 시각을 확인할 때 쓴다. 야간 배포·이른 집결에서 대중교통이 되는지 판단하는 재료.
+    """지하철역의 첫차·막차 시각을 확인할 때 쓴다. 늦은 밤·이른 아침 약속에서 대중교통이 되는지 판단하는 재료.
 
     호선을 모르면 부르지 말고 목적지를 되묻는다. 호선은 route_transit 결과의 legs 에서 읽는다.
 

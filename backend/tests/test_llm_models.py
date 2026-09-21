@@ -48,7 +48,7 @@ def test_일인칭_이름을_나_로_맞춘다():
 
     slots = Slots(
         preset="visit",
-        destination="진해 기지",
+        destination="창원 사무소",
         participants=[
             dict(name="저", origin="창원시청", transport="car", role="site"),
             dict(name="최동료", origin="마산역", transport="transit", role="colleague"),
@@ -63,7 +63,7 @@ def test_픽업이_일인칭을_가리키면_같이_바꾼다():
 
     slots = Slots(
         preset="visit",
-        destination="진해 기지",
+        destination="창원 사무소",
         participants=[
             dict(name="제가", origin="창원시청", transport="car", role="site"),
             dict(name="이업체", origin=None, transport="car", role="vendor", pickup="제가", pickup_at="김해시청 앞"),
@@ -79,7 +79,7 @@ def test_보통_이름은_건드리지_않는다():
 
     slots = Slots(
         preset="visit",
-        destination="여의도 고객사",
+        destination="여의도 사무실",
         participants=[dict(name="한동료", origin="강남역", transport="transit", role="colleague")],
     )
     assert llm.normalize_names(slots).participants[0].name == "한동료"

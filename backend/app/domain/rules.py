@@ -61,7 +61,7 @@ def load_rule(name: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # 이 폴더 규칙대로 순수 계산만. 소요시간은 카카오·TMAP이 준 값을 인자로 받고, 여유·절차 소요는
 # skills/converge/rules/ 의 값을 호출 쪽이 읽어 넘긴다. 여기서 규칙 파일을 직접 읽지 않는 이유는
-# 프리셋(함정/SI)마다 다른 값을 고르는 판단이 파이프라인 몫이기 때문이다.
+# 프리셋(meeting/visit)마다 다른 값을 고르는 판단이 파이프라인 몫이기 때문이다.
 
 from datetime import datetime, timedelta
 
@@ -79,7 +79,7 @@ def calc_departure(
       = depart_at          "07:35"
 
     반환: {"depart_at": "07:35", "arrive_by_adjusted": "08:40", "day_offset": 0}
-    day_offset: 출발이 도착 기한의 전날이면 -1 (야간 배포 22:00~06:00 에서 실제로 생긴다).
+    day_offset: 출발이 도착 기한의 전날이면 -1 (늦은 밤 약속에서 실제로 생긴다).
                 "HH:MM" 문자열만 주면 날짜가 사라지므로 따로 준다 (SDD 6절, 09-18 추가).
     """
     if duration_sec < 0 or buffer_min < 0 or access_lead_min < 0:
@@ -220,10 +220,10 @@ def candidate_score(kind: str, access_required: bool) -> int:
 
 
 def switch_outside(constraints: list[str]) -> bool:
-    """도착이 어긋나 출입조치를 포기하고 부두 밖에서 만나야 하는가 (access.md switch_if_delay_min).
+    """도착이 어긋나 절차를 포기하고 밖에서 만나야 하는가 (access.md switch_if_delay_min).
 
-    근거: 인천 레이더 건. 입항이 늦어 도착이 30분 이상 어긋나면 출입조치 시각을 맞출 수 없어
-    부두 밖 랜드마크로 옮겼다.
+    도착이 크게 벌어지면 먼저 온 사람이 절차 앞에서 오래 서 있게 된다. 그럴 때는 절차를 미루고
+    밖 랜드마크에서 만난 뒤 같이 들어가는 편이 낫다.
 
     지금은 슬롯에 "몇 분 어긋났는지"가 없고 `arrival_delayed` 플래그만 있다. 그래서 플래그가 있으면
     기준을 넘었다고 본다. 분 단위가 슬롯에 들어오면 switch_if_delay_min 과 직접 비교로 바꾼다

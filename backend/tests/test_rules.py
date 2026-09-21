@@ -42,7 +42,7 @@ def test_절차가_있으면_절차_시작점이_앞선다():
     assert rules.candidate_score("landmark", False) > rules.candidate_score("gate", False)
 
 
-def test_도착이_어긋나면_부두_밖으로_전환한다():
+def test_도착이_어긋나면_밖으로_전환한다():
     assert rules.switch_outside([]) is False
     assert rules.switch_outside(["port_changed"]) is False
     assert rules.switch_outside(["arrival_delayed"]) is True

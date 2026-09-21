@@ -551,7 +551,7 @@ def _build_result(
 
     judged = {row["candidate_idx"]: row for row in (rankings or [])}
 
-    # 도착이 어긋나면 절차를 포기하고 부두 밖에서 만난다 (access.md switch_if_delay_min)
+    # 도착이 어긋나면 절차를 포기하고 밖에서 만난다 (access.md switch_if_delay_min)
     switched = domain_rules.switch_outside(slots.constraints)
     if switched:
         access_required = False  # 절차 시작점 우선을 끄고 랜드마크를 앞세운다

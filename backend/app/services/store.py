@@ -109,7 +109,7 @@ def _key() -> bytes:
 def encrypt(obj: dict | list) -> bytes:
     """dict/list → 암호문 bytes. DB의 bytea 컬럼에 그대로 넣는다.
 
-    예) encrypt([{"name": "김철수", "origin_text": "진해"}]) -> b'\\x8a\\x3f...'
+    예) encrypt([{"name": "김철수", "origin_text": "창원"}]) -> b'\\x8a\\x3f...'
     """
     plain = json.dumps(obj, ensure_ascii=False).encode("utf-8")  # ensure_ascii=False: 한글을 \\uXXXX로 안 바꿈
     nonce = os.urandom(_NONCE_LEN)                               # 행마다 새 난수

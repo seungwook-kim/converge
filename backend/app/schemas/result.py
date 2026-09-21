@@ -105,7 +105,7 @@ class Result(BaseModel):
     """집결지 판정 + 참석자별 결과. 이 값이 results 표에 암호화돼 저장된다 (테이블정의서 2절)."""
 
     candidates: list[Candidate] = Field(max_length=MAX_CANDIDATES)
-    provisional: bool = Field(description="입항·배포 시각이 미확정이면 True (SDD 7절 schedule.md)")
+    provisional: bool = Field(description="약속 시각이 아직 확정이 아니면 True (SDD 7절 schedule.md)")
     per_participant: list[ParticipantResult] = Field(default_factory=list)
     rendezvous_departure: str | None = Field(default=None, description="집결지에서 출발할 시각")
     confidence: float = Field(ge=0.0, le=1.0)

@@ -88,7 +88,7 @@ class Slots(BaseModel):
     participants: list[Participant] = Field(default_factory=list)
     rendezvous: Rendezvous | None = None
     access: Access | None = None
-    schedule_confirmed: bool | None = Field(default=None, description="입항·배포 시각 확정 여부. 모르면 None")
+    schedule_confirmed: bool | None = Field(default=None, description="약속 시각 확정 여부. 언급이 없으면 None")
     constraints: list[str] = Field(
         default_factory=list,
         description='"arrival_delayed", "mutual_deference", "luggage"',

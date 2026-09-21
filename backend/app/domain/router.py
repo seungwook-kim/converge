@@ -25,7 +25,7 @@ def route(slots: Slots) -> RoutedTo:
     small 조건은 전부 만족해야 한다 (SDD 5절):
       참석자 2명 이하 · 목적지 있음 · 제약 없음 · 집결지 없음 · 출입조치가 없거나 이미 신청됨
 
-    하나라도 어긋나면 large. 제약(도착 지연, 입항지 변경, 업체 순회, 서로 배려)이나 집결지가 끼면
+    하나라도 어긋나면 large. 제약(도착 지연, 장비, 서로 배려)이나 집결지가 끼면
     후보끼리 우열이 규칙 점수만으로 갈리지 않기 때문이다.
     """
     if len(slots.participants) > SMALL_MAX_PARTICIPANTS:

@@ -141,7 +141,7 @@ def test_후보는_세_곳까지다():
 
 
 def test_후보_순위가_겹치면_막는다():
-    two = [candidate(), candidate(name="진해역", kind="landmark")]
+    two = [candidate(), candidate(name="창원중앙역", kind="landmark")]
     with pytest.raises(ValidationError):
         Result(**result(candidates=two))
 
@@ -189,7 +189,7 @@ def test_요청은_문장이나_캡처_중_하나가_필요하다():
     with pytest.raises(ValidationError):
         AgentRequest()
 
-    assert AgentRequest(text="목요일 08:00 진해 기지 점검").text is not None
+    assert AgentRequest(text="목요일 08:00 창원 사무소 점검").text is not None
     assert AgentRequest(image_base64="abc").image_base64 == "abc"
 
 

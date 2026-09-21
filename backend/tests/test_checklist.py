@@ -109,7 +109,7 @@ def _slots() -> Slots:
         preset="visit",
         datetime="목요일 14:00",
         purpose="미팅",
-        destination="마곡 고객사",
+        destination="마곡 사무실",
         participants=[dict(name="나", origin="송파구", transport="transit", role="site")],
         access=dict(required=True, applied=False),
     )
@@ -117,7 +117,7 @@ def _slots() -> Slots:
 
 def test_계획서는_머리줄과_집결과_출발_시각을_담는다():
     text = build_summary(_slots(), _result())
-    assert text.splitlines()[0] == "목요일 14:00 마곡 고객사 미팅"
+    assert text.splitlines()[0] == "목요일 14:00 마곡 사무실 미팅"
     assert "집결: 문정동 본사 06:30" in text
     assert "나 (송파구, 대중교통) 05:50" in text
 

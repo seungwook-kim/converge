@@ -18,7 +18,7 @@ from backend.app.services import pipeline
 def slots(**over) -> Slots:
     base = dict(
         preset="visit",
-        destination="진해 기지",
+        destination="창원 사무소",
         participants=[dict(name="김현장", origin="창원시청", transport="car", role="site")],
         # access 가 없으면 1-2 단계가 "출입 절차가 있나요"를 되묻는다. 계산까지 가는 시나리오라 채워 둔다
         access=dict(required=True, applied=True),
@@ -30,7 +30,7 @@ def slots(**over) -> Slots:
 def pins(confidence: float = 0.95) -> list[GeocodedPin]:
     return [
         GeocodedPin(name="김현장", lng=128.68, lat=35.22, confidence=confidence, kind="participant"),
-        GeocodedPin(name="진해 기지", lng=128.668, lat=35.143, confidence=0.9, kind="destination"),
+        GeocodedPin(name="창원 사무소", lng=128.668, lat=35.143, confidence=0.9, kind="destination"),
     ]
 
 
@@ -163,7 +163,7 @@ def _done_deps(**over) -> pipeline.Deps:
     async def build_candidates(*_):
         return [
             {"name": "정문", "kind": "gate", "address": "테스트", "lng": 128.67, "lat": 35.14},
-            {"name": "진해역", "kind": "landmark", "address": "테스트", "lng": 128.69, "lat": 35.15},
+            {"name": "창원중앙역", "kind": "landmark", "address": "테스트", "lng": 128.69, "lat": 35.15},
         ]
 
     async def compute_routes(plans):
@@ -231,7 +231,7 @@ def test_재질문이면_이전_슬롯을_추출에_넘긴다():
             "locked": False,
             "preset": "visit",
             "purpose": "레이더 정기점검",
-            "destination_name": "진해 기지",
+            "destination_name": "창원 사무소",
             "participants": [{"name": "김현장", "origin": "창원시청", "transport": "car", "role": "site"}],
             "constraints": [],
         }
@@ -243,7 +243,7 @@ def test_재질문이면_이전_슬롯을_추출에_넘긴다():
     d = _done_deps(load_session=load_session, extract_slots=extract_slots)
     run(AgentRequest(session_id="s1", text="출입조치 했어요"), d, user_id="u1")
     assert seen["previous"] is not None
-    assert seen["previous"].destination == "진해 기지"
+    assert seen["previous"].destination == "창원 사무소"
 
 
 def test_되묻기_단계에서도_세션을_만든다():

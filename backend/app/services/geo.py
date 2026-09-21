@@ -21,7 +21,7 @@ KAKAO_KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
 TIMEOUT_SEC = 8.0
 
 # 같은 이름이 여러 곳에 있을 때 목적지에 가까운 쪽을 고른다 (SDD 6절 geocode 의 bias_lng·bias_lat).
-# "마산역"은 창원에도 고양에도 있다. 목적지가 진해면 창원 쪽이 맞다.
+# "마산역"은 창원에도 고양에도 있다. 목적지가 창원면 창원 쪽이 맞다.
 # 카카오의 radius 로 범위를 좁히면 이름이 안 맞는 근처 가게가 잡히므로, 검색은 전국으로 하고
 # 이름 점수가 가장 높은 것들 안에서만 거리로 고른다.
 SEARCH_SIZE = 10
@@ -30,7 +30,7 @@ SEARCH_SIZE = 10
 # 같은 이름이 여러 지역에 있을 때 지역만 거르는 용도다. 거른 뒤 순서는 검색 순위를 따른다.
 SAME_REGION_DEG = 0.6
 
-# 검색이 비면 검색어를 줄여 다시 본다. 사람은 "김해시청 앞", "여의도 고객사"처럼 쓰는데
+# 검색이 비면 검색어를 줄여 다시 본다. 사람은 "김해시청 앞", "여의도 사무실"처럼 쓰는데
 # 지도에 그런 이름의 장소는 없다. 꼬리말을 떼고 다시 찾는다.
 TAIL_WORDS = ("앞", "근처", "쪽", "일대", "부근", "인근")
 
@@ -70,7 +70,7 @@ def _variants(query: str) -> list[str]:
     words = query.split()
     if words and words[-1] in TAIL_WORDS:  # "김해시청 앞" → "김해시청"
         out.append(" ".join(words[:-1]))
-    if len(words) > 1:  # "여의도 고객사" → "여의도"
+    if len(words) > 1:  # "여의도 사무실" → "여의도"
         out.append(" ".join(words[:-1]))
         out.append(words[0])
     return list(dict.fromkeys(w for w in out if w))
@@ -116,7 +116,7 @@ def _pick(
 ) -> tuple[dict[str, Any], float]:
     """이름 점수가 가장 높은 것들 중에서 고른다 (SDD 6절).
 
-    목적지를 알면 거리부터 본다. "마산역"은 창원에도 김포에도 있는데, 목적지가 진해면 창원 쪽이다.
+    목적지를 알면 거리부터 본다. "마산역"은 창원에도 김포에도 있는데, 목적지가 창원면 창원 쪽이다.
     목적지를 모르면 지하철역을 먼저 본다. 사람이 "OO역에서 보자"고 하면 대개 역이지 그 앞 가게가 아니다.
     그것도 아니면 카카오가 준 순서를 그대로 믿는다.
     """
@@ -312,7 +312,7 @@ async def build_candidates(slots: Slots, pins: list[GeocodedPin]) -> list[dict[s
 
     절차가 시작되는 자리를 먼저 둔다 (access.md rendezvous_is_procedure_start).
       절차 있음: 목적지 건물 1층, 그리고 둘레의 정문·출입구. 이름에 그 말이 들어간 결과만 쓴다
-      SI: 목적지 건물 1층. 고객사 로비는 목적지 그 자체라 따로 찾지 않는다
+      SI: 목적지 건물 1층. 건물 로비는 목적지 그 자체라 따로 찾지 않는다
     그 밖에서 만날 때를 위해 가까운 역을 하나 더 둔다 (outside_landmark_kinds).
     한 곳도 못 찾으면 목적지 좌표 자체를 후보로 쓴다 (SDD 5절 3단계 "후보 0곳이면").
     """
@@ -350,7 +350,7 @@ async def build_candidates(slots: Slots, pins: list[GeocodedPin]) -> list[dict[s
             docs = await _nearby(client, STATION_SUFFIX, center)
         except httpx.HTTPError:
             docs = []
-        # 지하철역 분류를 먼저 본다. 없으면 "진해역"처럼 한 낱말로 끝나는 이름만 쓴다.
+        # 지하철역 분류를 먼저 본다. 없으면 "창원중앙역"처럼 한 낱말로 끝나는 이름만 쓴다.
         # "르컬렉티브 부산역"처럼 역 이름을 가게 이름에 붙인 곳을 거르기 위해서다.
         station = next((d for d in docs if d.get("category_group_code") == SUBWAY_CATEGORY), None)
         if station is None:

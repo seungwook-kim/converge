@@ -19,7 +19,7 @@ class DepartureResult(BaseModel):
     dict로만 두면 텍스트로만 온다 (09-18 실측)."""
 
     depart_at: str = Field(description='출발 시각 "HH:MM"')
-    arrive_by_adjusted: str = Field(description='절차 시작점(위병소·로비)에 도착해야 하는 시각 "HH:MM"')
+    arrive_by_adjusted: str = Field(description='절차 시작점(정문·로비)에 도착해야 하는 시각 "HH:MM"')
     day_offset: int = Field(description="출발이 도착 기한의 전날이면 -1, 같은 날이면 0")
 
 

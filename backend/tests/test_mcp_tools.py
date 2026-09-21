@@ -88,7 +88,7 @@ def test_search_places_는_kind_를_검색어로_바꾼다(monkeypatch):
     monkeypatch.setattr(search_places_tool, "_nearby", fake)
     out = asyncio.run(search_places_tool.search_places(128.6, 35.1, "gate"))
     assert seen["center"] == (128.6, 35.1)
-    assert all("진해" not in q for q in seen["queries"])
+    assert all("창원" not in q for q in seen["queries"])
     assert out.places[0].kind == "gate"
 
 

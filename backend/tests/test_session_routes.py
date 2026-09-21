@@ -19,7 +19,7 @@ def make_session(owner: str | None = None) -> dict:
     return {
         "preset": "visit",
         "purpose": "레이더 정기점검",
-        "destination_name": "진해 기지",
+        "destination_name": "창원 사무소",
         "destination_lng": 128.652,
         "destination_lat": 35.149,
         "meet_at": None,
@@ -38,7 +38,7 @@ def make_session(owner: str | None = None) -> dict:
 
 RESULT_ROW = {
     "candidates": [{
-        "name": "진해 기지 위병소", "kind": "gate", "address": "테스트", "lng": 128.67, "lat": 35.144,
+        "name": "창원 사무소 정문", "kind": "gate", "address": "테스트", "lng": 128.67, "lat": 35.144,
         "rank": 1, "access_ok": True, "switched_from": None, "reason": "access.md", "rejected_reason": None,
     }],
     "per_participant": [{
@@ -82,7 +82,7 @@ def test_공유_링크는_에이전트_응답과_같은_모양이다(client):
     body = api.get("/api/session/s1").json()
     assert body["stage"] == "done"
     assert body["slots"]["participants"][0]["name"] == "김현장"
-    assert body["result"]["candidates"][0]["name"] == "진해 기지 위병소"
+    assert body["result"]["candidates"][0]["name"] == "창원 사무소 정문"
     kinds = {p["kind"] for p in body["geocoded"]}
     assert kinds == {"participant", "destination"}
 
@@ -168,7 +168,7 @@ def list_client(monkeypatch):
                 "preset": "visit",
                 "status": "computed",
                 "purpose": "레이더 정기점검",
-                "destination_name": "진해 기지",
+                "destination_name": "창원 사무소",
                 "meet_at": None,
                 "participant_count": 3,
                 "created_at": now,
@@ -190,7 +190,7 @@ def test_내_계획만_최근_순으로_준다(list_client):
     rows = api.get("/api/sessions").json()
     assert captured["user_id"] == ME  # 토큰의 사용자로만 조회한다
     assert len(rows) == 1
-    assert rows[0]["destination"] == "진해 기지"
+    assert rows[0]["destination"] == "창원 사무소"
     assert rows[0]["participant_count"] == 3
     assert rows[0]["locked"] is False
 

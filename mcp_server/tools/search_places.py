@@ -1,4 +1,4 @@
-"""MCP 도구: search_places — 좌표 둘레에서 집결 후보(위병소·정문·역)를 찾는다. (SDD 6절, MCP_GUIDE)
+"""MCP 도구: search_places — 좌표 둘레에서 집결 후보(정문·출입구·역)를 찾는다. (SDD 6절, MCP_GUIDE)
 
 실제 카카오 로컬 호출은 backend/app/services/geo.py 의 _nearby 가 하고, 결과 정리는 _as_candidate 가 한다.
 이 파일은 kind 를 검색어로 바꿔 그 둘을 부르기만 한다. 대응은 geo.build_candidates 와 같다
@@ -20,7 +20,7 @@ from mcp_server.server import mcp
 
 # kind → 카카오에 넣을 검색어. 형이 build_candidates 에서 쓰는 값 그대로다.
 KIND_QUERIES: dict[str, list[str]] = {
-    "gate": [q for q, _ in GATE_QUERIES],  # ["위병소", "정문"]
+    "gate": [q for q, _ in GATE_QUERIES],  # ["정문", "출입구"]
     "landmark": [STATION_SUFFIX],  # ["역"]
 }
 
@@ -29,7 +29,7 @@ class Place(BaseModel):
     """후보 한 곳. geo._as_candidate 가 만드는 dict 와 같은 모양 (SDD 4절 Candidate 의 부분집합)."""
 
     name: str = Field(description="장소 이름")
-    kind: str = Field(description="gate(위병소·정문) 또는 landmark(역)")
+    kind: str = Field(description="gate(정문·출입구) 또는 landmark(역)")
     address: str = Field(description="도로명 주소. 없으면 지번 주소")
     lng: float = Field(description="경도")
     lat: float = Field(description="위도")
@@ -48,7 +48,7 @@ async def search_places(
 ) -> SearchPlacesResult:
     """목적지 좌표 둘레에서 집결 후보를 찾을 때 쓴다. geocode 로 목적지 좌표를 구한 뒤 부른다.
 
-    gate 는 절차 시작점(위병소·정문), landmark 는 절차 밖에서 만날 역이다. 3km 안에서 찾고 없으면 8km 로 넓힌다.
+    gate 는 절차 시작점(정문·출입구), landmark 는 절차 밖에서 만날 역이다. 3km 안에서 찾고 없으면 8km 로 넓힌다.
 
     Args:
         lng: 목적지 경도
@@ -61,7 +61,7 @@ async def search_places(
     """
     center = (lng, lat)  # 형 함수는 좌표를 (lng, lat) 한 묶음으로 받는다
     found: list[Place] = []
-    seen: set[str] = set()  # 같은 곳이 두 검색어("위병소"·"정문")에 다 걸리면 한 번만
+    seen: set[str] = set()  # 같은 곳이 두 검색어("정문"·"출입구")에 다 걸리면 한 번만
 
     async with httpx.AsyncClient(timeout=TIMEOUT_SEC) as client:
         for query in KIND_QUERIES[kind]:

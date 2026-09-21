@@ -8,7 +8,7 @@ from backend.app.schemas.slots import Access, Rendezvous, Slots
 def slots(**over) -> Slots:
     base = dict(
         preset="visit",
-        destination="여의도 고객사",
+        destination="여의도 사무실",
         participants=[
             dict(name="한동료", origin="강남역", transport="transit", role="colleague"),
             dict(name="서현장", origin="수원시청", transport="car", role="site"),
