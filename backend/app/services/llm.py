@@ -147,6 +147,18 @@ def _parse(raw: str) -> Slots:
     이름 때문에 실패로 처리되지 않는다.
     """
     data = _parse_json_block(raw)
+
+    # 범위 밖이라면서 참석자를 뽑아 놓는 경우가 있다 (09-21 실측). 스키마는 그 모순을 막고,
+    # 막히면 멀쩡한 문장까지 failed 로 끝난다. 그래서 둘 중 하나로 정리한 뒤 검증에 넘긴다.
+    #   참석자가 있으면  문장에 조율할 내용이 있다는 뜻이다. 범위 밖 표시를 내린다
+    #   참석자가 없으면  범위 밖이 맞다고 보고 preset 을 비운다
+    if data.get("out_of_scope"):
+        if data.get("participants"):
+            data["out_of_scope"] = False
+        else:
+            data["preset"] = None
+            data["participants"] = []
+
     if data.get("preset") in LEGACY_PRESETS:
         # 옛 값에는 일반 약속에 해당하는 것이 없었다. 절차가 있다고 본 경우만 visit 으로 옮기고,
         # 절차가 없거나 아직 모르면 meeting 으로 둔다. visit 으로 몰면 없는 절차 소요를 빼게 된다

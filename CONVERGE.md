@@ -53,7 +53,7 @@ LLM은 0·1·6단계에만 있다. 나머지는 코드다. 이것이 이 프로�
 | `docs/` | SDD·테이블정의서·측정 기록, 실행 기록(`evidence/`) | `docs/SDD.md` | |
 | `scripts/` | 손으로 돌리는 것. 타입 생성 등 | 파일 상단 주석 | |
 
-루트: `README.md`(소개·실행법) · `CLAUDE.md`(AI 규칙) · `EVAL_REPORT.md`(평가 기록) · `Dockerfile`(빌드 컨텍스트는 루트, skills/·mcp_server/ 포함).
+루트: `README.md`(소개·실행법) · `CLAUDE.md`(AI 규칙) · `Dockerfile`(빌드 컨텍스트는 루트, skills/·mcp_server/ 포함).
 
 ## 3. 경계 세 개
 

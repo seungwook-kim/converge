@@ -8,7 +8,7 @@
 - 형식: instruction / input / output. output은 `backend/app/schemas/slots.py`의 Slots와 완전히 같아야 한다 (docs/SDD.md 3절)
 - 스키마가 바뀌면 이 데이터와 평가셋이 같이 깨진다. 그래서 스키마를 임의로 바꾸지 않는다
 
-## 모델 비교 (EVAL_REPORT.md 2-1절)
+## 모델 비교 (docs/compare.md)
 
 | 자리 | 모델 |
 |---|---|

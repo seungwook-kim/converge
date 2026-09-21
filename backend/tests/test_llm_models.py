@@ -161,3 +161,33 @@ def test_옛_프리셋_값은_절차_유무로_옮긴다():
     assert slots_from("si_deploy", None).preset == "meeting"
     # 새 값은 그대로 지나간다
     assert slots_from("visit", {"required": True, "applied": True, "lead_min": None}).preset == "visit"
+
+
+def test_범위_밖_표시와_내용이_어긋나면_정리한다():
+    """모델이 참석자를 뽑아 놓고 범위 밖이라고 하는 경우가 있다 (09-21 실측).
+
+    스키마가 그 모순을 막기 때문에 그대로 두면 멀쩡한 문장이 failed 로 끝난다.
+    """
+    import json
+
+    from backend.app.services import llm
+
+    def parse(**over):
+        base = {
+            "preset": "si_deploy", "datetime": None, "purpose": None, "destination": None,
+            "participants": [], "rendezvous": None, "access": None,
+            "schedule_confirmed": None, "constraints": [], "missing": [], "out_of_scope": True,
+        }
+        base.update(over)
+        return llm._parse(json.dumps(base, ensure_ascii=False))
+
+    # 참석자가 없으면 범위 밖이 맞다. preset 을 비운다
+    empty = parse()
+    assert empty.out_of_scope is True and empty.preset is None
+
+    # 참석자가 있으면 조율할 내용이 있다는 뜻이다. 범위 밖 표시를 내린다
+    person = {"name": "나", "origin": "수원", "transport": "car", "pickup": None,
+              "pickup_at": None, "unfamiliar": False, "role": "site"}
+    filled = parse(participants=[person], destination="판교역 근처", missing=["datetime"])
+    assert filled.out_of_scope is False
+    assert filled.preset == "meeting" and filled.missing == ["datetime"]

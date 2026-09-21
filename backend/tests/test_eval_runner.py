@@ -166,3 +166,12 @@ def test_요약은_채점한_문항만_센다():
     assert out["슬롯 채점 문항"] == 1 and out["슬롯 정확도"] == 1.0
     assert out["계약 준수율"] == round(2 / 3, 3)
     assert out["비용 합계"] == 0.03
+
+
+def test_슬롯_값은_저장할_수_있는_모양으로_준다():
+    """결과를 파일로 남기므로 Pydantic 객체가 그대로 나오면 저장이 터진다 (09-21 실측)."""
+    import json
+
+    got = slot_value(slots(), "access")
+    assert isinstance(got, dict) and got["required"] is False
+    json.dumps(got)   # 여기서 예외가 나면 안 된다

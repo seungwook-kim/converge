@@ -14,7 +14,6 @@ converge/
   CONVERGE.md                 구조 지도. 폴더별 책임과 SDD 절 안내
   AGENTS.md                   CLAUDE.md를 따른다 (Codex·Cursor용)
   README.md                   소개, 실행법, 배포 URL
-  EVAL_REPORT.md              평가 기록. 개선 전후를 같은 셋으로 비교한 값만 적는다
   Dockerfile                  루트. 빌드 컨텍스트가 skills/, mcp_server/를 포함해야 하므로
                               빌드 시 HF에서 GGUF를 받아 이미지에 넣는다 (git, LFS 미사용).
                               받는 파일: kimseunguk/converge-slot-extractor 의 kanana_2.1b-Q4_K_M.gguf
@@ -24,6 +23,7 @@ converge/
   docs/
     SDD.md  테이블정의서.md
     compare.md              소형 모델 비교 기록 (정확도·지연·비용)
+    measurements.md         회귀셋·라우팅 실행 기록. 돌린 값만 적는다
     evidence/                 실행 기록
       langfuse/               대시보드·트레이스 화면
       mcp/                    연결 화면, tool 목록, 호출 결과

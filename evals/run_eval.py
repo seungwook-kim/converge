@@ -105,13 +105,18 @@ def expected_slots(expected: Any) -> dict[str, Any]:
 
 
 def slot_value(slots: Any, key: str) -> Any:
-    """"access.required" 처럼 점으로 쓴 경로를 따라간다."""
+    """"access.required" 처럼 점으로 쓴 경로를 따라간다.
+
+    끝에서 만나는 값이 Pydantic 모델이면 dict 로 바꿔 돌려준다. 결과를 파일로 남기기 때문에
+    JSON 으로 써지는 값이어야 한다 (09-21: Access 객체가 그대로 나와 저장이 터졌다).
+    """
     current: Any = slots
     for part in key.split("."):
         if current is None:
             return None
         current = getattr(current, part, None) if not isinstance(current, dict) else current.get(part)
-    return current
+    dump = getattr(current, "model_dump", None)
+    return dump() if callable(dump) else current
 
 
 def check_contract(response: Any) -> list[str]:
