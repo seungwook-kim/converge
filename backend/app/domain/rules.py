@@ -141,12 +141,13 @@ def parse_meet_time(text: str | None) -> str | None:
     return f"{hour:02d}:{minute:02d}"
 
 
-def lead_min(preset: str | None) -> int:
+def lead_min(preset: str | None, access_required: bool | None = None) -> int:
     """출입 절차 소요(분). 방문자 확인·출입증 수령에 걸리는 시간 (access.md).
 
-    절차가 없는 약속(meeting)이면 0 이다. 절차가 없는데 시간을 빼 두면 괜히 일찍 나가게 된다.
+    기준은 프리셋이 아니라 절차가 있느냐다. preset 이 visit 이어도 절차가 없다고 확인됐으면 0 이다.
+    없는 절차에 시간을 빼 두면 매번 15분씩 일찍 나가게 된다.
     """
-    if preset == "meeting":
+    if access_required is False or preset == "meeting":
         return 0
     return int(load_rule("access")["entry_lead_min"])
 

@@ -68,3 +68,12 @@ def test_야간은_자정을_넘는_구간이다():
     assert rules.is_night("02:00") is True
     assert rules.is_night("14:00") is False
     assert rules.is_night(None) is False
+
+
+def test_절차가_없으면_프리셋과_무관하게_0분():
+    """preset 이 visit 이어도 절차가 없다고 확인됐으면 뺄 시간이 없다."""
+    entry = rules.load_rule("access")["entry_lead_min"]
+    assert rules.lead_min("visit", True) == entry
+    assert rules.lead_min("visit", False) == 0
+    assert rules.lead_min("visit", None) == entry   # 아직 모르면 있다고 보고 잡아 둔다
+    assert rules.lead_min("meeting", None) == 0

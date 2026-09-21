@@ -137,7 +137,7 @@ def normalize_names(slots: Slots) -> Slots:
 
 
 # 옛 학습 데이터의 프리셋 이름. 모델을 다시 학습하기 전까지 이 값이 나온다 (2026-09-21 범용 전환)
-LEGACY_PRESET = {"ship_maintenance": "visit", "si_deploy": "visit"}
+LEGACY_PRESETS = ("ship_maintenance", "si_deploy")
 
 
 def _parse(raw: str) -> Slots:
@@ -147,9 +147,11 @@ def _parse(raw: str) -> Slots:
     이름 때문에 실패로 처리되지 않는다.
     """
     data = _parse_json_block(raw)
-    preset = data.get("preset")
-    if preset in LEGACY_PRESET:
-        data["preset"] = LEGACY_PRESET[preset]
+    if data.get("preset") in LEGACY_PRESETS:
+        # 옛 값에는 일반 약속에 해당하는 것이 없었다. 절차가 있다고 본 경우만 visit 으로 옮기고,
+        # 절차가 없거나 아직 모르면 meeting 으로 둔다. visit 으로 몰면 없는 절차 소요를 빼게 된다
+        access = data.get("access") or {}
+        data["preset"] = "visit" if access.get("required") is True else "meeting"
     return Slots.model_validate(data)
 
 

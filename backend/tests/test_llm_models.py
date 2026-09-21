@@ -135,3 +135,29 @@ def test_띄어쓰기_차이는_넘어간다():
     from backend.app.services import slot_model
 
     slot_model.check_names("한 동료는 강남역에서 옵니다.", ["한동료"])
+
+
+def test_옛_프리셋_값은_절차_유무로_옮긴다():
+    """재학습 전까지 모델이 ship_maintenance·si_deploy 를 낸다 (2026-09-21 범용 전환).
+
+    절차가 있다고 본 경우만 visit 이다. 전부 visit 으로 몰면 일반 약속에서도 절차 소요를 빼게 된다.
+    """
+    from backend.app.services import llm
+
+    def slots_from(preset, access):
+        import json
+        return llm._parse(json.dumps({
+            "preset": preset, "datetime": "토요일 14:00", "purpose": "모임",
+            "destination": "강남역", "participants": [
+                {"name": "나", "origin": "수원시청", "transport": "car", "pickup": None,
+                 "pickup_at": None, "unfamiliar": False, "role": "site"}],
+            "rendezvous": None, "access": access, "schedule_confirmed": True,
+            "constraints": [], "missing": [] if access is not None else ["access.required"],
+            "out_of_scope": False,
+        }, ensure_ascii=False))
+
+    assert slots_from("si_deploy", {"required": True, "applied": True, "lead_min": None}).preset == "visit"
+    assert slots_from("ship_maintenance", {"required": False, "applied": None, "lead_min": None}).preset == "meeting"
+    assert slots_from("si_deploy", None).preset == "meeting"
+    # 새 값은 그대로 지나간다
+    assert slots_from("visit", {"required": True, "applied": True, "lead_min": None}).preset == "visit"

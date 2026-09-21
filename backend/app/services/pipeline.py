@@ -545,7 +545,7 @@ def _build_result(
     preset = slots.preset
     access_required = bool(slots.access and slots.access.required)
     applied = slots.access.applied if slots.access else None
-    lead = domain_rules.lead_min(preset)
+    lead = domain_rules.lead_min(preset, access_required)
     buffer = domain_rules.buffer_min(preset)
     by_key = {r["key"]: r for r in routes if not r.get("error")}
 
