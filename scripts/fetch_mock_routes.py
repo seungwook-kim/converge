@@ -5,7 +5,7 @@
   대중교통: TMAP 대중교통 (TMAP_APP_KEY)
 키는 루트 .env 에서 읽는다. 이미 받은 경로는 건너뛴다 (--force 로 다시 받기).
 
-    python scripts/fetch_mock_routes.py [--force] [--only ship|si]
+    python scripts/fetch_mock_routes.py [--force] [--only meeting|visit]
 """
 
 from __future__ import annotations
@@ -146,7 +146,7 @@ def save(data: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("--only", choices=["ship", "si"])
+    parser.add_argument("--only", choices=["meeting", "visit"])
     args = parser.parse_args()
 
     env = load_env()

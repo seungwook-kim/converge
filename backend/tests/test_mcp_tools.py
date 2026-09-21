@@ -77,13 +77,13 @@ def test_geocode_는_기준_좌표가_없으면_None_으로_넘긴다(monkeypatc
 
 
 def test_search_places_는_kind_를_검색어로_바꾼다(monkeypatch):
-    """지도에 "진해 기지 위병소" 라는 장소는 없다. 검색어는 짧게, 자리는 좌표로 좁힌다."""
+    """지도에 "OO빌딩 정문" 이라는 장소는 없다. 검색어는 짧게, 자리는 좌표로 좁힌다."""
     seen = {}
 
     async def fake(client, query, center, limit=5):
         seen.setdefault("queries", []).append(query)
         seen["center"] = center
-        return [{"place_name": "위병소", "road_address_name": "경남", "x": "128.6", "y": "35.1"}]
+        return [{"place_name": "정문", "road_address_name": "경남", "x": "128.6", "y": "35.1"}]
 
     monkeypatch.setattr(search_places_tool, "_nearby", fake)
     out = asyncio.run(search_places_tool.search_places(128.6, 35.1, "gate"))

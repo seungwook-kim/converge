@@ -337,7 +337,7 @@ async def save_result(
 ) -> str:
     """결과 한 건 INSERT (SDD 5절 8단계 store.save). 새 result id를 돌려준다.
 
-    candidates: 집결 후보 리스트(평문). 위병소·고객사 로비 좌표가 있어 암호화 (테이블정의서 7절).
+    candidates: 집결 후보 리스트(평문). 정문·로비 좌표가 있어 암호화 (테이블정의서 7절).
     per_participant: 참석자별 경로·출발 시각(평문). 경로선이 곧 위치정보라 암호화.
     routed_to: 'small' / 'large'. 라우팅 전후 비용 집계에 쓴다 (SDD 5절 라우팅).
     """

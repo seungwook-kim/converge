@@ -91,7 +91,7 @@ class Slots(BaseModel):
     schedule_confirmed: bool | None = Field(default=None, description="입항·배포 시각 확정 여부. 모르면 None")
     constraints: list[str] = Field(
         default_factory=list,
-        description='"arrival_delayed", "port_changed", "vendor_route_same_day", "mutual_deference", "luggage"',
+        description='"arrival_delayed", "mutual_deference", "luggage"',
     )
     missing: list[str] = Field(default_factory=list, description='"participants[0].origin" 처럼 경로로 적는다')
     out_of_scope: bool = Field(default=False, description="출발 후 실시간 상황이면 True")

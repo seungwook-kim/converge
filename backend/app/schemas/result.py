@@ -1,7 +1,7 @@
 """결과 스키마. 계산과 판정이 끝난 답. LLM 출력 계약 2이자 API 응답. (SDD 4절, 2절)
 
 대형 모델이 만드는 것은 candidates 의 rank·reason·rejected_reason·switched_from 뿐이다.
-숫자(소요시간·출발 시각·여유)와 access_ok 는 코드가 넣는다 (docs/PRD.md 3절 "가운데는 결정적").
+숫자(소요시간·출발 시각·여유)와 access_ok 는 코드가 넣는다. 가운데 계산은 결정적이어야 한다.
 대형 모델 응답은 {"rankings":[{"candidate_idx":0,"rank":1,"reason":"...","rejected_reason":null}]} 로 받아
 Candidate 에 합친다.
 

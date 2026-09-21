@@ -17,7 +17,7 @@ backend/app/         FastAPI. POST /api/agent
   │    0 vision      캡처 → 텍스트                 [LLM]
   │    1 extract     텍스트 → Slots                [소형 LLM]
   │    2 geocode     지명 → 좌표. 확신 낮으면 사용자 핀 확인
-  │    3 candidates  집결 후보 (위병소·로비·랜드마크)
+  │    3 candidates  집결 후보 (정문·로비·랜드마크)
   │    4 routes      참석자 × 후보 소요시간
   │    5 rules       절차 소요·전환 조건·access_ok  [domain/, 계산]
   │    6 judge       순위·이유                     [대형 LLM, 라우팅 시만]
@@ -34,7 +34,7 @@ AgentResponse (stage: need_confirm | need_info | done | out_of_scope | failed)
 지도에 핀·경로선·표
 ```
 
-LLM은 0·1·6단계에만 있다. 나머지는 코드다. 이것이 이 프로젝트의 핵심 주장이다 (PRD 3절).
+LLM은 0·1·6단계에만 있다. 나머지는 코드다. 이것이 이 프로젝트의 핵심 주장이다.
 
 ## 2. 폴더 → 책임 → 여는 파일
 
@@ -45,15 +45,15 @@ LLM은 0·1·6단계에만 있다. 나머지는 코드다. 이것이 이 프로�
 | `backend/app/services/` | 바깥과 통신하는 것만 | (BACKEND_GUIDE) | 5절 |
 | `backend/app/domain/` | 계산만. 규칙 적용·역산·라우팅 판단 | `backend/app/domain/CLAUDE.md` (자동 로드) | 5·7절 |
 | `backend/tests/` | 키 없이 도는 자동 테스트, fixtures | `backend/tests/TEST_GUIDE.md` | |
-| `mcp_server/` | 지도·경로·시각표 API를 MCP 도구 7개로 | `mcp_server/MCP_GUIDE.md` | 6절 |
+| `mcp_server/` | 지도·경로·시각표 API를 MCP 도구 6개로 | `mcp_server/MCP_GUIDE.md` | 6절 |
 | `frontend/` | 화면, 백엔드 프록시, 소개 페이지, 공유 링크 | `frontend/FRONTEND_GUIDE.md` | 2절 |
-| `skills/converge/` | 현장 규칙과 규칙값의 원본, 프리셋 2개 | `skills/converge/SKILL.md` | 7절 |
-| `evals/` | 평가셋 30건, 실행 | `evals/EVAL_GUIDE.md` | (PRD 7절) |
+| `skills/converge/` | 규칙과 규칙값의 원본, 프리셋 2개(meeting·visit) | `skills/converge/SKILL.md` | 7절 |
+| `evals/` | 평가셋 30건, 실행 | `evals/EVAL_GUIDE.md` | |
 | `finetune/` | 소형 모델 학습. 배포 이미지에 안 들어감 | `finetune/FINETUNE_GUIDE.md` | |
-| `docs/` | PRD·SDD·테이블정의서, 제출 증거물(`evidence/`) | `docs/SDD.md` | |
+| `docs/` | SDD·테이블정의서·측정 기록, 실행 기록(`evidence/`) | `docs/SDD.md` | |
 | `scripts/` | 손으로 돌리는 것. 타입 생성 등 | 파일 상단 주석 | |
 
-루트: `README.md`(채점자) · `CLAUDE.md`(AI 규칙) · `EVAL_REPORT.md`(제출물) · `Dockerfile`(빌드 컨텍스트는 루트, skills/·mcp_server/ 포함).
+루트: `README.md`(소개·실행법) · `CLAUDE.md`(AI 규칙) · `EVAL_REPORT.md`(평가 기록) · `Dockerfile`(빌드 컨텍스트는 루트, skills/·mcp_server/ 포함).
 
 ## 3. 경계 세 개
 
@@ -100,10 +100,10 @@ LLM은 0·1·6단계에만 있다. 나머지는 코드다. 이것이 이 프로�
 SDD 1절이 가리키지만 아직 안 만든 파일. 만들면 여기서 지운다.
 
 - `backend/app/`: `routers/internal.py`, `services/`의 vision·geo·routes·judge, `domain/rules.py`의 계산식(로드 함수는 있음), `services/pipeline.py`의 3~8단계
-- `mcp_server/tools/vessel_schedule.py` 는 보류 결정 (docs/SDD.md 6절). 나머지 6개는 있다:
+- `mcp_server/tools/`: 도구 6개가 모두 있다.
   `geocode.py` `search_places.py` `route_car.py` `route_transit.py` `first_last_train.py` `departure_calc.py`
 - `frontend/`: `app/about/page.tsx`. `lib/api-types.ts`는 생성물이고 지금은 `types/agent.ts`가 대신함
-- `skills/converge/`: `failures.md` `output-contract.md` `rules/` 중 `schedule.md` `convention.md` `vendor.md` `presets/` 2개
+- `skills/converge/`: `failures.md` `output-contract.md` `presets/` 2개(`meeting.md` `visit.md`)
   (있는 것: `rules/access.md` `rules/session.md` `rules/transport.md` `rules/checklist.md`)
 - `evals/run_eval.py`
 - `finetune/`: `gen_dataset.py`, `data/finetune_dataset.jsonl` (Info/에 있음, 아직 안 옮김)

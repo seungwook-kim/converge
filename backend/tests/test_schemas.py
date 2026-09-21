@@ -82,7 +82,7 @@ def test_범위_밖이_아니면_프리셋과_참석자가_있어야_한다():
 
 def candidate(**over) -> dict:
     base = dict(
-        name="진해 기지 위병소",
+        name="창원 사무소 정문",
         kind="gate",
         address="테스트 주소",
         lng=128.67,

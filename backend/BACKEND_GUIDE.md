@@ -10,7 +10,7 @@ FastAPI 서버. Cloud Run 서비스 하나에 API와 MCP(/mcp)가 같이 뜬다.
 | `app/domain/` | 계산만 (규칙 적용, 역산, 라우팅 판단) | 안 씀 | 필요 없음 |
 
 `domain/`에 `httpx`, `openai`가 import되면 잘못된 것이다.
-이 경계가 "LLM은 입구와 출구에만, 가운데는 결정적"을 폴더로 증명한다 (docs/PRD.md 3절).
+이 경계가 "LLM은 입구와 출구에만, 가운데는 결정적"을 폴더로 증명한다.
 
 ## 파이프라인
 

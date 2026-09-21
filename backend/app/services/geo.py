@@ -196,8 +196,8 @@ async def nearby_places(
 ) -> list[dict[str, Any]]:
     """좌표 둘레에서 장소를 찾는다 (SDD 6절 search_places).
 
-    검색어에 목적지 이름을 붙이지 않는다. "진해 기지 위병소"라는 이름의 장소는 지도에 없고
-    있는 것은 그냥 "위병소"다. 자리는 좌표와 radius 로 좁힌다 (_nearby 주석과 같은 이유).
+    검색어에 목적지 이름을 붙이지 않는다. "OO빌딩 정문"이라는 이름의 장소는 지도에 없고
+    있는 것은 그냥 "정문"이다. 자리는 좌표와 radius 로 좁힌다 (_nearby 주석과 같은 이유).
     """
     # 반경을 주면 그 값부터 보고, 비면 한 번 더 넓혀 본다. 주지 않으면 규칙값 두 단계를 그대로 쓴다
     radii = (radius_m, CANDIDATE_RADIUS_WIDE_M) if radius_m else (CANDIDATE_RADIUS_M, CANDIDATE_RADIUS_WIDE_M)
@@ -274,8 +274,8 @@ async def _nearby(
 ) -> list[dict[str, Any]]:
     """목적지 둘레만 본다. 후보는 목적지에서 걸어갈 만한 거리여야 한다.
 
-    검색어에 목적지 이름을 붙이지 않는다. "진해 기지 위병소"라는 이름의 장소는 지도에 없고,
-    있는 것은 그냥 "위병소"다. 자리는 좌표(x, y)와 radius 로 좁힌다.
+    검색어에 목적지 이름을 붙이지 않는다. "OO빌딩 정문"이라는 이름의 장소는 지도에 없고,
+    있는 것은 그냥 "정문"이다. 자리는 좌표(x, y)와 radius 로 좁힌다.
     """
     for radius in radii:
         res = await client.get(
@@ -311,7 +311,7 @@ async def build_candidates(slots: Slots, pins: list[GeocodedPin]) -> list[dict[s
     """집결 후보를 찾는다. 순위·이유는 여기서 매기지 않는다 (5·6단계 몫).
 
     절차가 시작되는 자리를 먼저 둔다 (access.md rendezvous_is_procedure_start).
-      함정: 목적지 둘레의 위병소·정문. 이름에 그 말이 들어간 결과만 쓴다
+      절차 있음: 목적지 건물 1층, 그리고 둘레의 정문·출입구. 이름에 그 말이 들어간 결과만 쓴다
       SI: 목적지 건물 1층. 고객사 로비는 목적지 그 자체라 따로 찾지 않는다
     그 밖에서 만날 때를 위해 가까운 역을 하나 더 둔다 (outside_landmark_kinds).
     한 곳도 못 찾으면 목적지 좌표 자체를 후보로 쓴다 (SDD 5절 3단계 "후보 0곳이면").

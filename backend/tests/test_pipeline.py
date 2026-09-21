@@ -162,7 +162,7 @@ def _done_deps(**over) -> pipeline.Deps:
 
     async def build_candidates(*_):
         return [
-            {"name": "위병소", "kind": "gate", "address": "테스트", "lng": 128.67, "lat": 35.14},
+            {"name": "정문", "kind": "gate", "address": "테스트", "lng": 128.67, "lat": 35.14},
             {"name": "진해역", "kind": "landmark", "address": "테스트", "lng": 128.69, "lat": 35.15},
         ]
 

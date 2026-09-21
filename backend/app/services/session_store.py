@@ -3,7 +3,7 @@
 store.py 는 표 단위 함수(create_session, update_session, save_result)를 준다. 파이프라인은
 "이번 요청을 저장해 줘" 하나만 알면 된다. 그 사이를 이 파일이 맡는다.
 
-store.py 는 하정운 담당이라 고치지 않는다. 여기서 부르기만 한다.
+store.py 는 DB 접근만 한다. 여기서 부르기만 하고 모양 변환은 이 파일이 맡는다.
 """
 from __future__ import annotations
 

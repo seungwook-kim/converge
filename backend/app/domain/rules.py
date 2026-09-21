@@ -72,7 +72,7 @@ def calc_departure(
     """도착 기한에서 거꾸로 빼서 출발 시각을 구한다.
 
       arrive_by            "09:00"  약속 시각 (점검 시작, 배포 시작)
-      − access_lead_min    20       위병소 출입·인솔 절차. 이 시각까지 절차 시작점에 도착해야 함
+      − access_lead_min    15       출입 절차(방문자 확인·출입증 수령). 이 시각까지 절차 시작점에 도착해야 함
       = arrive_by_adjusted "08:40"
       − duration_sec       2700     이동 (45분)
       − buffer_min         20       여유 (정체·환승)

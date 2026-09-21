@@ -1,9 +1,9 @@
 // 생성물이다. 손으로 고치지않는다. 고치려면 backend/app/schemas/ 를 고치고 이 스크립트를 다시 돌린다
 // scripts/gen_types.sh 가 backend/app/schemas/ 의 Pydantic 모델에서 만듦. API 키 없이 돈다.
 
-export type CandidateKind = "gate" | "lobby" | "landmark" | "pier" | "hq";
+export type CandidateKind = "gate" | "lobby" | "landmark" | "hq";
 
-export type Preset = "ship_maintenance" | "si_deploy";
+export type Preset = "meeting" | "visit";
 
 export type Stage = "need_confirm" | "need_info" | "done" | "out_of_scope" | "failed";
 

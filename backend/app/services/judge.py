@@ -1,7 +1,7 @@
 """집결지 판정. 후보 표와 규칙을 대형 모델에 주고 순위를 받는다. (SDD 5절 6단계, 8절)
 
 대형 모델이 만드는 것은 rank·reason·rejected_reason·switched_from 뿐이다. 숫자와 access_ok 는
-코드가 이미 넣었고 여기서는 바꾸지 않는다 (docs/PRD.md 3절).
+코드가 이미 넣었고 여기서는 바꾸지 않는다.
 
 스키마를 어기면 한 번 더 시도하고, 그래도 어기면 예외를 올린다. 부르는 쪽(pipeline)이 규칙 점수 순서로
 대신 채운다 (SDD 5절 6단계 "실패면 rules.apply 순으로 rank, reason 은 규칙 문구 그대로").

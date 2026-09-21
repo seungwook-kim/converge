@@ -124,7 +124,11 @@ function slotsOf(sid: ScenarioId, list: Person[], provisional: boolean): Slots {
     destination: sc.destination.name,
     participants: list.map(participant),
     rendezvous: null,
-    access: { required: true, applied: true, lead_min: sc.lead_min },
+    // 일반 약속은 출입 절차가 없다. 절차가 있는 쪽(visit)만 신청 여부를 담는다
+    access:
+      sid === "visit"
+        ? { required: true, applied: true, lead_min: sc.lead_min }
+        : { required: false, applied: null, lead_min: null },
     schedule_confirmed: !provisional,
     constraints: [],
     missing: [],
