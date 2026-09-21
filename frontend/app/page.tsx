@@ -44,6 +44,7 @@ function Compose({ auth }: { auth: AuthState }) {
   const [preset, setPreset] = useState<Preset | "">("");
   const [image, setImage] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pickImage = (file: File | null) => {
@@ -72,7 +73,11 @@ function Compose({ auth }: { auth: AuthState }) {
     const trimmed = text.trim();
     if (busy || (!trimmed && !image)) return;
     setBusy(true);
+    setSlow(false);
     setError(null);
+    // 서버가 요청이 없으면 잠든다(Cloud Run min-instances 0). 깨우는 데 10초 안팎 걸리는데
+    // 아무 말이 없으면 고장으로 보인다. 12초를 넘기면 그렇다고 알려 준다
+    const slowTimer = setTimeout(() => setSlow(true), 12000);
     try {
       const image_base64 = image ? await readBase64(image) : null;
       const res = await fetch("/api/agent", {
@@ -108,7 +113,9 @@ function Compose({ auth }: { auth: AuthState }) {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      clearTimeout(slowTimer);
       setBusy(false);
+      setSlow(false);
     }
   };
 
@@ -179,7 +186,12 @@ function Compose({ auth }: { auth: AuthState }) {
           </button>
         </div>
 
-        {busy && <p className="muted">문장을 읽고 위치를 찾는 중입니다. 10초쯤 걸립니다.</p>}
+        {busy && !slow && <p className="muted">문장을 읽고 위치를 찾는 중입니다. 10초쯤 걸립니다.</p>}
+        {busy && slow && (
+          <p className="muted">
+            서버를 깨우는 중입니다. 한동안 아무도 쓰지 않으면 잠들기 때문에 첫 요청만 오래 걸립니다.
+          </p>
+        )}
         {error && <p className="error">{error}</p>}
 
         <div className="examples">
