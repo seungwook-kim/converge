@@ -191,3 +191,27 @@ def test_범위_밖_표시와_내용이_어긋나면_정리한다():
     filled = parse(participants=[person], destination="판교역 근처", missing=["datetime"])
     assert filled.out_of_scope is False
     assert filled.preset == "meeting" and filled.missing == ["datetime"]
+
+
+def test_얻어_타는_사람의_이동수단은_운전자_것으로_채운다():
+    """태워 준다는 말이 있으면 그 사람은 운전자 차를 탄다. 물을 필요가 없다 (09-21 실측)."""
+    from backend.app.services.llm import fill_pickup_transport
+    from backend.app.schemas.slots import Slots
+
+    slots = Slots(
+        preset="meeting",
+        datetime="내일 19:00",
+        destination="성수동",
+        participants=[
+            dict(name="나", origin=None, transport=None, role="site",
+                 pickup="이대리님", pickup_at="광진구 역 앞"),
+            dict(name="이대리님", origin="노원구", transport="car", role="colleague"),
+        ],
+        access=dict(required=False),
+        missing=["participants[0].transport", "participants[0].origin"],
+    )
+    out = fill_pickup_transport(slots)
+    assert out.participants[0].transport == "car"
+    assert "participants[0].transport" not in out.missing
+    # 출발지는 그대로 둔다. 그건 파이프라인이 따로 판단한다
+    assert "participants[0].origin" in out.missing

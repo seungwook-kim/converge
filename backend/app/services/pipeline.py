@@ -158,6 +158,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         # Access.required 는 bool 필수라 "모름"을 담을 자리가 없고, 바꾸면 파인튜닝 출력 계약이 깨진다
         if slots.access is None and not slots.out_of_scope and "access.required" not in slots.missing:
             slots.missing = [*slots.missing, "access.required"]
+        slots.missing = _drop_needless(slots)
         if slots.missing:
             session_id = await _persist_quietly(
                 deps,
@@ -371,6 +372,20 @@ async def _call(fn: Callable[..., Any] | None, *args: Any) -> Any:
     if hasattr(out, "__await__"):
         return await out
     return out
+
+
+def _drop_needless(slots: Slots) -> list[str]:
+    """계산에 필요 없는 누락은 되묻지 않는다.
+
+    지금은 한 가지다. 남의 차를 얻어 타는 사람은 출발지를 몰라도 된다. 그 사람의 소요시간은
+    태우는 지점부터 세기 때문이다 (transport.md pickup_counts_from_board). 그런데도 물으면
+    사용자는 "그건 왜 묻지" 싶은 질문에 답해야 한다.
+    """
+    needless: set[str] = set()
+    for index, person in enumerate(slots.participants):
+        if person.pickup_at and not person.origin:
+            needless.add(f"participants[{index}].origin")
+    return [path for path in slots.missing if path not in needless]
 
 
 def _questions_for(missing: list[str]) -> list[str]:

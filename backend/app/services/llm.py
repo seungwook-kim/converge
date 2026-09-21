@@ -156,6 +156,36 @@ _FIRST_PERSON = {"저", "제", "제가", "저는", "나는", "본인", "me", "I"
 FIRST_PERSON_NAME = "나"
 
 
+def fill_pickup_transport(slots: Slots) -> Slots:
+    """남의 차를 얻어 타는 사람의 이동수단을 운전자 것으로 채운다.
+
+    태워 준다는 말이 있으면 그 사람은 운전자의 차를 탄다. 그런데 모델이 그 칸을 비우고
+    missing 에 적는 경우가 있어, 사용자가 "차로 오시나요" 라는 물을 필요 없는 질문을 받는다
+    (09-21 실측). 운전자를 찾아 그 값을 그대로 쓰고, missing 에서도 뺀다.
+    """
+    by_name = {p.name: p for p in slots.participants}
+    participants = list(slots.participants)
+    filled: set[int] = set()
+
+    for index, person in enumerate(participants):
+        if person.transport is not None or not person.pickup:
+            continue
+        driver = by_name.get(person.pickup)
+        transport = driver.transport if driver and driver.transport else "car"
+        participants[index] = person.model_copy(update={"transport": transport})
+        filled.add(index)
+
+    if not filled:
+        return slots
+    drop = {f"participants[{i}].transport" for i in filled}
+    return slots.model_copy(
+        update={
+            "participants": participants,
+            "missing": [path for path in slots.missing if path not in drop],
+        }
+    )
+
+
 def normalize_names(slots: Slots) -> Slots:
     """1인칭 표기를 "나" 하나로 맞춘다. pickup 이 그 사람을 가리키면 그것도 같이 바꾼다."""
     renamed = {p.name: FIRST_PERSON_NAME for p in slots.participants if p.name.strip() in _FIRST_PERSON}
@@ -201,7 +231,7 @@ def _parse(raw: str) -> Slots:
         # 절차가 없거나 아직 모르면 meeting 으로 둔다. visit 으로 몰면 없는 절차 소요를 빼게 된다
         access = data.get("access") or {}
         data["preset"] = "visit" if access.get("required") is True else "meeting"
-    return Slots.model_validate(data)
+    return fill_pickup_transport(Slots.model_validate(data))
 
 
 async def extract_slots(

@@ -302,3 +302,30 @@ def test_탈락한_후보에는_이유가_붙는다():
     assert out.result is not None
     뒤 = [c for c in out.result.candidates if c.rank and c.rank > 1]
     assert 뒤 and all(c.rejected_reason for c in 뒤)
+
+
+def test_태워지는_사람의_출발지는_묻지_않는다():
+    """소요시간을 탑승 지점부터 세므로 출발지가 없어도 계산이 된다 (transport.md)."""
+    s = slots(
+        participants=[
+            dict(name="이대리님", origin="노원구", transport="car", role="colleague"),
+            dict(name="나", origin=None, transport="car", role="site",
+                 pickup="이대리님", pickup_at="광진구 역 앞"),
+        ],
+        missing=["participants[1].origin"],
+    )
+    out = run(AgentRequest(text="태우고 감"), _done_deps(extract_slots=None) if False else deps(s))
+    assert out.stage != "need_info"
+
+
+def test_픽업이_아니면_출발지를_묻는다():
+    s = slots(
+        participants=[
+            dict(name="이대리님", origin="노원구", transport="car", role="colleague"),
+            dict(name="나", origin=None, transport="car", role="site"),
+        ],
+        missing=["participants[1].origin"],
+    )
+    out = run(AgentRequest(text="어디서 출발"), deps(s))
+    assert out.stage == "need_info"
+    assert any("어디서 출발" in q for q in out.questions)
