@@ -61,11 +61,15 @@ def _candidates_text(candidates: list[dict[str, Any]]) -> str:
     )
 
 
-def _participants_text(rows: list[dict[str, Any]]) -> str:
+def _participants_text(rows: list[dict[str, Any]], candidates: list[dict[str, Any]] | None = None) -> str:
+    """참석자별 경로. 후보 이름을 같이 적는다. 번호만 주면 모델이 이유에 "후보 2" 라고 쓰고,
+    화면의 순위 번호와 달라 읽는 사람이 헷갈린다 (09-22 화면 E2E)."""
     if not rows:
         return "(경로 조회 결과 없음)"
+    names = {i: c["name"] for i, c in enumerate(candidates or [])}
     return "\n".join(
-        f"- 후보{r['candidate_idx']} {r['name']}: {r['transport']}, 경로 {r['raw_duration_min']}분"
+        f"- {names.get(r['candidate_idx'], '후보')}(candidate_idx={r['candidate_idx']}) {r['name']}: "
+        f"{r['transport']}, 경로 {r['raw_duration_min']}분"
         + (f", 환승 {r['transfer_count']}회" if r.get("transfer_count") else "")
         for r in rows
     )
@@ -85,7 +89,7 @@ async def rank(
         prompt.replace("{{rules}}", _rules_text())
         .replace("{{situation}}", _situation_text(slots))
         .replace("{{candidates}}", _candidates_text(candidates))
-        .replace("{{participants}}", _participants_text(participant_rows))
+        .replace("{{participants}}", _participants_text(participant_rows, candidates))
     )
 
     model = model_large()

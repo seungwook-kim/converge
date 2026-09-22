@@ -8,7 +8,8 @@
 # before 항목은 두 가지 모양을 받는다.
 #   "방문자 등록"                       그냥 항목
 #   {item: 고기·식재료, assign: car}    누가 맡을지 코드가 정해 이름을 붙인다
-# assign 값은 car(차로 오는 사람)와 first(가장 먼저 도착하는 사람) 둘뿐이다.
+# assign 값은 car(차로 오는 사람)와 first(출발이 가장 이른 사람) 둘뿐이다.
+# 도착 기한은 모두 같으므로 first 는 "먼저 도착"이 아니라 "먼저 출발"이다 (09-22).
 # 해당하는 사람이 없으면 이름 없이 항목만 나온다.
 
 visit_access:                           # 출입 절차가 있는 방문 (access.required == true)
@@ -41,7 +42,7 @@ cook:                                   # constraints 에 cook. 구워 먹거나
 outdoor:                                # constraints 에 outdoor. 야외·캠핑·공원·한강
   before:
     - item: 돗자리
-      assign: first                     # 먼저 도착하는 사람이 자리를 잡는다
+      assign: first                     # 먼저 출발하는 사람이 챙긴다
   onsite:
     - 물
     - 물티슈
@@ -57,7 +58,7 @@ host_home:                              # constraints 에 host_home. 누구 집�
 booking:                                # constraints 에 booking. 예약해 둔 자리
   before:
     - item: 예약자 이름·시간 확인
-      assign: first                     # 먼저 도착하는 사람이 확인해야 자리가 유지된다
+      assign: first                     # 먼저 출발하는 사람이 가는 길에 확인한다
 
 split:                                  # constraints 에 split. 회비·N빵
   before:
@@ -65,7 +66,7 @@ split:                                  # constraints 에 split. 회비·N빵
 
 not_applied_prefix: "[미완료] "         # access.applied 가 false 면 사전 신청 항목 앞에 붙인다
 assign_car: "차로 오는 {name}"          # assign: car 일 때 항목 뒤에 괄호로 붙인다
-assign_first: "먼저 도착하는 {name}"    # assign: first 일 때
+assign_first: "먼저 출발하는 {name}"    # assign: first 일 때
 ---
 # 준비물
 

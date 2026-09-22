@@ -719,7 +719,7 @@ def _rejected_for(kind: str, ok: bool, rank: int, access_required: bool) -> str 
     """왜 이 후보가 1순위가 아닌가. 1순위면 None (SDD 4절 Candidate.rejected_reason).
 
     지도 앱은 장소만 찍어 주고 탈락한 자리를 말하지 않는다. "저기는 왜 안 되는데"가 바로 나오므로
-    규칙 파일 항목을 인용해 한 줄로 남긴다.
+    규칙의 근거를 한 줄로 남긴다. 화면에 그대로 나가므로 규칙 키는 주석에만 둔다 (SDD 4절, 09-22).
 
     대형 모델이 이유를 냈으면 그쪽을 쓰고, 비었을 때만 이 문구가 들어간다.
     """
@@ -728,25 +728,30 @@ def _rejected_for(kind: str, ok: bool, rank: int, access_required: bool) -> str 
     if rank == 1:
         return None
     if access_required and kind not in ("gate", "lobby", "hq"):
-        return "access.md rendezvous_is_procedure_start: 절차가 시작되는 자리가 아니라 합류 의미가 작습니다"
+        # access.md rendezvous_is_procedure_start
+        return "출입 절차가 시작되는 자리가 아니라, 여기서 모여도 결국 절차 앞에서 다시 기다립니다"
     if not access_required and kind in ("gate", "lobby"):
-        return "access.md no_procedure_all_transit_no_rendezvous: 절차가 없어 미리 모일 이유가 없습니다"
+        # access.md no_procedure_all_transit_no_rendezvous
+        return "출입 절차가 없어 건물 앞에 미리 모일 이유가 없습니다"
     return "1순위보다 이동이 멀거나 합류 이점이 작습니다"
 
 
 def _reason_for(kind: str, access_required: bool, ok: bool, switched: bool = False) -> str:
-    """순위 이유 한 줄. 규칙 파일 항목을 인용한다 (SDD 4절 Candidate.reason).
+    """순위 이유 한 줄. 규칙의 근거를 사람 말로 쓰고 규칙 키는 주석에만 둔다 (SDD 4절 Candidate.reason).
 
     대형 모델이 붙기 전까지는 규칙 문구를 그대로 쓴다 (SDD 5절 6단계 "실패면 규칙 문구 그대로").
     """
     if not ok:
         return "출입 절차가 끝나지 않아 지금은 쓸 수 없는 자리입니다"
     if switched:
-        return "access.md switch_if_delay_min: 도착이 어긋나 절차를 포기하고 밖에서 만납니다"
+        # access.md switch_if_delay_min
+        return "도착 시각이 많이 어긋나 안에서 기다리지 않고 밖에서 먼저 만납니다"
     if access_required and kind in ("gate", "lobby", "hq"):
-        return "access.md rendezvous_is_procedure_start: 출입 절차가 시작되는 자리에서 합류합니다"
+        # access.md rendezvous_is_procedure_start
+        return "출입 절차가 여기서 시작되니 여기서 모이면 기다림이 가장 적습니다"
     if kind == "landmark":
-        return "access.md outside_landmark_kinds: 지리를 몰라도 찾기 쉬운 자리입니다"
+        # access.md outside_landmark_kinds
+        return "처음 가는 사람도 찾기 쉬운 자리입니다"
     return "목적지에서 가장 가까운 자리입니다"
 
 

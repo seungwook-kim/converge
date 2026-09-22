@@ -348,7 +348,7 @@ class Candidate(BaseModel):
     rank: int | None                # failed 폴백이면 None
     access_ok: bool                 # 이 지점이 현재 출입 절차 상태로 가능한가
     switched_from: str | None       # 전환 판정이면 원래 집결지
-    reason: str                     # 한 줄, 규칙 파일 항목 인용
+    reason: str                     # 한 줄. 화면에 그대로 나가는 문장이다. 규칙의 근거를 풀어 쓰고, 규칙 키·파일 이름·후보 번호는 쓰지 않는다 (09-22)
     rejected_reason: str | None
 
 class ParticipantResult(BaseModel):
@@ -387,7 +387,7 @@ class Result(BaseModel):
 
 checklist 항목은 LLM이 만들지 않는다. skills/converge/rules/checklist.md 에서 조건에 맞는 것을 코드가 꺼낸다. summary_text 도 코드 조립이다. 지어낸 준비물을 믿고 갔다가 못 들어가면 그날 일정이 통째로 날아가고, 계획서의 숫자가 모델마다 흔들리면 표와 어긋난다.
 
-rejected_reason 은 1순위가 아닌 후보에 반드시 들어간다. 대형 모델이 비워 두면 코드가 규칙 파일 항목을 인용해 채운다 (pipeline._rejected_for). 중간 지점만 찍어 주는 서비스는 탈락한 자리를 말하지 않는다. 왜 그곳이 아닌지가 실제로 합의를 끝내는 문장이다.
+rejected_reason 은 1순위가 아닌 후보에 반드시 들어간다. 대형 모델이 비워 두면 코드가 규칙의 근거를 풀어 쓴 문구로 채운다 (pipeline._rejected_for). 어느 규칙에서 나왔는지는 코드 주석과 Langfuse 에 남기고 화면에는 내지 않는다 (09-22). 중간 지점만 찍어 주는 서비스는 탈락한 자리를 말하지 않는다. 왜 그곳이 아닌지가 실제로 합의를 끝내는 문장이다.
 
 LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전환 판정(switched_from)뿐이다. 숫자와 access_ok는 코드가 넣는다. 대형 모델 응답은 `{"rankings":[{"candidate_idx":0,"rank":1,"reason":"...","rejected_reason":null}, ...]}` 형태로 받아 Candidate에 합친다.
 
@@ -506,7 +506,7 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | checklist.md | booking | 예약자 이름·시간 확인 | 예약자가 늦으면 자리가 날아간다 |
 | checklist.md | split | 정산 방법 정하기 | 먼저 정하지 않으면 끝나고 싸운다 |
 | checklist.md | not_applied_prefix | "[미완료] " | 신청 전 항목은 늦으면 되돌릴 수 없다 |
-| checklist.md | assign_car / assign_first | "(차로 오는 OO)" / "(먼저 도착하는 OO)" | 분담 표기. 코드가 이름을 넣는다 |
+| checklist.md | assign_car / assign_first | "(차로 오는 OO)" / "(먼저 출발하는 OO)" | 분담 표기. 코드가 이름을 넣는다. first 는 출발이 가장 이른 사람이다. 도착 기한은 모두 같으므로 "먼저 도착"이 아니다 (09-22) |
 
 프리셋 (presets/)
 

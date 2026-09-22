@@ -462,3 +462,15 @@ def test_추출_실패_오류에_모델_출력을_남기지_않는다(monkeypatc
     run(AgentRequest(text="점검"), pipeline.Deps(extract_slots=boom))
     error = dict(spans)["extract"].error
     assert error == "ValueError"
+
+
+def test_화면에_나가는_이유에_규칙_키를_쓰지_않는다():
+    """판정 모델 없이 규칙 문구로 채울 때도 access.md 같은 파일 이름·영문 키가 화면에 나가면 안 된다."""
+    import re
+
+    for access in (dict(required=True, applied=True), dict(required=False)):
+        out = run(AgentRequest(text="점검"), _done_deps(extract_slots=_fixed(slots(datetime="목요일 08:00", access=access))))
+        for cand in out.result.candidates:
+            for text in (cand.reason, cand.rejected_reason or ""):
+                assert ".md" not in text, text
+                assert not re.search(r"[a-z]+_[a-z_]+", text), text
