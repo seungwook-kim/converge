@@ -11,6 +11,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Any
 
+from backend.app.domain import checklist as domain_checklist
 from backend.app.domain import rules
 from backend.app.schemas.result import AgentResponse, GeocodedPin, ParticipantEdit, Result
 from backend.app.schemas.slots import Participant, Slots
@@ -210,15 +211,37 @@ def edits_from_session(row: dict[str, Any]) -> list[ParticipantEdit]:
     return out
 
 
+def _rebuild_checklist(slots: Slots, result: Result) -> None:
+    """준비물과 집결 계획서를 다시 조립한다 (SDD 5절 7-1단계와 같은 함수).
+
+    results 표에는 두 칸이 없다. 계획을 만들면 화면이 곧바로 /s/{id} 로 옮겨 이 경로로 다시 읽으므로,
+    조립하지 않으면 사용자는 준비물을 한 번도 못 본다 (09-22 화면 E2E). 둘 다 슬롯과 결과만으로
+    정해지는 코드 조립이라 저장하지 않고 매번 만든다.
+    """
+    access = slots.access if isinstance(slots.access, dict) else (slots.access.model_dump() if slots.access else {})
+    result.checklist = domain_checklist.build_checklist(
+        preset=slots.preset,
+        access_required=access.get("required"),
+        access_applied=access.get("applied"),
+        constraints=slots.constraints,
+        has_car=any(p.transport == "car" for p in slots.participants),
+        carriers=domain_checklist.pick_carriers(slots, result),
+    )
+    result.summary_text = domain_checklist.build_summary(slots, result)
+
+
 def to_agent_response(session_id: str, row: dict[str, Any], result_row: dict[str, Any] | None) -> AgentResponse:
     """공유 링크 응답. POST /api/agent 와 같은 모양이라 화면이 그대로 그린다 (SDD 2절)."""
     result = result_from_row(result_row)
+    slots = slots_from_session(row)
+    if result is not None:
+        _rebuild_checklist(slots, result)
     # 결과가 있으면 done, 아직 계산 전이면 핀 확인 단계로 본다. 초안 세션(되묻기 중)도 같은 화면에서
     # 이어서 답하므로 참석자 핀만 먼저 보여 주면 된다
     return AgentResponse(
         session_id=session_id,
         stage="done" if result else "need_confirm",
-        slots=slots_from_session(row),
+        slots=slots,
         result=result,
         questions=[],
         message=(

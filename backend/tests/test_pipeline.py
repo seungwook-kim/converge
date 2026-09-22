@@ -390,3 +390,22 @@ def test_캡처를_읽으면_그_텍스트로_슬롯을_뽑는다():
     run(AgentRequest(image_base64="abc", text="나는 차로 가"), deps(slots(), extract_text=extract_text, extract_slots=extract_slots))
     # 캡처가 먼저, 함께 적은 문장이 뒤에 붙는다
     assert seen["text"] == "민수: 목요일 8시\n나는 차로 가"
+
+
+def test_공유_링크로_다시_열어도_준비물과_계획서가_나온다():
+    """results 표에는 준비물·계획서 칸이 없다. 다시 열 때 조립하지 않으면 사라진다 (09-22 화면 E2E)."""
+    from backend.app.services import session_store
+
+    out = run(AgentRequest(text="점검"), _done_deps(extract_slots=_fixed(slots(datetime="목요일 08:00", constraints=["cook"]))))
+    assert out.result.checklist is not None
+    stored = out.result.model_dump(exclude={"checklist", "summary_text"})
+    row = {
+        "preset": "visit",
+        "destination_name": "창원 사무소",
+        "access": {"required": True, "applied": True},
+        "constraints": ["cook"],
+        "participants": [{"name": "김현장", "origin_text": "창원시청", "transport": "car", "role": "site"}],
+    }
+    again = session_store.to_agent_response("s1", row, stored).result
+    assert again.checklist == out.result.checklist
+    assert again.summary_text
