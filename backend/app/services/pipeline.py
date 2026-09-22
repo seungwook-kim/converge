@@ -290,6 +290,8 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 access_applied=access.applied if access else None,
                 constraints=slots.constraints,
                 has_car=any(p.transport == "car" for p in slots.participants),
+                # 누가 뭘 맡을지는 출발 시각이 나온 뒤라야 정해진다. 그래서 7단계 다음이다
+                carriers=domain_checklist.pick_carriers(slots, result),
             )
             result.summary_text = domain_checklist.build_summary(slots, result)
             span.output = {

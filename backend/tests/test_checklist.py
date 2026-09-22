@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from backend.app.domain.checklist import build_checklist, build_summary
+from backend.app.domain.checklist import build_checklist, build_summary, pick_carriers
 from backend.app.domain.rules import load_rule
 from backend.app.schemas.result import Candidate, Checklist, ParticipantResult, Result
 from backend.app.schemas.slots import Slots
@@ -63,6 +63,115 @@ def test_중복_항목은_한_번만_나온다():
     assert out is not None
     assert len(out.before) == len(set(out.before))
     assert len(out.onsite) == len(set(out.onsite))
+
+
+def names(block: dict, key: str) -> set[str]:
+    """규칙 파일의 항목에서 이름만 뽑는다. 문자열일 수도, {item, assign} 일 수도 있다."""
+    out = set()
+    for entry in block.get(key) or []:
+        out.add(entry["item"] if isinstance(entry, dict) else entry)
+    return out
+
+
+def stripped(items: list[str]) -> set[str]:
+    """붙은 담당자 꼬리표를 떼고 항목 이름만 남긴다."""
+    return {item.split(" (")[0] for item in items}
+
+
+# ─────────────────────────────────────────────── 하려는 일에 딸린 준비물 (09-21 확장)
+
+
+def test_절차가_없는_친구_모임도_고기를_챙긴다():
+    """출입 절차가 없다고 준비물이 없는 게 아니다. 고기는 절차와 무관하다."""
+    out = build_checklist("meeting", False, None, ["cook"], has_car=False)
+    assert out is not None
+    assert stripped(out.before) == names(RULES["cook"], "before")
+    assert set(out.onsite) == names(RULES["cook"], "onsite")
+
+
+def test_절차를_몰라도_하려는_일은_안다():
+    """access 가 None 이어도 cook 은 나온다. 모르는 것과 없는 것은 다르다."""
+    out = build_checklist("meeting", None, None, ["cook"], has_car=False)
+    assert out is not None
+    assert stripped(out.before) == names(RULES["cook"], "before")
+
+
+def test_조건이_겹치면_합치고_중복은_지운다():
+    """캠핑에서 고기를 구우면 쓰레기봉투가 두 목록에 다 있다. 한 줄만 남아야 한다."""
+    out = build_checklist("meeting", False, None, ["cook", "outdoor"], has_car=False)
+    assert out is not None
+    assert len(out.onsite) == len(set(out.onsite))
+    assert names(RULES["cook"], "onsite") <= set(out.onsite)
+    assert names(RULES["outdoor"], "onsite") <= set(out.onsite)
+
+
+def test_모르는_조건은_무시한다():
+    """LLM 이 없는 이름을 만들어 넣어도 목록을 지어내지 않는다."""
+    assert build_checklist("meeting", False, None, ["파티게임"], has_car=False) is None
+
+
+def test_절차_항목이_앞에_온다():
+    """늦으면 아예 못 들어가는 쪽이 먼저 보여야 한다."""
+    out = build_checklist("visit", True, True, ["cook"], has_car=False)
+    assert out is not None
+    first = next(iter(names(RULES["visit_access"], "before")))
+    assert out.before[0] == first
+
+
+def test_미완료는_절차_항목에만_붙는다():
+    """고기에는 신청이라는 개념이 없다. 미완료를 붙이면 틀린 말이 된다."""
+    out = build_checklist("visit", True, False, ["cook"], has_car=False)
+    assert out is not None
+    prefix = RULES["not_applied_prefix"]
+    붙은_것 = {i for i in out.before if i.startswith(prefix)}
+    assert stripped({i[len(prefix):] for i in 붙은_것}) == names(RULES["visit_access"], "before")
+
+
+# ─────────────────────────────────────────────────────────────── 분담
+
+
+def test_차로_오는_사람에게_무거운_것을_맡긴다():
+    out = build_checklist("meeting", False, None, ["cook"], has_car=True,
+                          carriers={"car": "민수", "first": "지호"})
+    assert out is not None
+    맡은_줄 = [i for i in out.before if "민수" in i]
+    assert 맡은_줄, out.before
+    assert RULES["assign_car"].format(name="민수") in 맡은_줄[0]
+
+
+def test_맡을_사람이_없으면_이름을_붙이지_않는다():
+    """아무도 차로 오지 않는데 누군가를 적으면 그게 더 틀린 말이다."""
+    out = build_checklist("meeting", False, None, ["cook"], has_car=False,
+                          carriers={"car": None, "first": "지호"})
+    assert out is not None
+    assert stripped(out.before) == names(RULES["cook"], "before")
+    assert all("(" not in item for item in out.before)
+
+
+def test_담당자는_출발이_이른_사람과_차로_오는_사람이다():
+    result = Result(
+        candidates=[Candidate(name="한강공원", kind="landmark", address="서울", lng=127.0, lat=37.5,
+                              rank=1, access_ok=True, reason="x")],
+        provisional=False,
+        per_participant=[
+            ParticipantResult(name="지호", candidate_rank=1, transport="transit", duration_min=40,
+                              raw_duration_min=30, buffer_min=10, departure_time="12:20",
+                              arrive_by="13:00"),
+            ParticipantResult(name="민수", candidate_rank=1, transport="car", duration_min=30,
+                              raw_duration_min=25, buffer_min=5, departure_time="12:30",
+                              arrive_by="13:00"),
+            ParticipantResult(name="영희", candidate_rank=1, transport="car", duration_min=20,
+                              raw_duration_min=15, buffer_min=5, departure_time="12:40",
+                              arrive_by="13:00"),
+        ],
+        confidence=0.9, model_small="x", prompt_version="p@1", routed_to="small",
+    )
+    slots = Slots(preset="meeting", datetime="토요일 13:00", destination="한강공원",
+                  participants=[dict(name="지호", origin="수원", transport="transit", role="site")],
+                  access=dict(required=False))
+    out = pick_carriers(slots, result)
+    assert out["first"] == "지호"      # 가장 이른 출발
+    assert out["car"] == "민수"        # 차로 오는 사람 중 가장 이른 출발
 
 
 # ─────────────────────────────────────────────────────────────── 집결 계획서
