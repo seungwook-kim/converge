@@ -14,6 +14,10 @@ interface Props {
   participants: Participant[];
   selectedRank: number | null;
   onSelectRank: (rank: number) => void;
+  // 첫 화면 예시용. 집결 후보와 출발 시각까지만 보인다 (SDD 2절 09-21 예외).
+  // 탈락 이유는 후보 목록에 이미 붙어 있어 아래 칸이 같은 말을 두 번 하고,
+  // 계획서 전문은 그 하나로 화면 두 개를 밀어낸다. 결과 화면에서는 둘 다 나온다
+  compact?: boolean;
 }
 
 function basis(p: Participant | undefined, viaPickup: boolean, viaRendezvous: boolean): string {
@@ -22,7 +26,13 @@ function basis(p: Participant | undefined, viaPickup: boolean, viaRendezvous: bo
   return "출발지에서 바로 이동";
 }
 
-export default function ResultTable({ result, participants, selectedRank, onSelectRank }: Props) {
+export default function ResultTable({
+  result,
+  participants,
+  selectedRank,
+  onSelectRank,
+  compact = false,
+}: Props) {
   const ranked = [...result.candidates].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   const current = result.candidates.find((c) => c.rank === selectedRank) ?? null;
   const rows = result.per_participant.filter((r) => r.candidate_rank === selectedRank);
@@ -110,9 +120,9 @@ export default function ResultTable({ result, participants, selectedRank, onSele
       )}
       {current && rows.length === 0 && <p className="muted">이 후보에 대한 참석자별 계산이 없습니다.</p>}
 
-      <RejectedList result={result} />
+      {!compact && <RejectedList result={result} />}
       <ChecklistBox result={result} />
-      <SummaryBox text={result.summary_text} />
+      {!compact && <SummaryBox text={result.summary_text} />}
     </section>
   );
 }

@@ -78,10 +78,16 @@ converge/
     .env.example              frontend용 (9절). 브라우저에 노출되는 값만
     package.json  tsconfig.json       Next 16, React 19, TypeScript. 지도 외 UI 라이브러리 없음
     next.config.ts            agentRules: false (next dev 가 이 폴더에 AGENTS.md·CLAUDE.md 를 만들지 않게)
+    public/
+      manifest.json           PWA. 홈 화면 설치 이름·아이콘·테마색 (09-21 결정)
+      sw.js                   서비스 워커. 설치 조건을 채우고 오프라인 안내만 한다. 캐시하지 않는다
+      offline.html            연결이 끊겼을 때 보여 주는 정적 화면
+      icon-192.png  icon-512.png  apple-touch-icon.png
     app/
-      layout.tsx              html/body, 전역 CSS 로드
+      layout.tsx              html/body, 전역 CSS 로드, manifest 연결, 서비스 워커 등록
       globals.css             전역 스타일. 핀 커서 규칙(핀 소유권)도 여기
-      page.tsx                메인. 로그인·소개·문장 입력만. 지도 없음. 만들면 /s/{id} 로 보낸다
+      page.tsx                메인. 소개(로그인 전에도 보인다)·예시 결과·문장 입력. 지도 없음.
+                              만들면 /s/{id} 로 보낸다
       about/page.tsx          소개 페이지 (서비스 화면과 별도)
       my/page.tsx             내 계획 목록. GET /api/sessions, 줄마다 삭제
       s/[id]/page.tsx         참석자들이 모이는 자리. 지도·되묻기·핀 확인·결과·claim·수정이 전부 여기서.
@@ -91,12 +97,15 @@ converge/
       api/session/[id]/participants/route.ts  PATCH 프록시 (핀 claim·위치 수정)
     components/
       MapView.tsx  ChatPanel.tsx  ParticipantPins.tsx  RouteLines.tsx  ResultTable.tsx  AuthGate.tsx  Progress.tsx
+      DemoPreview.tsx         로그인 전 예시 결과. 결과 화면과 같은 ResultTable 을 쓴다
+      ServiceWorker.tsx       sw.js 등록. 개발 중에는 등록하지 않는다
     lib/
       kakao.ts                지도 SDK 로더
       auth.ts                 구글 로그인(Supabase Auth), 토큰 헤더
       proxy.ts                app/api/ 라우트 공용 백엔드 전달
       dev-user.ts             로컬 모드 사용자 id
       mock.ts                 NEXT_PUBLIC_API_BASE 가 없을 때 프록시가 돌려주는 고정 응답
+      demo-preview.ts         로그인 전 예시 결과의 고정값. mock-data.json(150KB)을 첫 화면에 싣지 않으려고 따로 둔다
       mock-data.json          mock 시나리오와 실제 경로 좌표
       api-types.ts            backend/app/schemas/에서 생성. 손으로 고치지 않는다
     types/
@@ -109,7 +118,7 @@ converge/
     output-contract.md
   evals/
     EVAL_GUIDE.md
-    dataset.jsonl             30건
+    dataset.jsonl             회귀셋 10건 (사람이 쓴다)
     run_eval.py               Langfuse Dataset 실행·score 기록
   finetune/                   학습 파이프라인
     FINETUNE_GUIDE.md
@@ -126,7 +135,12 @@ converge/
 
 ## 2. 엔드포인트
 
-서비스 전체가 구글 로그인 뒤에 있다. 공유 링크로 결과를 보는 사람도 로그인해야 하고, 익명 열람 경로는 없다.
+서비스 전체가 구글 로그인 뒤에 있다. 공유 링크로 결과를 보는 사람도 로그인해야 하고, **내 데이터를 읽는 익명 경로는 없다.**
+
+예외가 하나 있다 (09-21 결정). 첫 화면의 소개와 예시 결과는 로그인 없이 보인다. 처음 온 사람이
+무엇을 해주는 도구인지 모른 채 로그인부터 요구받으면 그 자리에서 나간다. 다만 이 예시는
+`frontend/lib/demo-preview.ts` 의 고정 데이터라서 서버를 부르지 않고 저장되지도 않는다. 실제 계산과
+세션 열람은 그대로 로그인 뒤에 있다. 즉 열리는 것은 화면이지 데이터가 아니다.
 
 | 엔드포인트 | 인증 |
 |---|---|
@@ -293,10 +307,23 @@ class Slots(BaseModel):
     rendezvous: Rendezvous | None
     access: Access | None
     schedule_confirmed: bool | None # 약속 시각이 확정됐는지. 모르면 None
-    constraints: list[str]          # "arrival_delayed", "mutual_deference", "luggage"
+    constraints: list[str]          # 아래 표의 값만. 문장에 단서가 있을 때만 넣는다
     missing: list[str]              # "participants[0].origin", "access.applied", "datetime"
     out_of_scope: bool = False      # 출발 후 실시간 상황
 ```
+
+constraints 허용값 (09-21 확장). 문장에 단서가 없으면 넣지 않는다. 지어내면 엉뚱한 준비물이 뜬다.
+
+| 값 | 언제 | 무엇에 쓰나 |
+|---|---|---|
+| `arrival_delayed` | 누가 늦는다고 함 | 집결 방식 재검토 |
+| `mutual_deference` | 서로 상대에게 맞추겠다고 함 | 집결지 판정 |
+| `luggage` | 장비·짐을 들고 간다 | 준비물 (반입 신고, 어댑터) |
+| `cook` | 고기를 굽는다, 요리한다, 해 먹는다 | 준비물 (식재료, 화기, 식기) |
+| `outdoor` | 야외, 캠핑, 공원, 피크닉, 한강 | 준비물 (돗자리, 물, 쓰레기봉투) |
+| `host_home` | 누구 집, 집들이, 홈파티 | 준비물 (먹을 것, 슬리퍼) |
+| `booking` | 예약했다, 예약해 뒀다 | 준비물 (예약자 이름·시간 확인) |
+| `split` | 회비, N빵, 돈 모아서 | 준비물 (정산 방법 정하기) |
 
 검증 규칙 (schemas/slots.py의 validator)
 - out_of_scope 가 False 면 participants 1명 이상, preset 은 None 이 아니어야 함
@@ -340,8 +367,8 @@ class ParticipantResult(BaseModel):
     via_pickup: bool                # 운전자 경로가 이 사람을 태우러 경유하는가
 
 class Checklist(BaseModel):
-    before: list[str]               # 사전 신청. 늦으면 출입 자체가 불가. 미신청이면 앞에 "[미완료] "
-    onsite: list[str]               # 당일 지참
+    before: list[str]               # 미리 해둘 것. 늦으면 되돌릴 수 없다. 미신청이면 앞에 "[미완료] "
+    onsite: list[str]               # 당일 챙길 것
 
 class Result(BaseModel):
     candidates: list[Candidate]     # 최대 3. 집결지 판정 결과
@@ -349,7 +376,7 @@ class Result(BaseModel):
     per_participant: list[ParticipantResult]
     rendezvous_departure: str | None   # 집결지에서 출발할 시각
     confidence: float
-    checklist: Checklist | None     # 절차가 없거나(required=false) 아직 모르면(access 자체가 없으면) None
+    checklist: Checklist | None     # 꺼낼 항목이 하나도 없으면 None (7-1단계)
     summary_text: str               # 카톡·메일에 붙여넣을 집결 계획서. 코드가 조립. LLM 호출 없음
     model_small: str
     model_large: str | None
@@ -472,7 +499,13 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | schedule.md | late_arrival_switch_min | 30 | 도착이 이만큼 벌어지면 집결 방식을 다시 본다 |
 | checklist.md | visit_access | 방문자 등록(+차로 가면 차량번호), 신분증·출입증 수령 | 출입 절차가 있을 때의 준비물 |
 | checklist.md | luggage | 장비 반입 신고, 장비·전원 어댑터 | 장비는 절차와 별도로 걸린다 |
+| checklist.md | cook | 식재료, 숯·버너, 식기·집게, 쓰레기봉투 | 구워 먹는 자리는 누가 뭘 사 오냐가 항상 걸린다 |
+| checklist.md | outdoor | 돗자리, 물, 물티슈, 쓰레기봉투 | 야외는 사서 해결할 데가 없다 |
+| checklist.md | host_home | 먹을 것·마실 것, 슬리퍼 | 남의 집에 빈손으로 가지 않는다 |
+| checklist.md | booking | 예약자 이름·시간 확인 | 예약자가 늦으면 자리가 날아간다 |
+| checklist.md | split | 정산 방법 정하기 | 먼저 정하지 않으면 끝나고 싸운다 |
 | checklist.md | not_applied_prefix | "[미완료] " | 신청 전 항목은 늦으면 되돌릴 수 없다 |
+| checklist.md | assign_car / assign_first | "(차로 오는 OO)" / "(먼저 도착하는 OO)" | 분담 표기. 코드가 이름을 넣는다 |
 
 프리셋 (presets/)
 

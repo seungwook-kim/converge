@@ -9,15 +9,18 @@ import { useEffect, useState } from "react";
 import { LOCAL_USER_ID } from "@/lib/dev-user";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Supabase 가 anon 키를 publishable 키로 바꿨다. 둘 다 받는다. 새로 만든 프로젝트는 publishable 쪽이다.
+// 이름 하나가 어긋나면 로그인이 조용히 꺼진 채로 배포된다 (09-21: 코드와 .env.example 이 서로 달랐다)
+const publishableKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const authConfigured = Boolean(url && anonKey);
+export const authConfigured = Boolean(url && publishableKey);
 export const localMode = !authConfigured && process.env.NODE_ENV !== "production";
 
 let client: SupabaseClient | null = null;
 function supabase(): SupabaseClient | null {
   if (!authConfigured) return null;
-  if (!client) client = createClient(url as string, anonKey as string);
+  if (!client) client = createClient(url as string, publishableKey as string);
   return client;
 }
 

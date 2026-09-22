@@ -29,6 +29,14 @@ const ERRORS: Record<number, string> = {
   409: "이미 다른 사람이 등록했거나, 약속 날짜가 지나 잠긴 계획입니다.",
 };
 
+const STAGE_LABEL: Record<string, string> = {
+  need_info: "정보를 더 기다리는 중",
+  need_confirm: "위치 확인 필요",
+  done: "계산 완료",
+  out_of_scope: "범위 밖 요청",
+  failed: "계산 실패",
+};
+
 // "누가 마지막에 고쳤는지" 한 줄. 표에는 user_id 만 남아 이름을 말할 수 없으므로 관계로만 말한다.
 function editedLabel(edit: ParticipantEdit | undefined, userId: string): string | null {
   if (!edit?.edited_by) return null;
@@ -270,6 +278,19 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
         />
       </div>
       <div className="split-side">
+        <header className="plan-heading">
+          <div>
+            <span className="eyebrow">SHARED MEETING PLAN</span>
+            <h1>{response.slots?.purpose ?? "집결 계획"}</h1>
+            <p className="plan-heading-meta">
+              {response.slots?.destination ?? "목적지 미정"}
+              {response.slots?.datetime ? ` · ${response.slots.datetime}` : ""}
+            </p>
+          </div>
+          <span className={`stage-pill stage-${stage ?? "unknown"}`}>
+            {STAGE_LABEL[stage ?? ""] ?? "계산 중"}
+          </span>
+        </header>
         <ShareBox sessionId={sessionId} />
 
         {stage === "done" && response.result && (

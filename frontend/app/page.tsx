@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthGate, { UserBar } from "@/components/AuthGate";
+import DemoPreview from "@/components/DemoPreview";
 import { authHeaders, useAuth, type AuthState } from "@/lib/auth";
 import type { AgentResponse, Preset } from "@/types/agent";
 
@@ -25,15 +26,53 @@ export default function Home() {
       <header className="topbar">
         <strong>Converge</strong>
         <span className="muted">모일 자리와 시각 정하기</span>
-        <Link href="/my" className="topbar-link">
-          내 계획
-        </Link>
+        {/* 로그인 전에는 감춘다. 눌러 봐야 또 로그인 벽이라 막다른 골목이다 */}
+        {auth.status === "signed_in" && (
+          <Link href="/my" className="topbar-link">
+            내 계획
+          </Link>
+        )}
         <UserBar auth={auth} />
       </header>
-      <AuthGate auth={auth} reason="Converge 는 구글 로그인 후 쓸 수 있습니다.">
-        <Compose auth={auth} />
-      </AuthGate>
+      <div className="landing-body">
+        <Intro />
+        <AuthGate
+          auth={auth}
+          reason="여기까지가 예시입니다. 내 상황으로 만들려면 로그인하세요."
+          preview={<DemoPreview />}
+        >
+          <Compose auth={auth} />
+        </AuthGate>
+      </div>
     </main>
+  );
+}
+
+// 로그인 전에도 보인다 (SDD 2절 09-21 예외). 무엇을 해주는 도구인지 모른 채
+// 로그인부터 요구받으면 그 자리에서 나간다.
+function Intro() {
+  return (
+    <section className="intro">
+      <h1>모이는 자리와 시각을 문장 하나로 정합니다</h1>
+      <p>
+        여러 사람이 각자 다른 곳에서 오고, 가는 곳에 출입증이나 방문자 등록이 필요하면 모일 자리가 달라집니다.
+        Converge 는 그 절차까지 계산해 집결지와 참석자별 출발 시각을 냅니다.
+      </p>
+      <ol className="how">
+        <li>
+          <strong>문장을 넣습니다.</strong> 누가 어디서 무엇을 타고 오는지, 언제 어디서 하는 일인지
+        </li>
+        <li>
+          <strong>링크가 만들어집니다.</strong> 그 주소를 단톡방에 전달합니다
+        </li>
+        <li>
+          <strong>참석자들이 모입니다.</strong> 링크에서 각자 출발지를 고치고 결과를 함께 봅니다
+        </li>
+      </ol>
+      <p className="muted">
+        더 자세한 설명은 <Link href="/about">무엇을 해주는 도구인지</Link> 에 있습니다.
+      </p>
+    </section>
   );
 }
 
@@ -120,30 +159,7 @@ function Compose({ auth }: { auth: AuthState }) {
   };
 
   return (
-    <div className="landing-body">
-      <section className="intro">
-        <h1>모이는 자리와 시각을 문장 하나로 정합니다</h1>
-        <p>
-          여러 사람이 각자 다른 곳에서 오고, 가는 곳에 출입증이나 방문자 등록이 필요하면 모일 자리가 달라집니다.
-          Converge 는 그 절차까지 계산해 집결지와 참석자별 출발 시각을 냅니다.
-        </p>
-        <ol className="how">
-          <li>
-            <strong>문장을 넣습니다.</strong> 누가 어디서 무엇을 타고 오는지, 언제 어디서 하는 일인지
-          </li>
-          <li>
-            <strong>링크가 만들어집니다.</strong> 그 주소를 단톡방에 전달합니다
-          </li>
-          <li>
-            <strong>참석자들이 모입니다.</strong> 링크에서 각자 출발지를 고치고 결과를 함께 봅니다
-          </li>
-        </ol>
-        <p className="muted">
-          처음이라면 <Link href="/about">무엇을 해주는 도구인지</Link> 먼저 보세요.
-        </p>
-      </section>
-
-      <section className="compose">
+    <section className="compose">
         <label className="compose-label" htmlFor="text">
           상황을 적어 주세요
         </label>
@@ -202,7 +218,6 @@ function Compose({ auth }: { auth: AuthState }) {
             </button>
           ))}
         </div>
-      </section>
-    </div>
+    </section>
   );
 }
