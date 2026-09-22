@@ -15,6 +15,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from backend.app.domain import checklist as domain_checklist
@@ -180,8 +181,15 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 questions=_questions_for(slots.missing),
             )
 
-        # 1-3. 기간 판정 (오늘+N일을 넘으면 되묻는다). N 은 skills/converge/rules/ 의 값이다.
-        # TODO: rules 파일이 생기면 domain/rules.py 의 기간 검사를 여기에 붙인다 (SDD 5절 1-3)
+        # 1-3. 기간 판정. 지난 날짜거나 오늘+N일을 넘으면 되묻는다. N 은 session.md 의 값이다.
+        # 날짜를 못 읽으면 판정하지 않는다. 시각만 있는 약속("저녁 7시")도 계산은 할 수 있어야 한다
+        with tr.span("period") as span:
+            today = domain_rules.today_local(datetime.now(timezone.utc))
+            meet_date = domain_rules.parse_meet_date(slots.datetime, today)
+            problem = domain_rules.meet_window_problem(meet_date, today) if meet_date else None
+            span.output = {"date": meet_date.isoformat() if meet_date else None, "ok": problem is None}
+        if problem:
+            return _answer(session_id, "need_info", slots, tr.id, problem, questions=["언제 모이나요?"])
 
         # 2. 지오코딩
         with tr.span("geocode") as span:
@@ -789,7 +797,17 @@ async def _persist(
         trace_id=trace_id,
         status=status,
         destination=(dest.lng, dest.lat) if dest else None,
+        meet_at=_meet_at(slots),
     )
+
+
+def _meet_at(slots: Slots) -> datetime | None:
+    """저장할 약속 시각 (SDD 5절 8단계). 날짜를 못 읽었거나 등록 범위 밖이면 None 이고 임시 세션으로 남는다."""
+    today = domain_rules.today_local(datetime.now(timezone.utc))
+    meet_date = domain_rules.parse_meet_date(slots.datetime, today)
+    if meet_date is None or domain_rules.meet_window_problem(meet_date, today):
+        return None
+    return domain_rules.meet_at_local(meet_date, domain_rules.parse_meet_time(slots.datetime))
 
 
 def _participants_for_store(slots: Slots, pins: list[GeocodedPin]) -> list[dict[str, Any]]:

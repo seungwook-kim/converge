@@ -7,6 +7,7 @@ store.py 는 DB 접근만 한다. 여기서 부르기만 하고 모양 변환은
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from backend.app.schemas.result import AgentResponse, GeocodedPin, ParticipantEdit, Result
@@ -32,14 +33,15 @@ async def save(
     trace_id: str,
     status: str = "computed",
     destination: tuple[float | None, float | None] | None = None,
+    meet_at: datetime | None = None,
 ) -> str:
     """세션과 결과를 저장하고 session_id 를 돌려준다.
 
     session_id 가 None 이면 새 세션을 만든다. DB 가 uuid 를 만들어 주므로 그 값이 진짜 id 다.
     이미 있는 세션이면 참석자 좌표와 상태만 갱신한다.
 
-    meet_at 을 넣지 않는 이유: 슬롯의 datetime 은 "목요일 아침 8시" 같은 사람 말이고 날짜가 없다.
-    날짜 해석이 들어오기 전까지는 임시 세션으로 두고 보관 기간 7일을 따른다 (테이블정의서 6절).
+    meet_at: 파이프라인이 슬롯의 날짜를 읽어 넘긴다 (SDD 5절 1-3). 못 읽었으면 None 이고
+    임시 세션으로 남아 보관 기간 7일을 따른다 (테이블정의서 6절). 들어오면 expires_at 도 다시 계산된다.
     """
     dest = destination if destination is not None else _destination(result)
     if session_id is None:
@@ -47,6 +49,7 @@ async def save(
             user_id=user_id,
             preset=slots.preset or "meeting",
             participants=participants,
+            meet_at=meet_at,
             purpose=slots.purpose,
             destination_name=slots.destination,
             destination_lng=dest[0],
@@ -56,7 +59,7 @@ async def save(
             schedule_confirmed=slots.schedule_confirmed,
             constraints=slots.constraints,
         )
-    await store.update_session(session_id, participants=participants, status=status)
+    await store.update_session(session_id, participants=participants, status=status, meet_at=meet_at)
     # 결과가 없으면(되묻기·핀 확인 중) 세션만 남긴다. 링크를 먼저 만들어 줘야 참석자들이 모일 수 있다
     if result is not None:
         await store.save_result(

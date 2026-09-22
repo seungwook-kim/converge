@@ -207,3 +207,13 @@ def test_limit_은_1에서_100_사이로_자른다(list_client):
     assert captured["limit"] == 100
     api.get("/api/sessions?limit=0")
     assert captured["limit"] == 1
+
+
+def test_이른_아침_약속은_당일에_잠기지_않는다():
+    """DB 는 UTC 로 준다. 한국 10월 3일 08:00 은 UTC 10월 2일 23:00 이다.
+    UTC 날짜로 자르면 10월 3일 09:00(한국)에 잠겨 약속 당일에 고칠 수 없게 된다."""
+    from datetime import datetime, timezone
+
+    meet = datetime(2026, 10, 2, 23, 0, tzinfo=timezone.utc)
+    assert not store.is_locked(meet, now=datetime(2026, 10, 3, 3, 0, tzinfo=timezone.utc))  # 한국 12:00
+    assert store.is_locked(meet, now=datetime(2026, 10, 3, 15, 0, tzinfo=timezone.utc))  # 한국 10월 4일 00:00

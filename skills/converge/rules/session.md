@@ -5,6 +5,7 @@ register_within_days: 30       # 등록 가능 범위. 약속이 오늘 + 이 �
 retain_after_meet_days: 30     # 약속 뒤 보관 기간. 지나면 배치가 삭제한다 (expires_at 계산에 씀)
 draft_retain_days: 7           # 약속 시각이 없는 임시 세션의 보관 기간 (생성 시각 기준)
 lock_after_meet: next_day      # 약속 다음날 0시부터 수정 잠금. 열람·삭제는 계속 된다
+timezone: Asia/Seoul           # "오늘"과 약속 날짜를 읽는 기준. 서버(Cloud Run)는 UTC 로 돈다
 ---
 # 세션 일생
 
@@ -19,6 +20,7 @@ lock_after_meet: next_day      # 약속 다음날 0시부터 수정 잠금. 열�
 | `retain_after_meet_days` | `services/store.py` `calc_expires_at` | `expires_at = meet_at + 30일` |
 | `draft_retain_days` | 같은 함수 | 약속 시각이 없으면 `expires_at = created_at + 7일` |
 | `lock_after_meet` | 재질문 잠금 검사 (SDD 5절) | `meet_at` 다음날 0시가 지났으면 409. LLM을 부르기 전에 막는다 |
+| `timezone` | `domain/rules.py` `parse_meet_date`, 파이프라인 1-3·8단계 | 오늘 날짜를 이 시간대로 정하고, `meet_at` 을 이 시간대 시각으로 저장한다 |
 
 ## 임시 세션
 

@@ -45,7 +45,7 @@ converge/
         request.py            API 요청
       services/               바깥과 통신하는 것만 둔다
         llm.py                모든 LLM 호출은 여기만. 구글 AI Studio·OpenRouter·로컬 GGUF 를 모델 이름으로 가른다
-        vision.py             캡처 → 텍스트
+        vision.py             캡처 → 텍스트. 이미지 검사와 결과 검사만 하고 호출은 llm.transcribe_image 에 맡긴다
         geo.py                지오코딩·장소 검색 (MCP 클라이언트 경유)
         routes.py             경로·소요시간 (MCP 클라이언트 경유), 캐시
         judge.py              후보 판정 프롬프트 조립, 대형 모델 호출
@@ -398,11 +398,11 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 
 | 단계 | 함수 | 입력 → 출력 | 실패 시 |
 |---|---|---|---|
-| 0 | vision.extract_text | 이미지 → 텍스트 | 대형 비전 모델 1회 재시도 → 실패면 need_info("캡처를 읽지 못했습니다, 문장으로 입력") |
+| 0 | vision.extract_text | 이미지 → 텍스트. 모델은 MODEL_VISION, 비어 있으면 MODEL_LARGE | 같은 모델 1회 재시도 → 실패면 need_info("캡처를 읽지 못했습니다, 문장으로 입력") |
 | 1 | llm.extract_slots | 텍스트(+이전 슬롯) → Slots | 스키마 위반 시 재시도 1회 → 대형 모델 승격 → 실패면 failed |
 | 1-1 | 범위 판정 | slots.out_of_scope → out_of_scope 응답 | |
 | 1-2 | 누락 판정 | slots.missing 비어 있지 않으면 need_info. 절차 단서가 없어 slots.access 가 통째로 None 이면 코드가 missing 에 "access.required" 를 넣고 되묻는다("이 장소에 출입 절차가 있나요? (출입증·방문자 등록)"). 없다고 답하면 required=false 로 두고 체크리스트를 만들지 않는다 | |
-| 1-3 | 기간 판정 | slots.datetime을 시각으로 바꿔 오늘+30일을 넘으면 need_info("30일 안의 약속만 잡을 수 있습니다"). 30은 skills/converge/rules/의 값 | 코드라 실패 없음 |
+| 1-3 | 기간 판정 | domain/rules.parse_meet_date 가 slots.datetime 에서 날짜를 읽는다. 오늘보다 앞이면 need_info("이미 지난 날짜입니다"), 오늘+30일을 넘으면 need_info("30일 안의 약속만 잡을 수 있습니다"). 날짜를 못 읽으면 판정하지 않고 넘어가며 meet_at 은 None(임시 세션). 30과 기준 시간대는 session.md 의 값 | 코드라 실패 없음 |
 | 2 | geo.geocode_all | 참석자·집결지·목적지 지명 → 좌표, confidence | 한 명이라도 confidence < 0.8 → need_confirm |
 | 2-1 | 핀 확인 | 사용자가 confirmed_participants 반환. 누구 핀이든 고칠 수 있다 (7절 핀 소유권) | |
 | 3 | geo.candidates | 집결 후보 생성: 절차 시작점(정문·1층 로비·본사) + 도착 어긋남 시 랜드마크(역·주차장 입구) | 후보 0곳이면 목적지 좌표 자체를 후보로 |
@@ -411,10 +411,9 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 | 6 | judge.rank | 후보 표 + 규칙 문서 → rank·reason·switched_from | 스키마 위반 재시도 1회 → 실패면 rules.apply 순으로 rank, reason은 규칙 문구 그대로 |
 | 7 | rules.departure | (도착 기한 − 절차 소요) − 소요시간 − 여유 = 출발 시각, 집결지면 2단 역산, 늦은 시각이면 첫차·막차 조회, 시각 미확정이면 provisional | |
 | 7-1 | checklist.build_checklist + build_summary | 슬롯의 preset·access·constraints → Checklist (skills/converge/rules/checklist.md 에서 꺼낸다), 결과 표 → summary_text (코드 조립) | 코드라 실패 없음. 절차를 모르면 checklist 는 None |
-| 8 | store.save + 응답 | 되묻기·핀 확인 단계에서도 세션을 draft 로 저장한다 (링크가 먼저 있어야 참석자가 모인다). 계산이 끝나면 status=computed 와 results 행. expires_at을 여기서 계산해 넣는다: meet_at 있으면 meet_at+30일, 없으면(임시 세션) created_at+7일. DB 기본값 없음 | |
+| 8 | store.save + 응답 | 되묻기·핀 확인 단계에서도 세션을 draft 로 저장한다 (링크가 먼저 있어야 참석자가 모인다). 계산이 끝나면 status=computed 와 results 행. meet_at 은 1-3 에서 읽은 날짜 + parse_meet_time 의 시각(없으면 0시), 기준 시간대로 넣는다. expires_at을 여기서 계산해 넣는다: meet_at 있으면 meet_at+30일, 없으면(임시 세션) created_at+7일. DB 기본값 없음 | |
 
-2026-09-18 기준 구현 상태: 0~2단계와 갈림길(1-1 범위 밖, 1-2 누락, 2-1 핀 확인·핀 소유권)까지 services/pipeline.py 에 있다.
-1-3(기간 판정)은 규칙 파일이 생기면 붙인다. 3~8단계는 MCP 도구 6개가 준비되면 채운다. 그때까지 그 자리는 failed 로 끝난다.
+2026-09-22 기준 구현 상태: 0~8단계가 모두 services/pipeline.py 에 있다.
 pipeline.run 은 바깥 함수를 Deps 로 받는다. 테스트가 키 없이 단계 순서만 검사하기 위해서다 (backend/tests/test_pipeline.py).
 
 ### 라우팅 (services/router.py)
@@ -481,6 +480,7 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | session.md | retain_after_meet_days | 30 | 약속 뒤 보관 기간. expires_at 계산 |
 | session.md | draft_retain_days | 7 | 약속 시각이 없는 임시 세션의 보관 기간 |
 | session.md | lock_after_meet | next_day | 약속 다음날 0시부터 수정 잠금 |
+| session.md | timezone | Asia/Seoul | "오늘"과 약속 날짜를 읽는 기준 시간대 (5절 1-3, 09-22) |
 | transport.md | buffer_meeting_min | 20 | 일반 약속(meeting)의 여유 |
 | transport.md | buffer_visit_min | 15 | 출입 절차가 있는 방문(visit)의 여유. 절차 소요를 따로 빼므로 조금 줄인다 |
 | transport.md | car_traffic_pct | 15 | 자동차 소요에 얹는 정체 여유(%) |
@@ -548,7 +548,7 @@ Langfuse Prompt 이름과 역할. 코드에 문자열로 두지 않는다.
 | 이름 | 모델 | 역할 |
 |---|---|---|
 | converge/slot-extract | 소형 (MODEL_SMALL) 또는 대형 폴백 | 텍스트 → Slots JSON. GBNF 문법 강제. 출입 절차·집결지·픽업·참석자 역할 추출. 범위 밖이면 out_of_scope true 에 preset null |
-| converge/vision-transcribe | Gemini Flash | 캡처 → 대화 텍스트 (이름·시각·말풍선 유지) |
+| converge/vision-transcribe | MODEL_VISION (없으면 MODEL_LARGE) | 캡처 → 대화 텍스트 (이름·시각·말풍선 유지). 약속과 무관한 이미지면 빈 문자열 |
 | converge/judge | Sonnet 5 | 후보 표 + 규칙 문서 → rankings JSON (rank·reason·switched_from) |
 | converge/eval-judge | GPT-5.6 Luna | reason이 규칙과 계산값에 부합하는지 0~2점 |
 
@@ -588,7 +588,7 @@ MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 슬롯 추출 소형 모델. 이
                         # 비우고 주석 처리하면 로컬 GGUF, 그것도 없으면 처음부터 대형
 GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다
 MODEL_LARGE=anthropic/claude-sonnet-5
-MODEL_VISION=google/gemini-3.8-flash
+MODEL_VISION=google/gemini-3.8-flash   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다 (그 모델이 이미지를 받아야 한다)
 MODEL_EVAL_JUDGE=openai/gpt-5.6-luna
 COST_LIMIT_USD_PER_REQUEST=0.05
 DAILY_COST_LIMIT_USD=1.0       # 하루 합계 상한. 비우면 제한 없음 (41번)

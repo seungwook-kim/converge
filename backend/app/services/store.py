@@ -20,6 +20,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import asyncpg
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -152,13 +153,15 @@ def calc_expires_at(meet_at: datetime | None, created_at: datetime) -> datetime:
 def is_locked(meet_at: datetime | None, now: datetime | None = None) -> bool:
     """수정 잠금 여부 (SDD 5절 재질문, session.md lock_after_meet: next_day).
 
-    약속 다음날 0시(UTC 기준)가 지났으면 True → 라우터가 409를 돌려주고 LLM을 부르지 않는다.
+    약속 다음날 0시(session.md timezone 기준)가 지났으면 True → 라우터가 409를 돌려주고 LLM을 부르지 않는다.
     meet_at이 없는 임시 세션은 잠글 약속이 없으므로 항상 False.
+    DB 는 UTC 로 돌려준다. 그대로 0시를 자르면 한국 오전 9시 전 약속이 당일에 잠긴다.
     """
     if meet_at is None:
         return False
     now = now or datetime.now(timezone.utc)
-    next_day_start = (meet_at + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    local = meet_at.astimezone(ZoneInfo(rules.load_rule("session")["timezone"]))
+    next_day_start = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return now >= next_day_start
 
 

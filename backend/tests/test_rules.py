@@ -1,7 +1,62 @@
 """규칙 적용 계산 (SDD 5절 5·7단계). 규칙값은 skills/converge/rules/ 에서 읽는다."""
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
+
 from backend.app.domain import rules
+
+# 2026-09-22 는 화요일이다
+TODAY = date(2026, 9, 22)
+
+
+def test_날짜_표현을_날짜로_바꾼다():
+    assert rules.parse_meet_date("2026-10-03 12:00", TODAY) == date(2026, 10, 3)
+    assert rules.parse_meet_date("10월 3일 저녁 7시", TODAY) == date(2026, 10, 3)
+    assert rules.parse_meet_date("10/3 08:00", TODAY) == date(2026, 10, 3)
+    assert rules.parse_meet_date("오늘 22:00", TODAY) == TODAY
+    assert rules.parse_meet_date("내일 저녁 7시", TODAY) == date(2026, 9, 23)
+    assert rules.parse_meet_date("모레", TODAY) == date(2026, 9, 24)
+    assert rules.parse_meet_date("3일 뒤", TODAY) == date(2026, 9, 25)
+    assert rules.parse_meet_date("30일 12시", TODAY) == date(2026, 9, 30)
+
+
+def test_연도_없는_날짜가_지났으면_다음으로_넘긴다():
+    assert rules.parse_meet_date("9월 1일", TODAY) == date(2027, 9, 1)
+    assert rules.parse_meet_date("5일", TODAY) == date(2026, 10, 5)
+
+
+def test_요일은_가장_가까운_그날로_읽는다():
+    assert rules.parse_meet_date("목요일 08:00", TODAY) == date(2026, 9, 24)
+    assert rules.parse_meet_date("화요일", TODAY) == TODAY  # 오늘이 화요일이면 오늘
+    assert rules.parse_meet_date("월요일", TODAY) == date(2026, 9, 28)
+    assert rules.parse_meet_date("다음주 목요일", TODAY) == date(2026, 10, 1)
+    assert rules.parse_meet_date("이번주 월요일", TODAY) == date(2026, 9, 21)  # 지났어도 그대로. 1-3 이 되묻는다
+
+
+def test_날짜가_없으면_None():
+    assert rules.parse_meet_date("저녁 7시", TODAY) is None
+    assert rules.parse_meet_date("언젠가", TODAY) is None
+    assert rules.parse_meet_date(None, TODAY) is None
+    assert rules.parse_meet_date("2월 30일", TODAY) is None
+
+
+def test_등록_범위를_벗어나면_되묻는다():
+    within = rules.load_rule("session")["register_within_days"]
+    assert rules.meet_window_problem(TODAY, TODAY) is None
+    assert rules.meet_window_problem(date(2026, 9, 21), TODAY) is not None
+    assert rules.meet_window_problem(date.fromordinal(TODAY.toordinal() + within), TODAY) is None
+    assert f"{within}일" in rules.meet_window_problem(date.fromordinal(TODAY.toordinal() + within + 1), TODAY)
+
+
+def test_오늘은_서버_UTC_가_아니라_규칙의_시간대로_정한다():
+    # UTC 9월 21일 20시 = 한국 9월 22일 05시
+    assert rules.today_local(datetime(2026, 9, 21, 20, 0, tzinfo=timezone.utc)) == TODAY
+
+
+def test_저장용_약속_시각은_규칙의_시간대로_만든다():
+    at = rules.meet_at_local(date(2026, 10, 3), "08:00")
+    assert at.astimezone(timezone.utc) == datetime(2026, 10, 2, 23, 0, tzinfo=timezone.utc)
+    assert rules.meet_at_local(date(2026, 10, 3), None).hour == 0
 
 
 def test_시각_표현을_HHMM_으로_바꾼다():

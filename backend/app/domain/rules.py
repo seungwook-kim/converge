@@ -63,7 +63,8 @@ def load_rule(name: str) -> dict:
 # skills/converge/rules/ 의 값을 호출 쪽이 읽어 넘긴다. 여기서 규칙 파일을 직접 읽지 않는 이유는
 # 프리셋(meeting/visit)마다 다른 값을 고르는 판단이 파이프라인 몫이기 때문이다.
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 
 def calc_departure(
@@ -139,6 +140,98 @@ def parse_meet_time(text: str | None) -> str | None:
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         return None
     return f"{hour:02d}:{minute:02d}"
+
+
+_WEEKDAYS = "월화수목금토일"
+_RELATIVE_DAYS = {"오늘": 0, "금일": 0, "내일": 1, "낼": 1, "모레": 2, "글피": 3}
+
+
+def today_local(now_utc: datetime) -> date:
+    """UTC 시각을 session.md timezone 기준 날짜로. 서버는 UTC 로 돌아서 밤 9시(KST 오전 6시) 전후로 하루가 어긋난다."""
+    return now_utc.astimezone(ZoneInfo(load_rule("session")["timezone"])).date()
+
+
+def parse_meet_date(text: str | None, today: date) -> date | None:
+    """사람이 쓴 날짜 표현을 날짜로. 못 읽으면 None (SDD 5절 1-3).
+
+      "2026-10-03 12:00" / "10월 3일" / "10/3"  → 그 날. 연도가 없고 이미 지났으면 내년
+      "15일"                                   → 이번 달. 지났으면 다음 달
+      "오늘" "내일" "모레" "글피"
+      "목요일"            → 오늘 포함 가장 가까운 목요일
+      "이번주 목요일"      → 이번 주(월요일 시작) 목요일. 지났으면 지난 날짜 그대로 (1-3 이 되묻는다)
+      "다음주 목요일"      → 다음 주 목요일
+
+    LLM 에 맡기지 않는다. 같은 문장이 요일에 따라 다른 날로 읽히면 기간 판정과 보관 기간이 흔들린다.
+    """
+    if not text:
+        return None
+
+    full = re.search(r"(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})", text)
+    if full:
+        return _safe_date(int(full.group(1)), int(full.group(2)), int(full.group(3)))
+
+    month_day = re.search(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일", text) or re.search(
+        r"(?<![\d:])(\d{1,2})\s*/\s*(\d{1,2})(?![\d:])", text
+    )
+    if month_day:
+        month, day = int(month_day.group(1)), int(month_day.group(2))
+        found = _safe_date(today.year, month, day)
+        if found is not None and found < today:
+            found = _safe_date(today.year + 1, month, day)
+        return found
+
+    after = re.search(r"(\d{1,2})\s*일\s*(?:뒤|후)", text)
+    if after:
+        return today + timedelta(days=int(after.group(1)))
+
+    for word, offset in _RELATIVE_DAYS.items():
+        if word in text:
+            return today + timedelta(days=offset)
+
+    weekday = re.search(rf"([{_WEEKDAYS}])요일", text)
+    if weekday:
+        target = _WEEKDAYS.index(weekday.group(1))
+        this_monday = today - timedelta(days=today.weekday())
+        if re.search(r"다음\s*주|담주|다다음", text):
+            weeks = 2 if "다다음" in text else 1
+            return this_monday + timedelta(weeks=weeks, days=target)
+        if re.search(r"이번\s*주", text):
+            return this_monday + timedelta(days=target)
+        return today + timedelta(days=(target - today.weekday()) % 7)
+
+    day_only = re.search(r"(?<!\d)(\d{1,2})\s*일", text)
+    if day_only:
+        day = int(day_only.group(1))
+        found = _safe_date(today.year, today.month, day)
+        if found is not None and found < today:
+            next_year, next_month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+            found = _safe_date(next_year, next_month, day)
+        return found
+    return None
+
+
+def _safe_date(year: int, month: int, day: int) -> date | None:
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def meet_window_problem(meet: date, today: date) -> str | None:
+    """등록 가능 범위(session.md register_within_days)를 벗어났으면 되물을 말. 괜찮으면 None."""
+    within = load_rule("session")["register_within_days"]
+    if meet < today:
+        return "이미 지난 날짜입니다. 약속 날짜를 다시 알려 주세요."
+    if meet > today + timedelta(days=within):
+        return f"{within}일 안의 약속만 잡을 수 있습니다. 날짜를 다시 알려 주세요."
+    return None
+
+
+def meet_at_local(meet: date, hhmm: str | None) -> datetime:
+    """저장할 meet_at. 시각을 모르면 그날 0시로 둔다 (보관·잠금은 날짜만 본다)."""
+    hour, minute = (int(x) for x in hhmm.split(":")) if hhmm else (0, 0)
+    tz = ZoneInfo(load_rule("session")["timezone"])
+    return datetime(meet.year, meet.month, meet.day, hour, minute, tzinfo=tz)
 
 
 def lead_min(preset: str | None, access_required: bool | None = None) -> int:

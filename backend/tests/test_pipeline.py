@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date, timedelta
 
 import pytest
 
@@ -329,3 +330,48 @@ def test_픽업이_아니면_출발지를_묻는다():
     out = run(AgentRequest(text="어디서 출발"), deps(s))
     assert out.stage == "need_info"
     assert any("어디서 출발" in q for q in out.questions)
+
+
+def test_지난_날짜면_되묻는다():
+    out = run(AgentRequest(text="점검"), _done_deps(extract_slots=_fixed(slots(datetime="2020-01-01 08:00"))))
+    assert out.stage == "need_info"
+    assert "지난" in out.message
+
+
+def test_등록_범위를_넘는_날짜면_되묻는다():
+    far = (date.today() + timedelta(days=90)).isoformat()
+    out = run(AgentRequest(text="점검"), _done_deps(extract_slots=_fixed(slots(datetime=f"{far} 08:00"))))
+    assert out.stage == "need_info"
+    assert "일 안의 약속만" in out.message
+
+
+def test_날짜를_읽으면_약속_시각을_저장한다():
+    saved = {}
+
+    async def save(**kwargs):
+        saved.update(kwargs)
+        return "db-session-1"
+
+    out = run(AgentRequest(text="점검"), _done_deps(save=save))  # "목요일 08:00"
+    assert out.stage == "done"
+    assert saved["meet_at"] is not None
+    assert saved["meet_at"].strftime("%A %H:%M") == "Thursday 08:00"
+
+
+def test_날짜가_없으면_임시_세션으로_저장한다():
+    saved = {}
+
+    async def save(**kwargs):
+        saved.update(kwargs)
+        return "db-session-1"
+
+    out = run(AgentRequest(text="점검"), _done_deps(save=save, extract_slots=_fixed(slots(datetime="저녁 7시"))))
+    assert out.stage == "done"
+    assert saved["meet_at"] is None
+
+
+def _fixed(value: Slots):
+    async def extract_slots(*_):
+        return value
+
+    return extract_slots
