@@ -226,6 +226,18 @@ def _parse(raw: str) -> Slots:
             data["preset"] = None
             data["participants"] = []
 
+    # 값을 채워 놓고 같은 칸을 missing 에도 적는 경우가 있다 (09-21 실측:
+    # "방문자 등록을 해야 합니다" -> applied=false 인데 missing 에 access.applied).
+    # 모델 스스로 모순이고, 둘 중 missing 이 맞다. 모른다고 말한 칸을 값으로 믿으면
+    # 되묻지 않고 틀린 계산으로 넘어간다. 값을 비우고 되묻는 쪽이 안전하다.
+    missing = data.get("missing") or []
+    access = data.get("access")
+    if isinstance(access, dict):
+        if "access.applied" in missing:
+            access["applied"] = None
+        if "access.required" in missing:
+            data["access"] = None
+
     if data.get("preset") in LEGACY_PRESETS:
         # 옛 값에는 일반 약속에 해당하는 것이 없었다. 절차가 있다고 본 경우만 visit 으로 옮기고,
         # 절차가 없거나 아직 모르면 meeting 으로 둔다. visit 으로 몰면 없는 절차 소요를 빼게 된다
