@@ -174,6 +174,26 @@ def test_담당자는_출발이_이른_사람과_차로_오는_사람이다():
     assert out["car"] == "민수"        # 차로 오는 사람 중 가장 이른 출발
 
 
+def test_자정을_넘겨_출발하는_사람이_가장_이르다():
+    """00:30 약속이면 23:40 출발이 00:10 출발보다 이르다. 글자로 정렬하면 거꾸로 된다."""
+    result = Result(
+        candidates=[Candidate(name="역", kind="landmark", address="서울", lng=127.0, lat=37.5,
+                              rank=1, access_ok=True, reason="x")],
+        provisional=False,
+        per_participant=[
+            ParticipantResult(name="지호", candidate_rank=1, transport="transit", duration_min=20,
+                              raw_duration_min=15, buffer_min=5, departure_time="00:10", arrive_by="00:30"),
+            ParticipantResult(name="민수", candidate_rank=1, transport="transit", duration_min=50,
+                              raw_duration_min=45, buffer_min=5, departure_time="23:40", arrive_by="00:30"),
+        ],
+        confidence=0.9, model_small="x", prompt_version="p@1", routed_to="small",
+    )
+    slots = Slots(preset="meeting", datetime="토요일 00:30", destination="역",
+                  participants=[dict(name="지호", origin="수원", transport="transit", role="site")],
+                  access=dict(required=False))
+    assert pick_carriers(slots, result)["first"] == "민수"
+
+
 # ─────────────────────────────────────────────────────────────── 집결 계획서
 
 

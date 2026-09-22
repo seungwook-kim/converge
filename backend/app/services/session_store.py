@@ -14,7 +14,7 @@ from typing import Any
 from backend.app.domain import checklist as domain_checklist
 from backend.app.domain import rules
 from backend.app.schemas.result import AgentResponse, GeocodedPin, ParticipantEdit, Result
-from backend.app.schemas.slots import Participant, Slots
+from backend.app.schemas.slots import Participant, Rendezvous, Slots
 from backend.app.services import store
 
 
@@ -112,13 +112,20 @@ def slots_from_session(row: dict[str, Any]) -> Slots:
         purpose=row.get("purpose"),
         destination=row.get("destination_name"),
         participants=[Participant.model_construct(**_participant_fields(p)) for p in row.get("participants") or []],
-        rendezvous=None,
+        rendezvous=_rendezvous(row.get("rendezvous")),
         access=row.get("access"),
         schedule_confirmed=row.get("schedule_confirmed"),
         constraints=row.get("constraints") or [],
         missing=[],
         out_of_scope=False,
     )
+
+
+def _rendezvous(stored: dict[str, Any] | None) -> Rendezvous | None:
+    """저장된 집결지(rendezvous_enc 복호화본). 비우면 다시 연 계획서에서 "집결: OO, 차로 이동" 이 빠진다."""
+    if not stored:
+        return None
+    return Rendezvous.model_construct(name=stored.get("name"), transport_after=stored.get("transport_after"))
 
 
 def _datetime_text(meet_at: datetime | None) -> str | None:

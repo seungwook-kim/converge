@@ -117,15 +117,23 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                     span.error = str(e)
 
         # 0. 캡처 → 텍스트. 실패하면 문장으로 다시 받는다
+        # 캡처 읽기 비용. 슬롯 추출 비용과 합쳐 요청당 상한을 본다. 이미지를 대형 모델로 읽으므로
+        # 요청에서 가장 비싼 호출일 수 있다 (41번 비용 방어)
+        vision_cost_usd = 0.0
         if req.image_base64:
             with tr.span("vision") as span:
+                started = time.monotonic()
                 try:
                     transcript = await _call(deps.extract_text, req.image_base64)
                     # 캡처와 함께 적은 문장이 있으면 뒤에 붙인다. 캡처에 없는 사정을 덧붙이는 경우다
                     text = f"{transcript}\n{text}" if text.strip() else transcript
                     span.output = {"chars": len(transcript)}
+                    vision_cost_usd = float(_llm_meta().get("vision_cost_usd") or 0.0)
+                    await _log_llm("vision", tr.id, session_id, started, "ok", meta=_vision_meta())
                 except Exception as e:  # noqa: BLE001
-                    span.error = str(e)
+                    # 오류 문구에 모델 출력이 섞일 수 있다. 가림말을 만들 슬롯이 없으니 종류만 남긴다
+                    span.error = type(e).__name__
+                    await _log_llm("vision", tr.id, session_id, started, "error", type(e).__name__, meta=_vision_meta())
                     return _answer(
                         session_id,
                         "need_info",
@@ -147,7 +155,8 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 span.output = masking.mask(slots.model_dump(exclude={"participants"}), slots)
                 await _log_llm("extract", tr.id, session_id, started, "ok")
             except Exception as e:  # noqa: BLE001
-                span.error = str(e)
+                # 스키마 위반 오류 문구에는 모델 출력 원문(이름·출발지)이 들어 있다. 종류만 남긴다
+                span.error = type(e).__name__
                 await _log_llm("extract", tr.id, session_id, started, "error", type(e).__name__)
                 return _answer(session_id, "failed", None, tr.id, "요청을 이해하지 못했습니다. 다시 입력해 주세요.")
 
@@ -195,6 +204,10 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
             today = domain_rules.today_local(datetime.now(timezone.utc))
             meet_date = domain_rules.parse_meet_date(slots.datetime, today)
             problem = domain_rules.meet_window_problem(meet_date, today) if meet_date else None
+            if meet_date and not problem and domain_rules.meet_time_passed(
+                meet_date, domain_rules.parse_meet_time(slots.datetime), today, datetime.now(timezone.utc)
+            ):
+                problem = "오늘 그 시각은 이미 지났습니다. 약속 날짜를 다시 알려 주세요."
             span.output = {"date": meet_date.isoformat() if meet_date else None, "ok": problem is None}
         if problem:
             return _answer(session_id, "need_info", slots, tr.id, problem, questions=["언제 모이나요?"])
@@ -262,7 +275,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         # 요청당 상한(41번)을 넘었어도 대형을 생략하고 규칙 점수 순서로 간다.
         rankings: list[dict[str, Any]] | None = None
         routed_to = model_router.route(slots)
-        spent_usd = float(_llm_meta().get("cost_usd") or 0.0)
+        spent_usd = float(_llm_meta().get("cost_usd") or 0.0) + vision_cost_usd
         cap = cost_guards.per_request_limit()
         if routed_to == "large" and cost_guards.over_limit(spent_usd, cap):
             with tr.span("judge") as span:
@@ -458,6 +471,7 @@ async def _log_llm(
     status: str,
     error_type: str | None = None,
     routed_to: str | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> None:
     """LLM 단계 한 줄. 모델·토큰·비용은 services/llm.py 가 마지막 호출에서 남긴 값을 쓴다.
 
@@ -466,7 +480,7 @@ async def _log_llm(
     """
     from backend.app.services import llm, request_log
 
-    meta = llm.last_meta()
+    meta = meta if meta is not None else llm.last_meta()
     await request_log.write(
         request_id=request_id,
         session_id=session_id or None,
@@ -482,6 +496,21 @@ async def _log_llm(
         retry_no=max(0, int(meta.get("attempts", 1)) - 1),
         routed_to=routed_to,
     )
+
+
+def _vision_meta() -> dict[str, Any]:
+    """캡처 읽기 한 줄의 모델·토큰·비용. llm.py 는 vision_ 접두어로 따로 남긴다 (슬롯 추출 값과 섞이지 않게).
+
+    request_logs 에 남겨야 하루 상한(DAILY_COST_LIMIT_USD)이 이 비용까지 센다.
+    """
+    meta = _llm_meta()
+    return {
+        "model": meta.get("vision_model"),
+        "tokens_in": meta.get("vision_tokens_in"),
+        "tokens_out": meta.get("vision_tokens_out"),
+        "cost_usd": meta.get("vision_cost_usd"),
+        "attempts": meta.get("vision_attempts", 1),
+    }
 
 
 def _pin_of(pins: list[GeocodedPin], name: str, kind: str) -> GeocodedPin | None:

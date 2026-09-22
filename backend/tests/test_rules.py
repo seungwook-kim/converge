@@ -132,3 +132,16 @@ def test_절차가_없으면_프리셋과_무관하게_0분():
     assert rules.lead_min("visit", False) == 0
     assert rules.lead_min("visit", None) == entry   # 아직 모르면 있다고 보고 잡아 둔다
     assert rules.lead_min("meeting", None) == 0
+
+
+def test_내일모레는_모레다():
+    assert rules.parse_meet_date("내일모레 7시", TODAY) == date(2026, 9, 24)
+    assert rules.parse_meet_date("낼모레", TODAY) == date(2026, 9, 24)
+
+
+def test_오늘인데_시각이_지났으면_되묻는다():
+    now = datetime(2026, 9, 22, 5, 0, tzinfo=timezone.utc)  # 한국 14:00
+    assert rules.meet_time_passed(TODAY, "12:00", TODAY, now) is True
+    assert rules.meet_time_passed(TODAY, "19:00", TODAY, now) is False
+    assert rules.meet_time_passed(date(2026, 9, 23), "12:00", TODAY, now) is False
+    assert rules.meet_time_passed(TODAY, None, TODAY, now) is False

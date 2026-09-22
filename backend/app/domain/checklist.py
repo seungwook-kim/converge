@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from backend.app.domain.rules import load_rule
-from backend.app.schemas.result import Checklist, Result
+from backend.app.schemas.result import Checklist, ParticipantResult, Result
 from backend.app.schemas.slots import Slots
 
 # 출입 절차가 있으면 이 목록을 꺼낸다. 프리셋과 무관하게 access.required 가 기준이다
@@ -129,12 +129,23 @@ def pick_carriers(slots: Slots, result: Result) -> dict[str, str | None]:
     rows = [r for r in result.per_participant if r.candidate_rank == 1 and r.departure_time]
     if not rows:
         return {}
-    order = sorted(rows, key=lambda r: r.departure_time)
+    order = sorted(rows, key=_depart_minutes)
     drivers = [r for r in order if r.transport == "car"]
     return {
         "car": drivers[0].name if drivers else None,
         "first": order[0].name,
     }
+
+
+def _depart_minutes(row: ParticipantResult) -> int:
+    """도착 기한 기준 출발 시각(분). 도착보다 늦은 시각이면 전날 출발이다 (00:30 약속에 23:40 출발)."""
+    depart = _minutes(row.departure_time)
+    return depart - 24 * 60 if depart > _minutes(row.arrive_by) else depart
+
+
+def _minutes(hhmm: str) -> int:
+    hour, minute = hhmm.split(":")
+    return int(hour) * 60 + int(minute)
 
 
 def build_summary(slots: Slots, result: Result) -> str:

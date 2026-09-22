@@ -365,6 +365,8 @@ async def transcribe_image(image_base64: str, mime: str) -> str:
                 "vision_model": model,
                 "vision_prompt_version": version,
                 "vision_attempts": attempt,
+                "vision_tokens_in": tokens_in,
+                "vision_tokens_out": tokens_out,
                 "vision_cost_usd": cost_guards.estimate_cost_usd(model, tokens_in, tokens_out),
             }
         )

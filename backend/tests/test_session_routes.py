@@ -233,3 +233,12 @@ def test_시각을_모르고_저장된_약속은_날짜만_되살린다():
     row = {"preset": "meeting", "participants": [], "meet_at": datetime(2026, 9, 22, 15, 0, tzinfo=timezone.utc)}
     assert session_store.slots_from_session(row).datetime == "2026-09-23"  # 0시는 "모름" 이었다
     assert session_store.slots_from_session({"preset": "meeting", "participants": []}).datetime is None
+
+
+def test_다시_열어도_집결지를_되살린다():
+    from backend.app.services import session_store
+
+    row = {"preset": "meeting", "participants": [], "rendezvous": {"name": "강남역", "transport_after": "car"}}
+    rendezvous = session_store.slots_from_session(row).rendezvous
+    assert rendezvous.name == "강남역" and rendezvous.transport_after == "car"
+    assert session_store.slots_from_session({"preset": "meeting", "participants": []}).rendezvous is None

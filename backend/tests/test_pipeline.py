@@ -409,3 +409,56 @@ def test_공유_링크로_다시_열어도_준비물과_계획서가_나온다()
     again = session_store.to_agent_response("s1", row, stored).result
     assert again.checklist == out.result.checklist
     assert again.summary_text
+
+
+def test_캡처_비용도_요청당_상한에_센다(monkeypatch):
+    """이미지는 대형 모델이 읽는다. 슬롯 추출 비용만 보면 상한을 넘겨도 판정 모델을 부른다."""
+    from backend.app.services import llm
+
+    async def extract_text(_):
+        llm._last_meta.update({"vision_cost_usd": 0.04})
+        return "민수: 목요일 8시"
+
+    monkeypatch.setattr(pipeline.cost_guards, "per_request_limit", lambda: 0.03)
+    monkeypatch.setattr(pipeline.model_router, "route", lambda _s: "large")
+    seen = {}
+
+    def over_limit(spent, cap):
+        seen["spent"] = spent
+        return True
+
+    monkeypatch.setattr(pipeline.cost_guards, "over_limit", over_limit)
+    run(AgentRequest(image_base64="abc"), _done_deps(extract_text=extract_text))
+    assert seen["spent"] >= 0.04
+
+
+def test_추출_실패_오류에_모델_출력을_남기지_않는다(monkeypatch):
+    from contextlib import contextmanager
+
+    spans = []
+
+    class FakeSpan:
+        def __init__(self):
+            self.input = self.output = self.error = None
+
+    class FakeTrace:
+        id = "t1"
+
+        @contextmanager
+        def span(self, name, **_):
+            s = FakeSpan()
+            spans.append((name, s))
+            yield s
+
+    @contextmanager
+    def trace(*_a, **_k):
+        yield FakeTrace()
+
+    monkeypatch.setattr(pipeline.langfuse, "trace", trace)
+
+    async def boom(*_):
+        raise ValueError("participants.0.name 민수 인천시청 형식 위반")
+
+    run(AgentRequest(text="점검"), pipeline.Deps(extract_slots=boom))
+    error = dict(spans)["extract"].error
+    assert error == "ValueError"

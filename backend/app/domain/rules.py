@@ -143,7 +143,8 @@ def parse_meet_time(text: str | None) -> str | None:
 
 
 _WEEKDAYS = "월화수목금토일"
-_RELATIVE_DAYS = {"오늘": 0, "금일": 0, "내일": 1, "낼": 1, "모레": 2, "글피": 3}
+# 긴 말부터 본다. "내일모레" 안의 "내일"이 먼저 걸리면 하루가 빠진다
+_RELATIVE_DAYS = {"내일모레": 2, "낼모레": 2, "오늘": 0, "금일": 0, "내일": 1, "낼": 1, "모레": 2, "글피": 3}
 
 
 def today_local(now_utc: datetime) -> date:
@@ -225,6 +226,17 @@ def meet_window_problem(meet: date, today: date) -> str | None:
     if meet > today + timedelta(days=within):
         return f"{within}일 안의 약속만 잡을 수 있습니다. 날짜를 다시 알려 주세요."
     return None
+
+
+def meet_time_passed(meet: date, hhmm: str | None, today: date, now_utc: datetime) -> bool:
+    """오늘 약속인데 그 시각이 이미 지났는가. 시각을 모르면 False.
+
+    요일만 말하면 오늘을 포함해 가장 가까운 날로 읽는다. 토요일 오후에 "토요일 12시"라고 쓰면
+    오늘 12시가 되는데, 다음 주를 뜻했을 수도 있다. 어느 쪽인지 추측하지 않고 되묻게 한다.
+    """
+    if meet != today or not hhmm:
+        return False
+    return meet_at_local(meet, hhmm) <= now_utc
 
 
 def meet_at_local(meet: date, hhmm: str | None) -> datetime:
