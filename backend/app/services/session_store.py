@@ -8,8 +8,10 @@ store.py 는 DB 접근만 한다. 여기서 부르기만 하고 모양 변환은
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 
+from backend.app.domain import rules
 from backend.app.schemas.result import AgentResponse, GeocodedPin, ParticipantEdit, Result
 from backend.app.schemas.slots import Participant, Slots
 from backend.app.services import store
@@ -99,11 +101,13 @@ def slots_from_session(row: dict[str, Any]) -> Slots:
     """저장된 세션을 Slots 로 되돌린다. 재질문 프롬프트와 공유 링크 화면이 쓴다.
 
     검증을 거치지 않는 이유: 저장 당시에 통과한 값이고, 지금은 참고 자료이기 때문이다.
-    사람이 쓴 시각 표현("목요일 아침 8시")은 표에 남지 않아 datetime 은 비운다.
+    사람이 쓴 시각 표현("목요일 아침 8시")은 표에 남지 않는다. 대신 meet_at 에서 되살린다.
+    비우면 재질문 때마다 시각을 다시 묻는다 (09-22 실측). 날짜 없이 시각만 말한 약속은 meet_at 이
+    없어 여전히 비어 있다.
     """
     return Slots.model_construct(
         preset=row.get("preset"),
-        datetime=None,
+        datetime=_datetime_text(row.get("meet_at")),
         purpose=row.get("purpose"),
         destination=row.get("destination_name"),
         participants=[Participant.model_construct(**_participant_fields(p)) for p in row.get("participants") or []],
@@ -114,6 +118,16 @@ def slots_from_session(row: dict[str, Any]) -> Slots:
         missing=[],
         out_of_scope=False,
     )
+
+
+def _datetime_text(meet_at: datetime | None) -> str | None:
+    """meet_at → "2026-09-23 19:00". 0시는 시각을 몰라 넣은 값이라 날짜만 (domain/rules.meet_at_local)."""
+    if meet_at is None:
+        return None
+    local = meet_at.astimezone(ZoneInfo(rules.load_rule("session")["timezone"]))
+    if (local.hour, local.minute) == (0, 0):
+        return local.strftime("%Y-%m-%d")
+    return local.strftime("%Y-%m-%d %H:%M")
 
 
 def _participant_fields(stored: dict[str, Any]) -> dict[str, Any]:

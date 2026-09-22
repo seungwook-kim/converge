@@ -217,3 +217,19 @@ def test_이른_아침_약속은_당일에_잠기지_않는다():
     meet = datetime(2026, 10, 2, 23, 0, tzinfo=timezone.utc)
     assert not store.is_locked(meet, now=datetime(2026, 10, 3, 3, 0, tzinfo=timezone.utc))  # 한국 12:00
     assert store.is_locked(meet, now=datetime(2026, 10, 3, 15, 0, tzinfo=timezone.utc))  # 한국 10월 4일 00:00
+
+
+def test_재질문하면_저장된_약속_시각을_슬롯으로_되살린다():
+    """되살리지 않으면 답할 때마다 "몇 시에 시작하나요?" 를 다시 묻는다 (09-22 실측)."""
+    from backend.app.services import session_store
+
+    row = {"preset": "meeting", "participants": [], "meet_at": datetime(2026, 9, 23, 10, 0, tzinfo=timezone.utc)}
+    assert session_store.slots_from_session(row).datetime == "2026-09-23 19:00"  # 한국 시각
+
+
+def test_시각을_모르고_저장된_약속은_날짜만_되살린다():
+    from backend.app.services import session_store
+
+    row = {"preset": "meeting", "participants": [], "meet_at": datetime(2026, 9, 22, 15, 0, tzinfo=timezone.utc)}
+    assert session_store.slots_from_session(row).datetime == "2026-09-23"  # 0시는 "모름" 이었다
+    assert session_store.slots_from_session({"preset": "meeting", "participants": []}).datetime is None
