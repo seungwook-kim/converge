@@ -30,10 +30,9 @@ converge/
   backend/                    FastAPI (Cloud Run)
     BACKEND_GUIDE.md          이 폴더의 경계와 지킬 것
     app/
-      main.py                 앱 생성, 라우터 등록, 미들웨어(request_id), /mcp 마운트
+      main.py                 앱 생성, 라우터 등록, 미들웨어(request_id), GET /health, /mcp 마운트
       routers/
         agent.py              POST /api/agent
-        health.py             GET /health
         session.py            GET /api/sessions      (내 계획 목록, 로그인 필수)
                               GET /api/session/{id}  (공유 링크용 읽기, 로그인 필수)
                               DELETE /api/session/{id}  (주선자 본인만, 즉시 삭제)
@@ -151,6 +150,7 @@ converge/
 | PATCH /api/session/{id}/participants | 로그인 필수 |
 | GET /health | 인증 없음 |
 | /mcp | Bearer 토큰 (MCP_TOKEN, 로그인과 별개) |
+| POST /internal/cleanup | Bearer 토큰 (INTERNAL_TOKEN). Cloud Scheduler 전용. 값이 비어 있으면 503 으로 닫는다 |
 
 로그인 필수 엔드포인트는 토큰이 없거나 검증에 실패하면 401. AUTH_REQUIRED=false(9절, 로컬 개발용)일 때만 검증을 건너뛴다.
 
@@ -625,12 +625,13 @@ Cloud Run 서비스는 하나다 (backend에 MCP 마운트). 프론트는 Vercel
 |---|---|---|
 | 지하철 첫차·막차 | 확인됨 | 서울교통공사 첫차·막차 API(1~9호선만, 민자 노선 제외), 부산교통공사 열차시각표 API. 공공데이터포털 키 하나. 부산 역외부코드 CSV를 레포에 둠 |
 | TMAP 대중교통 도착 시각 지정 | 미확인 | 문서의 요청 파라미터 확인. 없으면 현재 기준 소요시간으로 역산 |
-| OpenRouter 슬롯 추출 통과율 | 일부 확인 (09-18) | 크레딧 충전 완료. openai/gpt-4o-mini 로 converge/slot-extract v2 실호출, 참석자·픽업·누락 추출 통과 (11초, 재시도 없음). 평가셋 30건 기준 통과율은 미측정 |
-| 소형 모델 최종 선택 | 결정 (09-18) | kanana_2.1b-Q4_K_M.gguf (HF kimseunguk/converge-slot-extractor, 공개). 검증 40건 Exact Match 85.0%. 대안은 qwen3_1.7b 45.0%, qwen3_0.6b 47.5% |
+| 슬롯 추출 통과율 | 측정됨 (09-21) | 구글 AI Studio 로 옮긴 뒤 회귀셋 10건으로 잰다. 값은 docs/measurements.md. OpenRouter 는 크레딧이 없어 승격이 402 로 죽어 쓰지 않는다 |
+| 소형 모델 최종 선택 | 변경 (09-21) | 슬롯 추출은 google-ai/gemini-3.5-flash-lite (8절). kanana_2.1b-Q4_K_M.gguf(검증 Exact Match 85.0%)는 CPU 서빙이 느려 후보로 보류 |
 | compose db healthcheck | 적용됨 (09-17) | pg_isready healthcheck + depends_on condition: service_healthy. backend/db/를 initdb에 마운트 |
 | requirements.txt asyncpg | 적용됨 (09-17) | 주석 해제. SQLAlchemy 안 씀, asyncpg 직접. DATABASE_URL은 postgresql:// |
 | 다른 기기에서 로컬 재현 | 미확인 | .env.example 만으로는 못 돈다. LLM·카카오·TMAP 키가 있어야 하고, 없을 때 어디까지 도는지 README에 적는다 |
 | Supabase 프로젝트 | 해결 (09-18) | `converge_agent` 생성. 표 5개·RLS 마이그레이션 완료 |
 | 구글 OAuth 동의 화면 | 설정됨, 테스트 모드 (09-18) | 테스트 사용자 등록, 리디렉트 localhost:3000/**. 브라우저 로그인 → 토큰 → 백엔드 검증 실측. 남은 것은 프로덕션 전환과 Vercel 주소 추가로, 배포할 때 한다 |
 | Langfuse 트레이스의 참석자 이름·출발지 | 미검토 | 평문으로 들어간다. 마스킹 여부 미정 |
-| 로컬 확인용 서버 | 임시 (09-18) | backend/app/main.py 는 DATABASE_URL 과 Supabase 공개키가 있어야 뜬다. 그 전까지 POST /api/agent 만 띄우는 임시 서버로 화면을 확인했다. DB 설정이 들어오면 임시 서버를 버린다 |
+| 로컬 확인용 서버 | 해결 | DB 설정이 들어와 backend/app/main.py 로 뜬다. 임시 서버는 지웠다 |
+| 캡처 읽기 실제 카톡 캡처 | 미확인 (09-22) | 코드로 그린 가짜 캡처 1장만 돌렸다 (docs/measurements.md). 실제 캡처로 이름·말풍선 구분을 확인한다. 원본은 커밋하지 않는다 |

@@ -147,6 +147,7 @@ gcloud run services update converge-api --region asia-northeast3 \
   --set-env-vars "SUPABASE_URL=https://xxxx.supabase.co" \
   --set-env-vars "ENCRYPTION_KEY=..." \
   --set-env-vars "MCP_TOKEN=..." \
+  --set-env-vars "INTERNAL_TOKEN=..." \
   --set-env-vars "^@^DATABASE_URL=postgresql://..."
 ```
 
@@ -159,6 +160,27 @@ gcloud run services update converge-api --region asia-northeast3 \
 
 ```bash
 curl https://converge-api-xxxx.a.run.app/health
+```
+
+### 3-5. 만료 데이터 청소 (Cloud Scheduler)
+
+만료된 세션·경로 캐시·90일 지난 로그를 하루 한 번 지운다 (테이블정의서 6절). 이게 없으면
+보관 기간이 문서에만 있고 데이터는 쌓인다. Supabase 무료 티어의 7일 미사용 정지도 이 호출이 막는다.
+
+```bash
+gcloud services enable cloudscheduler.googleapis.com
+gcloud scheduler jobs create http converge-cleanup \
+  --location asia-northeast3 \
+  --schedule "0 4 * * *" --time-zone "Asia/Seoul" \
+  --http-method POST \
+  --uri "https://converge-api-xxxx.a.run.app/internal/cleanup" \
+  --headers "Authorization=Bearer <INTERNAL_TOKEN 과 같은 값>"
+```
+
+`INTERNAL_TOKEN` 이 비어 있으면 엔드포인트가 503 으로 닫혀 있다. 손으로 한 번 불러 확인한다.
+
+```bash
+gcloud scheduler jobs run converge-cleanup --location asia-northeast3
 ```
 
 ---
