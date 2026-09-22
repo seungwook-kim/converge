@@ -30,7 +30,7 @@ supabase.com 에서 새 프로젝트를 만든다. 리전은 가까운 곳(North
 SQL Editor 에서 `backend/db/001_init.sql` 을 통째로 붙여넣고 실행한다. 표 다섯 개가 생긴다.
 
 ```
-sessions  participants  results  route_cache  request_logs
+sessions  results  request_logs  route_cache  feedback
 ```
 
 로컬 `docker compose up` 은 같은 파일을 자동으로 실행한다. 두 곳의 스키마가 같아야 한다.
@@ -38,11 +38,20 @@ sessions  participants  results  route_cache  request_logs
 ### 1-3. 연결 문자열
 
 Settings > Database > Connection string 에서 **Connection pooling** 쪽 주소를 쓴다.
-직접 연결(5432)은 동시 접속 수가 적어 서버리스와 맞지 않는다.
+직접 연결(`db.xxxx.supabase.co`)은 IPv6 만 주므로 Cloud Run 에서 닿지 않는다.
+
+풀러는 포트가 둘이다. **5432(Session) 을 쓴다.**
 
 ```
-DATABASE_URL=postgresql://postgres.xxxx:비밀번호@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.xxxx:비밀번호@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
 ```
+
+6543(Transaction) 은 준비된 구문(prepared statement)을 재사용하지 못한다. `services/store.py` 가
+asyncpg 풀(`create_pool`)을 그대로 쓰므로 6543 으로 붙이면 두 번째 요청부터
+`prepared statement "__asyncpg_stmt_1__" already exists` 로 깨진다. 굳이 6543 을 쓰려면
+`create_pool(..., statement_cache_size=0)` 을 같이 넣어야 한다.
+
+Cloud Run 은 요청마다 프로세스를 새로 만들지 않고 풀을 들고 있으므로 Session 쪽이 맞다.
 
 ### 1-4. 구글 로그인 켜기
 
