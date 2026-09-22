@@ -375,3 +375,18 @@ def _fixed(value: Slots):
         return value
 
     return extract_slots
+
+
+def test_캡처를_읽으면_그_텍스트로_슬롯을_뽑는다():
+    seen = {}
+
+    async def extract_text(_):
+        return "민수: 목요일 8시"
+
+    async def extract_slots(text, *_):
+        seen["text"] = text
+        return slots()
+
+    run(AgentRequest(image_base64="abc", text="나는 차로 가"), deps(slots(), extract_text=extract_text, extract_slots=extract_slots))
+    # 캡처가 먼저, 함께 적은 문장이 뒤에 붙는다
+    assert seen["text"] == "민수: 목요일 8시\n나는 차로 가"

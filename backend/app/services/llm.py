@@ -27,6 +27,7 @@ from backend.app.services import costs as cost_guards
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 SLOT_PROMPT = "converge/slot-extract"
+VISION_PROMPT = "converge/vision-transcribe"
 
 # SDD 9절 MODEL_LARGE 와 같은 값을 본다
 DEFAULT_LARGE = "anthropic/claude-sonnet-5"
@@ -320,6 +321,57 @@ async def extract_slots(
         return slots
 
     raise last_error if last_error else RuntimeError("슬롯 추출에 실패했습니다")
+
+
+def model_vision() -> str:
+    """캡처를 읽을 모델 (SDD 9절 MODEL_VISION). 비어 있으면 대형 모델이 읽는다. 그 모델이 이미지를 받아야 한다."""
+    return os.environ.get("MODEL_VISION") or model_large()
+
+
+async def transcribe_image(image_base64: str, mime: str) -> str:
+    """캡처 → 대화 텍스트 (SDD 5절 0단계, 8절 converge/vision-transcribe).
+
+    같은 모델로 한 번 더 시도한다. 둘 다 실패하면 예외를 올리고, 파이프라인이 문장으로 다시 받는다.
+    약속과 무관한 이미지면 모델이 빈 문자열을 낸다. 그것도 실패로 본다 (없는 대화를 지어내지 않게).
+    """
+    prompt, version = langfuse.get_prompt(VISION_PROMPT)
+    model = model_vision()
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_base64}"}},
+            ],
+        }
+    ]
+    last_error: Exception | None = None
+    for attempt in (1, 2):
+        try:
+            res = await _client(model).chat.completions.create(
+                model=_api_model(model), messages=messages, temperature=0, **_extra_body(model)
+            )
+        except LlmUnavailable:
+            raise
+        except Exception as e:  # noqa: BLE001  네트워크·429 는 한 번 더 해 본다
+            last_error = e
+            continue
+        text = (res.choices[0].message.content or "").strip()
+        usage = getattr(res, "usage", None)
+        tokens_in = int(getattr(usage, "prompt_tokens", 0) or 0)
+        tokens_out = int(getattr(usage, "completion_tokens", 0) or 0)
+        _last_meta.update(
+            {
+                "vision_model": model,
+                "vision_prompt_version": version,
+                "vision_attempts": attempt,
+                "vision_cost_usd": cost_guards.estimate_cost_usd(model, tokens_in, tokens_out),
+            }
+        )
+        if text:
+            return text
+        last_error = ValueError("캡처에서 약속 대화를 찾지 못했습니다")
+    raise last_error if last_error else RuntimeError("캡처를 읽지 못했습니다")
 
 
 async def _run_local(text: str) -> str:

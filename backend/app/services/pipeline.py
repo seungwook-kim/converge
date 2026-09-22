@@ -87,6 +87,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
     session_id = req.session_id or uuid.uuid4().hex
     # 테스트가 넣지 않은 단계는 진짜 서비스로 채운다
     for stage_name in (
+        "extract_text",
         "extract_slots",
         "geocode_all",
         "build_candidates",
@@ -118,8 +119,10 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         if req.image_base64:
             with tr.span("vision") as span:
                 try:
-                    text = await _call(deps.extract_text, req.image_base64)
-                    span.output = {"chars": len(text)}
+                    transcript = await _call(deps.extract_text, req.image_base64)
+                    # 캡처와 함께 적은 문장이 있으면 뒤에 붙인다. 캡처에 없는 사정을 덧붙이는 경우다
+                    text = f"{transcript}\n{text}" if text.strip() else transcript
+                    span.output = {"chars": len(transcript)}
                 except Exception as e:  # noqa: BLE001
                     span.error = str(e)
                     return _answer(
@@ -128,7 +131,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                         None,
                         tr.id,
                         "캡처를 읽지 못했습니다. 문장으로 입력해 주세요.",
-                        questions=["어떤 작업을, 언제, 누가 어디서 출발해 모이나요?"],
+                        questions=["언제, 어디서, 누가 어디서 출발해 모이나요?"],
                     )
 
         # 1. 텍스트 → 슬롯
@@ -344,6 +347,10 @@ def _default(name: str) -> Callable[..., Any] | None:
     지연 import 인 이유: 테스트가 가짜 함수만 넣고 돌 때 openai·httpx 를 건드리지 않게 하려는 것이다.
     아직 파일이 없는 단계(3~8)는 None 이라 _call 이 그 자리에서 실패한다.
     """
+    if name == "extract_text":
+        from backend.app.services import vision
+
+        return vision.extract_text
     if name == "extract_slots":
         from backend.app.services import llm
 
