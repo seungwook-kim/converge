@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from backend.app.domain import checklist as domain_checklist
+from backend.app.domain import masking
 from backend.app.domain import router as model_router
 from backend.app.domain import rules as domain_rules
 from backend.app.observability import langfuse
@@ -135,11 +136,15 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                     )
 
         # 1. 텍스트 → 슬롯
-        with tr.span("extract", text=text[:200]) as span:
+        # 입력 문장은 추출이 끝난 뒤 이름·출발지를 가려서 남긴다 (domain/masking.py).
+        # 추출에 실패하면 가림말을 만들 수 없으니 길이만 남긴다
+        with tr.span("extract") as span:
             started = time.monotonic()
+            span.input = {"chars": len(text)}
             try:
                 slots = await _call(deps.extract_slots, text, deps.previous_slots, req.preset)
-                span.output = slots.model_dump(exclude={"participants"})
+                span.input = {"text": masking.mask(text, slots)[:200]}
+                span.output = masking.mask(slots.model_dump(exclude={"participants"}), slots)
                 await _log_llm("extract", tr.id, session_id, started, "ok")
             except Exception as e:  # noqa: BLE001
                 span.error = str(e)
@@ -247,7 +252,11 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 span.error = str(e)
                 routes = []
             failed_names = sorted({r["key"][1] for r in routes if r.get("error")})
-            span.output = {"요청": len(plans), "실패": len([r for r in routes if r.get("error")]), "실패자": failed_names}
+            span.output = {
+                "요청": len(plans),
+                "실패": len([r for r in routes if r.get("error")]),
+                "실패자": masking.mask(failed_names, slots),
+            }
 
         # 6. 판정. 소형 경로(SDD 5절 라우팅 small)면 대형 모델을 부르지 않는다.
         # 요청당 상한(41번)을 넘었어도 대형을 생략하고 규칙 점수 순서로 간다.
@@ -265,7 +274,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                     rankings = await _call(
                         deps.rank, slots, _judge_candidates(raw_candidates, slots), _judge_rows(routes, slots)
                     )
-                    span.output = {"rankings": rankings}
+                    span.output = {"rankings": masking.mask(rankings, slots)}
                     await _log_llm("judge", tr.id, session_id, started, "ok", routed_to=routed_to)
                 except Exception as e:  # noqa: BLE001
                     await _log_llm("judge", tr.id, session_id, started, "error", type(e).__name__, routed_to)

@@ -52,11 +52,16 @@ def _get_client() -> Any | None:
 
 
 class Span:
-    """단계 하나. output 에 결과를, error 에 실패 사유를 넣으면 종료할 때 함께 올라간다."""
+    """단계 하나. output 에 결과를, error 에 실패 사유를 넣으면 종료할 때 함께 올라간다.
+
+    input 은 단계가 끝난 뒤에 정해질 때 쓴다. 가림말을 슬롯에서 만들기 때문에 1단계 입력은
+    추출이 끝나야 가릴 수 있다 (domain/masking.py).
+    """
 
     def __init__(self, handle: Any | None, name: str) -> None:
         self._handle = handle
         self.name = name
+        self.input: Any = None
         self.output: Any = None
         self.error: str | None = None
 
@@ -64,10 +69,12 @@ class Span:
         if self._handle is None:
             return
         try:
+            extra = {"input": self.input} if self.input is not None else {}
             self._handle.update(
                 output=self.output,
                 level="ERROR" if self.error else None,
                 status_message=self.error,
+                **extra,
             )
         except Exception:  # noqa: BLE001
             pass

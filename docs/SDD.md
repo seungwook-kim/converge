@@ -57,6 +57,7 @@ converge/
         rules.py              Skill 규칙 로드, 계산식 (절차 소요·여유·역산·전환 조건)
         checklist.py          준비물 조립(checklist.md에서 꺼냄), 집결 계획서 텍스트 조립
         router.py             소형/대형 선택 규칙
+        masking.py            Langfuse 로 나가는 기록에서 참석자 이름·출발지·탑승지를 번호로 가림 (09-22)
       observability/
         langfuse.py           트레이스·span·프롬프트 조회
       models/                 kanana_2.1b-Q4_K_M.gguf 자리. 빌드 시 채워짐. git에 없음
@@ -394,7 +395,7 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 
 ## 5. 파이프라인 (services/pipeline.py)
 
-순차 실행, 루프 없음. 각 단계는 Langfuse span으로 남긴다.
+순차 실행, 루프 없음. 각 단계는 Langfuse span으로 남긴다. span 에 들어가는 문장·판정 이유·실패자 이름은 domain/masking.py 로 이름·출발지·탑승지를 번호로 바꿔 남긴다 (참석자1, 출발지1). 추출에 실패하면 가림말을 만들 수 없으므로 문장 길이만 남긴다.
 
 | 단계 | 함수 | 입력 → 출력 | 실패 시 |
 |---|---|---|---|
@@ -632,6 +633,6 @@ Cloud Run 서비스는 하나다 (backend에 MCP 마운트). 프론트는 Vercel
 | 다른 기기에서 로컬 재현 | 미확인 | .env.example 만으로는 못 돈다. LLM·카카오·TMAP 키가 있어야 하고, 없을 때 어디까지 도는지 README에 적는다 |
 | Supabase 프로젝트 | 해결 (09-18) | `converge_agent` 생성. 표 5개·RLS 마이그레이션 완료 |
 | 구글 OAuth 동의 화면 | 설정됨, 테스트 모드 (09-18) | 테스트 사용자 등록, 리디렉트 localhost:3000/**. 브라우저 로그인 → 토큰 → 백엔드 검증 실측. 남은 것은 프로덕션 전환과 Vercel 주소 추가로, 배포할 때 한다 |
-| Langfuse 트레이스의 참석자 이름·출발지 | 미검토 | 평문으로 들어간다. 마스킹 여부 미정 |
+| Langfuse 트레이스의 참석자 이름·출발지 | 결정 (09-22) | 번호로 가린다 (5절, domain/masking.py). 목적지는 DB 에도 평문인 공개 장소라 남긴다. 한 글자 이름과 외부 API 오류 문구 속 지명은 가리지 못한다 |
 | 로컬 확인용 서버 | 해결 | DB 설정이 들어와 backend/app/main.py 로 뜬다. 임시 서버는 지웠다 |
 | 캡처 읽기 실제 카톡 캡처 | 미확인 (09-22) | 코드로 그린 가짜 캡처 1장만 돌렸다 (docs/measurements.md). 실제 캡처로 이름·말풍선 구분을 확인한다. 원본은 커밋하지 않는다 |
