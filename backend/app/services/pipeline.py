@@ -52,6 +52,7 @@ class Deps:
     apply_rules: Callable[..., Any] | None = None  # 5 domain/rules
     rank: Callable[..., Awaitable[Any]] | None = None  # 6 judge (없으면 규칙 점수 순)
     departure: Callable[..., Any] | None = None  # 7 domain/rules
+    first_last: Callable[..., Awaitable[dict[str, str]]] | None = None  # 7 야간 첫차·막차 (transit_schedule)
     save: Callable[..., Awaitable[str]] | None = None  # 8 store
     load_session: Callable[..., Awaitable[Any]] | None = None  # 재질문: 이전 세션 읽기
     previous_slots: Slots | None = None  # 재질문이면 이전 슬롯 (SDD 5절 재질문)
@@ -94,6 +95,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         "build_candidates",
         "compute_routes",
         "rank",
+        "first_last",
         "save",
         "load_session",
     ):
@@ -160,15 +162,33 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 await _log_llm("extract", tr.id, session_id, started, "error", type(e).__name__)
                 return _answer(session_id, "failed", None, tr.id, "요청을 이해하지 못했습니다. 다시 입력해 주세요.")
 
-        # 1-1. 범위 밖
+        # 1-1. 범위 밖. 무엇을 하는 도구인지 알려준다 (output-contract.md).
+        # 실시간 질문만 오는 게 아니다(메뉴 추천 등, 09-23). 이유를 모르므로 한 사례에 묶인 말을 하지 않는다
         if slots.out_of_scope:
             return _answer(
                 session_id,
                 "out_of_scope",
                 slots,
                 tr.id,
-                "출발 후 실시간 상황은 다루지 않습니다. 출발 전 집결 계획만 잡습니다.",
+                "여러 사람이 모일 자리와 각자의 출발 시각을 정하는 일만 합니다. "
+                "언제, 어디서 모이는지와 누가 어디서 무엇을 타고 오는지 적어 주세요.",
             )
+
+        # 1-3. 기간 판정. 지난 날짜거나 오늘+N일을 넘으면 되묻는다. N 은 session.md 의 값이다.
+        # 1-2(누락 되묻기)보다 먼저 본다. 받을 수 없는 날짜인데 출발지부터 다 답하게 하면 헛수고다 (09-23 E2E).
+        # 번호는 SDD 5절 표 그대로 두고 순서만 앞당겼다
+        # 날짜를 못 읽으면 판정하지 않는다. 시각만 있는 약속("저녁 7시")도 계산은 할 수 있어야 한다
+        with tr.span("period") as span:
+            today = domain_rules.today_local(datetime.now(timezone.utc))
+            meet_date = domain_rules.parse_meet_date(slots.datetime, today)
+            problem = domain_rules.meet_window_problem(meet_date, today) if meet_date else None
+            if meet_date and not problem and domain_rules.meet_time_passed(
+                meet_date, domain_rules.parse_meet_time(slots.datetime), today, datetime.now(timezone.utc)
+            ):
+                problem = "오늘 그 시각은 이미 지났습니다. 약속 날짜를 다시 알려 주세요."
+            span.output = {"date": meet_date.isoformat() if meet_date else None, "ok": problem is None}
+        if problem:
+            return _answer(session_id, "need_info", slots, tr.id, problem, questions=["언제 모이나요?"])
 
         # 1-2. 필수 슬롯 누락
         # 절차 단서가 아예 없으면 슬롯의 access 가 통째로 None 으로 온다. 그 상태로 계산하면
@@ -197,20 +217,6 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 "계산하려면 몇 가지가 더 필요합니다.",
                 questions=_questions_for(slots.missing),
             )
-
-        # 1-3. 기간 판정. 지난 날짜거나 오늘+N일을 넘으면 되묻는다. N 은 session.md 의 값이다.
-        # 날짜를 못 읽으면 판정하지 않는다. 시각만 있는 약속("저녁 7시")도 계산은 할 수 있어야 한다
-        with tr.span("period") as span:
-            today = domain_rules.today_local(datetime.now(timezone.utc))
-            meet_date = domain_rules.parse_meet_date(slots.datetime, today)
-            problem = domain_rules.meet_window_problem(meet_date, today) if meet_date else None
-            if meet_date and not problem and domain_rules.meet_time_passed(
-                meet_date, domain_rules.parse_meet_time(slots.datetime), today, datetime.now(timezone.utc)
-            ):
-                problem = "오늘 그 시각은 이미 지났습니다. 약속 날짜를 다시 알려 주세요."
-            span.output = {"date": meet_date.isoformat() if meet_date else None, "ok": problem is None}
-        if problem:
-            return _answer(session_id, "need_info", slots, tr.id, problem, questions=["언제 모이나요?"])
 
         # 2. 지오코딩
         with tr.span("geocode") as span:
@@ -311,6 +317,12 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
             result = _build_result(slots, raw_candidates, routes, meet_at, rankings, routed_to)
             span.output = {"후보": len(result.candidates), "참석자행": len(result.per_participant)}
 
+        # 7-2. 야간 대중교통이면 탑승역의 첫차·막차 (schedule.md night_check_last_train).
+        # 끊긴 시간에 타야 하는 사람은 표·계획서·안내 문장에 알린다. 조회가 실패해도 결과는 낸다
+        if domain_rules.load_rule("schedule")["night_check_last_train"]:
+            with tr.span("trains") as span:
+                span.output = await _attach_trains(result, raw_candidates, routes, meet_date, deps.first_last)
+
         if not result.per_participant:
             return _answer(session_id, "failed", slots, tr.id, "경로를 구하지 못했습니다. 잠시 후 다시 시도해 주세요.", geocoded=pins)
 
@@ -351,13 +363,15 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         # 경로를 못 구한 사람은 표에서 빠진다. 말없이 빼면 "왜 저 사람만 없지"가 되므로 알린다
         done_names = {r.name for r in result.per_participant}
         missing_people = [p.name for p in slots.participants if p.name not in done_names]
+        stranded = [r.name for r in result.per_participant if r.candidate_rank == first and r.train_note and "막차" in r.train_note]
         return _answer(
             session_id,
             "done",
             slots,
             tr.id,
             (f"{top.name}에서 {arrive_by} 까지 모이는 안을 1순위로 제안합니다." if top else "결과를 정리했습니다.")
-            + (f" {', '.join(missing_people)} 님은 경로를 조회하지 못해 표에서 빠졌습니다." if missing_people else ""),
+            + (f" {', '.join(missing_people)} 님은 경로를 조회하지 못해 표에서 빠졌습니다." if missing_people else "")
+            + (f" {', '.join(stranded)} 님은 지하철 막차가 끊긴 시간에 타야 합니다." if stranded else ""),
             geocoded=pins,
             result=result,
         )
@@ -393,6 +407,10 @@ def _default(name: str) -> Callable[..., Any] | None:
         from backend.app.services import judge
 
         return judge.rank
+    if name == "first_last":
+        from backend.app.services import transit_schedule
+
+        return transit_schedule.first_last_either
     if name in ("save", "load_session"):
         # DB 설정이 없으면 import 자체가 실패한다. 그때는 저장 없이 계산만 한다
         try:
@@ -713,6 +731,74 @@ def _build_result(
         prompt_version=_llm_meta().get("prompt_version", "converge/slot-extract"),
         routed_to="large" if rankings else "small",
     )
+
+
+async def _attach_trains(
+    result: Result,
+    raw_candidates: list[Any],
+    routes: list[dict[str, Any]],
+    meet_date: Any,
+    first_last: Callable[..., Awaitable[dict[str, str]]] | None,
+) -> dict[str, Any]:
+    """야간 대중교통 행마다 첫 지하철 탑승역의 첫차·막차를 붙인다 (SDD 5절 7단계, schedule.md 야간).
+
+    출발이나 도착 기한이 야간(night_start~night_end)에 걸린 대중교통 행만 본다. 낮에는 부르지 않는다.
+    탑승역이 여럿이면(환승) 끊긴 곳이 하나라도 있으면 그 역 값을 쓴다. 없으면 첫 탑승역 값을 쓴다.
+    같은 역·호선·요일은 한 번만 조회한다. 참석자 × 후보만큼 부르면 공공 API 한도를 금방 쓴다.
+    조회가 실패하면 시각은 비우고 "확인하지 못했다"고 적는다. 모른다고 말하는 편이 조용히 빠지는 것보다 낫다.
+    """
+    if first_last is None:
+        return {"skipped": "조회 함수 없음"}
+    day = domain_rules.day_type(meet_date)
+    index_of = {cand["name"]: i for i, cand in enumerate(raw_candidates)}
+    rank_to_index = {c.rank: index_of.get(c.name) for c in result.candidates}
+    by_key = {r["key"]: r for r in routes if not r.get("error")}
+    looked: dict[tuple[str, str, str], dict[str, str] | None] = {}
+    counts = {"야간행": 0, "조회": 0, "끊김": 0, "실패": 0}
+
+    for row in result.per_participant:
+        if row.transport == "car":
+            continue
+        if not (domain_rules.is_night(row.departure_time) or domain_rules.is_night(row.arrive_by)):
+            continue
+        route = by_key.get((rank_to_index.get(row.candidate_rank), row.name))
+        boardings = domain_rules.subway_boardings((route or {}).get("legs"), row.departure_time)
+        if not boardings:
+            continue
+        counts["야간행"] += 1
+
+        chosen: tuple[dict[str, Any], dict[str, str]] | None = None
+        for board in boardings:
+            key = (board["city"], board["station"], board["line"])
+            if key not in looked:
+                counts["조회"] += 1
+                try:
+                    looked[key] = await first_last(board["city"], board["station"], board["line"], day)
+                except Exception:  # noqa: BLE001  공공 API 장애·역 이름 불일치
+                    looked[key] = None
+            times = looked[key]
+            if times is None:
+                continue
+            if domain_rules.train_missed(board["board_min"], times["first"], times["last"]):
+                chosen = (board, times)
+                break
+            chosen = chosen or (board, times)
+
+        if chosen is None:
+            counts["실패"] += 1
+            row.train_note = "야간 지하철 첫차·막차를 확인하지 못했습니다. 직접 확인해 주세요"
+            continue
+        board, times = chosen
+        row.first_train = domain_rules.clock(times["first"])
+        row.last_train = domain_rules.clock(times["last"])
+        if domain_rules.train_missed(board["board_min"], times["first"], times["last"]):
+            counts["끊김"] += 1
+            station = board["station"].removesuffix("역")  # TMAP 은 "사상" 과 "부산역" 을 섞어 준다
+            row.train_note = (
+                f"{station}역 막차({row.last_train})가 끊긴 뒤에 타야 합니다. "
+                f"첫차는 {row.first_train}입니다. 차나 택시를 알아 두세요"
+            )
+    return counts
 
 
 def _rejected_for(kind: str, ok: bool, rank: int, access_required: bool) -> str | None:

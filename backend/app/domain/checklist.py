@@ -180,6 +180,9 @@ def build_summary(slots: Slots, result: Result) -> str:
                 if driver:
                     line += f" ({driver} 차 탑승)"
             lines.append(line)
+            # 야간에 지하철이 끊기는 사람은 계획서만 받아 봐도 알아야 한다 (schedule.md 야간)
+            if row.train_note:
+                lines.append(f"  {row.train_note}")
 
     if result.checklist and result.checklist.before:
         lines += ["", "미리 해둘 것", ""] + list(result.checklist.before)

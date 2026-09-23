@@ -199,6 +199,7 @@ function perParticipant(sid: ScenarioId, list: Person[]): ParticipantResult[] {
         transfer_count: x.seed.transport === "transit" ? (route?.transfer_count ?? null) : null,
         first_train: null,
         last_train: null,
+        train_note: null,
         polyline,
         via_rendezvous: false,
         via_pickup: picked,

@@ -5,6 +5,9 @@ unconfirmed_is_provisional: true        # 약속 시각이 확정이 아니면 �
 night_start: "22:00"                    # 이 시각 이후를 야간으로 본다
 night_end: "06:00"                      # 이 시각까지가 야간이다
 night_check_last_train: true            # 야간에 끝나면 막차를, 넘겼으면 첫차를 같이 알려 준다
+train_lookup_lines:                     # 첫차·막차를 조회할 수 있는 노선. TMAP 구간 이름의 앞말과 최대 호선 (SDD 11절)
+  수도권: 9
+  부산: 4
 late_arrival_switch_min: 30             # 참석자 도착이 이만큼 벌어지면 집결 방식을 다시 본다 (access.md switch_if_delay_min 과 같은 값)
 ---
 # 시각과 일정
@@ -47,6 +50,7 @@ late_arrival_switch_min: 30             # 참석자 도착이 이만큼 벌어�
 | `unconfirmed_is_provisional` | 7단계 | `Result.provisional` 을 켤지 |
 | `night_start`·`night_end` | 7단계 | 야간으로 볼지 |
 | `night_check_last_train` | 7단계 | 첫차·막차를 조회할지 |
+| `train_lookup_lines` | 7단계 | 어느 노선의 첫차·막차를 조회할지. 그 밖은 조회하지 않는다 |
 | `late_arrival_switch_min` | 5단계 | 집결 방식을 다시 볼지 |
 
 관련: docs/SDD.md 7절, rules/access.md, rules/transport.md

@@ -474,3 +474,151 @@ def test_화면에_나가는_이유에_규칙_키를_쓰지_않는다():
             for text in (cand.reason, cand.rejected_reason or ""):
                 assert ".md" not in text, text
                 assert not re.search(r"[a-z]+_[a-z_]+", text), text
+
+
+def _night_deps(first_last, meet="토요일 01:00"):
+    """새벽 약속. 참석자 한 명이 지하철을 탄다. 경로에 부산2호선 구간이 있다."""
+
+    async def build_candidates(*_):
+        return [{"name": "서면역", "kind": "landmark", "address": "테스트", "lng": 129.059, "lat": 35.157}]
+
+    async def compute_routes(plans):
+        return [
+            {
+                "key": plan["key"],
+                "duration_sec": 1800,
+                "polyline": [[128.99, 35.16], [129.05, 35.15]],
+                "transfer_count": 0,
+                "legs": [
+                    {"mode": "WALK", "route": None, "from": "출발지", "to": "사상", "sec": 300},
+                    {"mode": "SUBWAY", "route": "부산2호선", "from": "사상", "to": "서면", "sec": 1500},
+                ],
+            }
+            for plan in plans
+        ]
+
+    night = slots(
+        preset="meeting",
+        destination="서면역",
+        datetime=meet,
+        participants=[dict(name="나", origin="사상역", transport="transit", role="site")],
+        access=dict(required=False),
+    )
+    return deps(
+        night,
+        pins_out=[
+            GeocodedPin(name="나", lng=128.99, lat=35.16, confidence=0.95, kind="participant"),
+            GeocodedPin(name="서면역", lng=129.059, lat=35.157, confidence=0.9, kind="destination"),
+        ],
+        build_candidates=build_candidates,
+        compute_routes=compute_routes,
+        first_last=first_last,
+        save=None,
+    )
+
+
+def test_야간_지하철이면_첫차_막차를_붙이고_끊긴_시간이면_알린다():
+    asked = []
+
+    async def first_last(city, station, line, day):
+        asked.append((city, station, line, day))
+        return {"first": "05:20", "last": "23:30"}
+
+    out = run(AgentRequest(text="새벽 모임"), _night_deps(first_last))
+    assert out.stage == "done"
+    row = out.result.per_participant[0]
+    assert (row.first_train, row.last_train) == ("05:20", "23:30")
+    assert row.train_note and "막차" in row.train_note
+    assert asked == [("busan", "사상", "2", "sat")]
+    assert "막차" in out.result.summary_text  # 계획서에도 남는다
+    assert "막차" in out.message
+
+
+def test_막차_전이면_시각만_붙이고_경고는_없다():
+    async def first_last(*_):
+        return {"first": "05:20", "last": "24:40"}
+
+    out = run(AgentRequest(text="새벽 모임"), _night_deps(first_last))
+    row = out.result.per_participant[0]
+    assert (row.first_train, row.last_train) == ("05:20", "00:40")
+    assert row.train_note is None
+
+
+def test_낮_약속이면_첫차_막차를_조회하지_않는다():
+    async def first_last(*_):
+        raise AssertionError("낮에는 부르지 않는다")
+
+    out = run(AgentRequest(text="점심"), _night_deps(first_last, meet="토요일 12:00"))
+    assert out.stage == "done"
+    assert out.result.per_participant[0].last_train is None
+
+
+def test_첫차_막차_조회가_실패해도_결과는_나간다():
+    async def first_last(*_):
+        raise RuntimeError("API down")
+
+    out = run(AgentRequest(text="새벽 모임"), _night_deps(first_last))
+    assert out.stage == "done"
+    row = out.result.per_participant[0]
+    assert row.last_train is None
+    assert row.train_note and "확인하지 못" in row.train_note
+
+
+def test_범위_밖_날짜면_빠진_정보보다_날짜를_먼저_되묻는다():
+    """출발지를 다 답하게 한 뒤에 날짜로 거절하면 헛수고다 (09-23 E2E)."""
+    far = (date.today() + timedelta(days=60)).isoformat()
+    no_origin = slots(
+        datetime=f"{far} 12:00",
+        participants=[dict(name="김현장", origin=None, transport=None, role="site")],
+        missing=["participants[0].origin", "participants[0].transport"],
+    )
+    saved = {}
+
+    async def save(**kwargs):
+        saved.update(kwargs)
+        return "db-session-1"
+
+    out = run(AgentRequest(text="점심"), _done_deps(extract_slots=_fixed(no_origin), save=save))
+    assert out.stage == "need_info"
+    assert "일 안의 약속만" in out.message
+    assert out.questions == ["언제 모이나요?"]
+    assert saved == {}  # 받을 수 없는 약속을 임시 세션으로 남기지 않는다
+
+
+def test_지난_날짜도_빠진_정보보다_먼저_되묻는다():
+    no_origin = slots(
+        datetime="2020-01-01 12:00",
+        participants=[dict(name="김현장", origin=None, transport=None, role="site")],
+        missing=["participants[0].origin", "participants[0].transport"],
+    )
+    out = run(AgentRequest(text="점심"), _done_deps(extract_slots=_fixed(no_origin)))
+    assert out.stage == "need_info"
+    assert "지난" in out.message
+
+
+def test_범위_밖이면_무엇을_하는_도구인지_알려준다():
+    """실시간 질문이 아니어도(메뉴 추천 등) 범위 밖으로 온다. 문구가 한 사례에 묶이면 엉뚱한 답이 된다 (09-23 E2E)."""
+    out = run(AgentRequest(text="오늘 저녁 뭐 먹을지 추천해줘"), deps(Slots(out_of_scope=True)))
+    assert out.stage == "out_of_scope"
+    assert "실시간" not in out.message
+    assert "모일 자리" in out.message and "출발 시각" in out.message
+
+
+def test_역_이름이_역으로_끝나도_역을_한_번만_붙인다():
+    """TMAP 은 "사상" 과 "부산역" 을 섞어 준다. "부산역역" 이 나오면 안 된다 (09-23 실측)."""
+
+    async def first_last(*_):
+        return {"first": "05:20", "last": "23:30"}
+
+    d = _night_deps(first_last)
+    original = d.compute_routes
+
+    async def compute_routes(plans):
+        out = await original(plans)
+        for r in out:
+            r["legs"][1]["from"] = "부산역"
+        return out
+
+    d.compute_routes = compute_routes
+    note = run(AgentRequest(text="새벽 모임"), d).result.per_participant[0].train_note
+    assert note.startswith("부산역 막차")

@@ -108,7 +108,11 @@ export default function ResultTable({
                       </td>
                       <td>{r.buffer_min}분</td>
                       <td>{r.arrive_by}</td>
-                      <td>{r.first_train || r.last_train ? `${r.first_train ?? "-"} / ${r.last_train ?? "-"}` : "-"}</td>
+                      <td>
+                        {r.first_train || r.last_train ? `${r.first_train ?? "-"} / ${r.last_train ?? "-"}` : "-"}
+                        {/* 야간에 지하철이 끊기거나 조회를 못 했으면 그 칸에서 바로 보이게 한다 */}
+                        {r.train_note && <div className="error">{r.train_note}</div>}
+                      </td>
                       <td>{basis(p, r.via_pickup, r.via_rendezvous)}</td>
                     </tr>
                   );

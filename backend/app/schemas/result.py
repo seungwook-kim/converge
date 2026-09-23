@@ -66,6 +66,10 @@ class ParticipantResult(BaseModel):
     transfer_count: int | None = Field(default=None, ge=0)
     first_train: str | None = None
     last_train: str | None = None
+    train_note: str | None = Field(
+        default=None,
+        description="야간 지하철 안내 한 줄. 막차가 끊긴 시간에 타야 하거나 조회를 못 했을 때만 채운다 (schedule.md)",
+    )
     polyline: list[tuple[float, float]] = Field(default_factory=list, description="[[lng, lat], ...]")
     via_rendezvous: bool = False
     via_pickup: bool = Field(default=False, description="운전자 경로가 이 사람을 태우러 경유하는가")

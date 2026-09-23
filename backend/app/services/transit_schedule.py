@@ -228,3 +228,32 @@ async def first_last_busan(
         "first_to": "",
         "last_to": "",
     }
+
+
+# ── 파이프라인용 (SDD 5절 7단계) ─────────────────────────────────────────
+
+
+async def first_last_either(city: str, station_name: str, line: str, weekday: str) -> dict[str, str]:
+    """탑승역의 첫차·막차를 방향 없이 구한다. 파이프라인이 야간 대중교통 행에 붙인다.
+
+    TMAP 구간에는 상행·하행이 없다. 그래서 두 방향을 다 묻고 늦은 첫차, 이른 막차를 쓴다.
+    실제보다 막차를 이르게 말할 수는 있어도, 끊긴 열차를 탈 수 있다고 말하지는 않는다.
+    종점처럼 한 방향만 있는 역은 있는 쪽만 쓴다. 둘 다 없으면 ScheduleFailed.
+
+    돌려주는 것: {"first": "05:20", "last": "24:10"}. 막차는 24시를 넘겨 적은 그대로다.
+    """
+    fetch = first_last_busan if city == "busan" else first_last_seoul
+    found: list[dict[str, Any]] = []
+    errors: list[str] = []
+    async with httpx.AsyncClient(timeout=TIMEOUT_SEC) as client:
+        for direction in ("up", "down"):
+            try:
+                found.append(await fetch(client, station_name, line, weekday, direction))
+            except (ScheduleFailed, httpx.HTTPError, KeyError, ValueError) as e:
+                errors.append(str(e))
+    if not found:
+        raise ScheduleFailed("; ".join(errors) or f"{station_name} 시각표가 없습니다")
+    return {
+        "first": max((row["first"] for row in found), key=_minutes),
+        "last": min((row["last"] for row in found), key=_minutes),
+    }

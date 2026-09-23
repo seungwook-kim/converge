@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -310,6 +311,70 @@ def is_night(hhmm: str | None) -> bool:
     rules = load_rule("schedule")
     start, end = str(rules["night_start"]), str(rules["night_end"])
     return hhmm >= start or hhmm <= end
+
+
+# TMAP 은 지하철 구간 이름을 "수도권5호선", "부산2호선" 처럼 준다 (09-23 실측).
+# 앞말이 도시를 가른다. 어느 노선까지 볼 수 있는지는 schedule.md train_lookup_lines 가 정한다
+_SUBWAY_ROUTE = re.compile(r"^(\w+?)(\d+)호선$")
+_ROUTE_CITY = {"수도권": "seoul", "부산": "busan"}  # 첫차·막차 API 의 city 값 (services/transit_schedule.py)
+
+
+def _to_min(hhmm: str) -> int:
+    """"24:10" → 1450. 24시를 넘겨 적은 막차도 그대로 분으로 센다."""
+    return int(hhmm[:2]) * 60 + int(hhmm[3:5])
+
+
+def subway_boardings(legs: list[dict[str, Any]] | None, depart_at: str) -> list[dict[str, Any]]:
+    """경로의 지하철 구간마다 어느 역에서 몇 시에 타는지. 첫차·막차를 조회할 재료다.
+
+    탑승 시각은 출발 시각에 앞 구간(걷기·버스)의 소요를 더한 값이다. 자정을 넘기면 1440 이상이 된다.
+    볼 수 없는 노선(경의중앙선, 경전철 등)은 뺀다. 빼는 것이 "모른다"는 뜻이다.
+    """
+    out: list[dict[str, Any]] = []
+    elapsed_sec = 0
+    for leg in legs or []:
+        match = _SUBWAY_ROUTE.match(leg.get("route") or "") if leg.get("mode") == "SUBWAY" else None
+        max_line = load_rule("schedule")["train_lookup_lines"].get(match.group(1)) if match else None
+        if match and max_line and match.group(1) in _ROUTE_CITY:
+            city = _ROUTE_CITY[match.group(1)]
+            line = int(match.group(2))
+            if 1 <= line <= int(max_line):
+                out.append(
+                    {
+                        "city": city,
+                        "line": str(line),
+                        "station": leg["from"],
+                        "board_min": _to_min(depart_at) + elapsed_sec // 60,
+                    }
+                )
+        elapsed_sec += int(leg.get("sec") or 0)
+    return out
+
+
+def day_type(meet_date: date | None) -> str:
+    """시각표 구분. 토요일은 sat, 일요일은 holiday. 공휴일은 모르므로 평일로 본다. 날짜가 없으면 평일."""
+    if meet_date is None:
+        return "weekday"
+    return {5: "sat", 6: "holiday"}.get(meet_date.weekday(), "weekday")
+
+
+def train_missed(board_min: int, first: str, last: str) -> bool:
+    """이 시각에 타려면 지하철이 끊겨 있는가.
+
+    막차는 자정을 넘겨 "24:10" 처럼 온다. 그래서 00:05 에 타는 것은 전날 운행의 끝자락이라 탈 수 있다.
+    첫차 전이면 전날 막차(+1440)로 되는지 보고, 첫차 뒤면 오늘 막차 전인지 본다.
+    """
+    board = board_min % 1440
+    first_min, last_min = _to_min(first), _to_min(last)
+    if board < first_min:
+        return board + 1440 > last_min
+    return board > last_min
+
+
+def clock(hhmm: str) -> str:
+    """"24:10" → "00:10". 결과 스키마는 00~23시만 받는다 (SDD 4절)."""
+    minutes = _to_min(hhmm) % 1440
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
 def candidate_score(kind: str, access_required: bool) -> int:

@@ -145,3 +145,55 @@ def test_오늘인데_시각이_지났으면_되묻는다():
     assert rules.meet_time_passed(TODAY, "19:00", TODAY, now) is False
     assert rules.meet_time_passed(date(2026, 9, 23), "12:00", TODAY, now) is False
     assert rules.meet_time_passed(TODAY, None, TODAY, now) is False
+
+
+# ── 첫차·막차 (schedule.md 야간, SDD 5절 7단계) ─────────────────────────────
+
+
+def test_지하철_탑승_구간과_탑승_시각을_뽑는다():
+    legs = [
+        {"mode": "WALK", "route": None, "from": "출발지", "to": "코레일사상역", "sec": 300},
+        {"mode": "BUS", "route": "일반:61", "from": "코레일사상역", "to": "감전역", "sec": 600},
+        {"mode": "WALK", "route": None, "from": "감전역", "to": "감전", "sec": 120},
+        {"mode": "SUBWAY", "route": "부산2호선", "from": "감전", "to": "서면", "sec": 900},
+        {"mode": "SUBWAY", "route": "수도권5호선", "from": "서대문", "to": "여의나루", "sec": 600},
+        {"mode": "WALK", "route": None, "from": "서면", "to": "도착지", "sec": 60},
+    ]
+    boardings = rules.subway_boardings(legs, "00:05")
+    # 앞 구간 17분(300+600+120초) 뒤에 탄다
+    assert boardings[0] == {"city": "busan", "line": "2", "station": "감전", "board_min": 22}
+    assert boardings[1] == {"city": "seoul", "line": "5", "station": "서대문", "board_min": 37}
+
+
+def test_조회할_수_없는_노선은_뺀다():
+    legs = [
+        {"mode": "SUBWAY", "route": "수도권경의중앙선", "from": "공덕", "to": "서울", "sec": 600},
+        {"mode": "SUBWAY", "route": "부산김해경전철", "from": "사상", "to": "김해", "sec": 600},
+        {"mode": "SUBWAY", "route": None, "from": "a", "to": "b", "sec": 60},
+    ]
+    assert rules.subway_boardings(legs, "23:00") == []
+    assert rules.subway_boardings(None, "23:00") == []
+
+
+def test_요일을_시각표_구분으로_바꾼다():
+    assert rules.day_type(date(2026, 9, 22)) == "weekday"  # 화
+    assert rules.day_type(date(2026, 9, 26)) == "sat"
+    assert rules.day_type(date(2026, 9, 27)) == "holiday"  # 일요일은 휴일 시각표
+    assert rules.day_type(None) == "weekday"
+
+
+def test_막차가_끊긴_시간인지_본다():
+    # 막차가 자정을 넘겨 24:10 으로 온다
+    assert rules.train_missed(5, "05:30", "24:10") is False  # 00:05 는 전날 막차 전
+    assert rules.train_missed(30, "05:30", "24:10") is True  # 00:30 은 끊겼다
+    assert rules.train_missed(3 * 60, "05:30", "24:10") is True
+    assert rules.train_missed(5 * 60 + 40, "05:30", "24:10") is False  # 첫차 뒤
+    assert rules.train_missed(23 * 60, "05:30", "24:10") is False
+    assert rules.train_missed(23 * 60 + 50, "05:30", "23:40") is True
+    # 탑승이 자정을 넘겨 1440 이상으로 와도 같은 답
+    assert rules.train_missed(1440 + 30, "05:30", "24:10") is True
+
+
+def test_24시를_넘긴_시각을_시계_표기로_바꾼다():
+    assert rules.clock("24:10") == "00:10"
+    assert rules.clock("23:40") == "23:40"

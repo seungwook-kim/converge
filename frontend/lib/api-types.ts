@@ -156,6 +156,7 @@ export interface ParticipantResult {
   transfer_count: number | null;
   first_train: string | null;
   last_train: string | null;
+  train_note: string | null;
   polyline: [number, number][];
   via_rendezvous: boolean;
   via_pickup: boolean;
