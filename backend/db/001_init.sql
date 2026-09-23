@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS request_logs (
   request_id    uuid NOT NULL,
   session_id    uuid,
   stage         text NOT NULL,      -- slot_extract / vision / geocode / ... / judge / validate
-  provider      text NOT NULL,      -- openrouter / local_gguf / kakao_local / kakao_mobility / tmap
+  provider      text NOT NULL,      -- openrouter / google(구글 직접) / local(GGUF) / kakao_local / kakao_mobility / tmap
   model_or_api  text,
   tokens_in     integer,
   tokens_out    integer,

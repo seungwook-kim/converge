@@ -14,6 +14,8 @@ from typing import Any
 from backend.app.domain import rules as domain_rules
 from backend.app.observability import langfuse
 from backend.app.schemas.slots import Slots
+from backend.app.services import costs as cost_guards
+from backend.app.services import llm
 from backend.app.services.llm import _api_model, _client, _parse_json_block, model_large
 
 # 프리셋이 둘로 갈려 프롬프트도 둘이었는데, 범용으로 바꾸면서 하나로 합쳤다 (2026-09-21).
@@ -95,6 +97,9 @@ async def rank(
     model = model_large()
     client = _client(model)
     last_error: Exception | None = None
+    # request_logs 에 남길 판정 호출 값. 재시도까지 합쳐 센다 (pipeline._judge_meta 가 읽는다)
+    tokens_in = tokens_out = 0
+    llm._last_meta.update({"judge_model": model, "judge_tokens_in": 0, "judge_tokens_out": 0, "judge_cost_usd": 0.0, "judge_attempts": 0})
 
     for attempt in (1, 2):
         messages = [{"role": "user", "content": filled}]
@@ -110,6 +115,17 @@ async def rank(
             messages=messages,
             temperature=0,
             response_format={"type": "json_object"},
+        )
+        usage = getattr(res, "usage", None)
+        tokens_in += int(getattr(usage, "prompt_tokens", 0) or 0)
+        tokens_out += int(getattr(usage, "completion_tokens", 0) or 0)
+        llm._last_meta.update(
+            {
+                "judge_tokens_in": tokens_in,
+                "judge_tokens_out": tokens_out,
+                "judge_cost_usd": cost_guards.estimate_cost_usd(model, tokens_in, tokens_out),
+                "judge_attempts": attempt,
+            }
         )
         try:
             data = _parse_json_block(res.choices[0].message.content or "")

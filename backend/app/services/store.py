@@ -186,8 +186,11 @@ async def create_session(
     access: dict | None = None,
     schedule_confirmed: bool | None = None,
     constraints: list[str] | None = None,
+    session_id: str | None = None,
 ) -> str:
     """세션 한 건 INSERT. 새 세션 id(uuid 문자열)를 돌려준다.
+
+    session_id: 주면 그 값을 id 로 쓴다(Langfuse 세션과 맞추려고). 없으면 DB 기본값 gen_random_uuid().
 
     user_id: services/auth.py가 토큰에서 꺼낸 주선자 id. 본문이 아니라 토큰에서 온다 (SDD 2절).
     participants: 평문 리스트. 여기서 암호화한다. 구조는 테이블정의서 1절 participants_enc 설명.
@@ -199,10 +202,11 @@ async def create_session(
     row = await pool.fetchrow(
         """
         INSERT INTO sessions (
-            preset, meet_at, purpose, destination_name, destination_lng, destination_lat,
+            id, preset, meet_at, purpose, destination_name, destination_lng, destination_lat,
             participants_enc, participant_count, rendezvous_enc, access, schedule_confirmed,
             constraints, status, user_id, created_at, updated_at, expires_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft', $13, $14, $14, $15)
+        ) VALUES (COALESCE($16::uuid, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                  'draft', $13, $14, $14, $15)
         RETURNING id
         """,
         preset, meet_at, purpose, destination_name, destination_lng, destination_lat,
@@ -212,6 +216,7 @@ async def create_session(
         schedule_confirmed,
         json.dumps(constraints or []),
         user_id, now, calc_expires_at(meet_at, now),
+        session_id,
     )
     return str(row["id"])
 

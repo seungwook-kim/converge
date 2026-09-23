@@ -622,3 +622,85 @@ def test_역_이름이_역으로_끝나도_역을_한_번만_붙인다():
     d.compute_routes = compute_routes
     note = run(AgentRequest(text="새벽 모임"), d).result.per_participant[0].train_note
     assert note.startswith("부산역 막차")
+
+
+def test_새_세션은_Langfuse_세션과_같은_id_로_저장한다(monkeypatch):
+    """DB 가 id 를 새로 만들면 Langfuse 세션과 어긋나 되묻기와 답변이 다른 세션으로 갈라진다 (09-23 적재 확인)."""
+    traced = {}
+    real_trace = pipeline.langfuse.trace
+
+    def spy(name, **kwargs):
+        traced.update(kwargs)
+        return real_trace(name, **kwargs)
+
+    monkeypatch.setattr(pipeline.langfuse, "trace", spy)
+    saved = {}
+
+    async def save(**kwargs):
+        saved.update(kwargs)
+        return kwargs["new_id"]
+
+    out = run(AgentRequest(text="점검"), _done_deps(save=save))
+    assert saved["session_id"] is None  # 새 세션이다
+    assert saved["new_id"] == traced["session_id"] == out.session_id
+    assert len(out.session_id) == 36  # DB 의 uuid 컬럼에 그대로 들어가는 모양
+
+
+def test_저장된_적_없는_세션_id_로_답하면_그_id_로_새로_만든다():
+    """날짜 되묻기는 세션을 남기지 않는다. 그 id 로 답이 오면 없는 행을 갱신하려다 저장이 사라졌다 (09-23)."""
+    saved = {}
+
+    async def save(**kwargs):
+        saved.update(kwargs)
+        return kwargs["new_id"] or kwargs["session_id"]
+
+    async def load_session(_):
+        return None
+
+    sid = "3f0c2a4e-1b2c-4d5e-8f90-123456789abc"
+    out = run(AgentRequest(session_id=sid, text="토요일로 할게"), _done_deps(save=save, load_session=load_session))
+    assert out.stage == "done"
+    assert saved["session_id"] is None and saved["new_id"] == sid
+    assert out.session_id == sid
+
+
+def test_판정_기록에는_판정_호출의_모델과_비용이_남는다(monkeypatch):
+    """judge 행이 슬롯 추출의 모델·토큰을 그대로 복사하고 있었다. 하루 비용 합계가 틀어진다 (09-23 적재 확인)."""
+    from backend.app.services import llm, request_log
+
+    rows = []
+
+    async def write(**kwargs):
+        rows.append(kwargs)
+
+    monkeypatch.setattr(request_log, "write", write)
+    monkeypatch.setattr(pipeline.model_router, "route", lambda _slots: "large")
+    llm._last_meta.clear()
+    llm._last_meta.update({"model": "google-ai/small-x", "tokens_in": 2000, "tokens_out": 300, "cost_usd": 0.001})
+
+    async def rank(*_):
+        # judge.rank 가 하는 일을 흉내 낸다: 자기 값을 judge_ 접두어로 남긴다
+        llm._last_meta.update(
+            {"judge_model": "google-ai/large-y", "judge_tokens_in": 900, "judge_tokens_out": 120,
+             "judge_cost_usd": 0.0004, "judge_attempts": 1}
+        )
+        return [
+            {"candidate_idx": 0, "rank": 1, "reason": "가깝다", "rejected_reason": None, "switched_from": None, "model": "google-ai/large-y"},
+            {"candidate_idx": 1, "rank": 2, "reason": "멀다", "rejected_reason": "멀다", "switched_from": None, "model": "google-ai/large-y"},
+        ]
+
+    async def extract_slots(*_):
+        return slots(datetime="목요일 08:00")
+
+    run(AgentRequest(text="점검"), _done_deps(rank=rank, extract_slots=extract_slots))
+    judge_row = next(r for r in rows if r["stage"] == "judge")
+    assert judge_row["model_or_api"] == "google-ai/large-y"
+    assert (judge_row["tokens_in"], judge_row["tokens_out"], judge_row["cost_usd"]) == (900, 120, 0.0004)
+    assert judge_row["provider"] == "google"  # google-ai/ 는 구글 직접 호출이다
+
+
+def test_제공자_이름은_모델_접두어로_정한다():
+    assert pipeline._provider_of("google-ai/gemini-3.5-flash-lite") == "google"
+    assert pipeline._provider_of("local/kanana") == "local"
+    assert pipeline._provider_of("anthropic/claude-sonnet-5") == "openrouter"
+    assert pipeline._provider_of(None) == "openrouter"

@@ -413,7 +413,7 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 | 6 | judge.rank | 후보 표 + 규칙 문서 → rank·reason·switched_from | 스키마 위반 재시도 1회 → 실패면 rules.apply 순으로 rank, reason은 규칙 문구 그대로 |
 | 7 | rules.departure | (도착 기한 − 절차 소요) − 소요시간 − 여유 = 출발 시각, 집결지면 2단 역산, 늦은 시각이면 첫차·막차 조회(야간 대중교통 행의 지하철 탑승역. 두 방향 중 보수적인 값. 끊긴 시간에 타야 하면 train_note·계획서·안내 문장에 알림. 조회 실패면 모른다고 적음, 09-23 연결), 시각 미확정이면 provisional | |
 | 7-1 | checklist.build_checklist + build_summary | 슬롯의 preset·access·constraints → Checklist (skills/converge/rules/checklist.md 에서 꺼낸다), 결과 표 → summary_text (코드 조립) | 코드라 실패 없음. 절차를 모르면 checklist 는 None |
-| 8 | store.save + 응답 | 되묻기·핀 확인 단계에서도 세션을 draft 로 저장한다 (링크가 먼저 있어야 참석자가 모인다). 계산이 끝나면 status=computed 와 results 행. meet_at 은 1-3 에서 읽은 날짜 + parse_meet_time 의 시각(없으면 0시), 기준 시간대로 넣는다. expires_at을 여기서 계산해 넣는다: meet_at 있으면 meet_at+30일, 없으면(임시 세션) created_at+7일. DB 기본값 없음 | |
+| 8 | store.save + 응답 | 되묻기·핀 확인 단계에서도 세션을 draft 로 저장한다 (링크가 먼저 있어야 참석자가 모인다). 새 세션 id 는 파이프라인이 요청 시작에 만든 uuid 를 그대로 쓴다. Langfuse 세션과 같은 값이라 되묻기와 답변이 한 세션으로 이어진다. 저장된 적 없는 id 로 답이 오면(날짜 되묻기·범위 밖은 저장하지 않는다) 그 id 로 새로 만든다 (09-23). 계산이 끝나면 status=computed 와 results 행. meet_at 은 1-3 에서 읽은 날짜 + parse_meet_time 의 시각(없으면 0시), 기준 시간대로 넣는다. expires_at을 여기서 계산해 넣는다: meet_at 있으면 meet_at+30일, 없으면(임시 세션) created_at+7일. DB 기본값 없음 | |
 
 2026-09-22 기준 구현 상태: 0~8단계가 모두 services/pipeline.py 에 있다.
 pipeline.run 은 바깥 함수를 Deps 로 받는다. 테스트가 키 없이 단계 순서만 검사하기 위해서다 (backend/tests/test_pipeline.py).

@@ -37,10 +37,12 @@ async def save(
     status: str = "computed",
     destination: tuple[float | None, float | None] | None = None,
     meet_at: datetime | None = None,
+    new_id: str | None = None,
 ) -> str:
     """세션과 결과를 저장하고 session_id 를 돌려준다.
 
-    session_id 가 None 이면 새 세션을 만든다. DB 가 uuid 를 만들어 주므로 그 값이 진짜 id 다.
+    session_id 가 None 이면 새 세션을 만든다. new_id 가 오면 그 값을 행의 id 로 쓴다 (파이프라인이
+    Langfuse 세션에 먼저 쓴 id 와 맞추려는 것이다). 없으면 DB 가 만든다.
     이미 있는 세션이면 참석자 좌표와 상태만 갱신한다.
 
     meet_at: 파이프라인이 슬롯의 날짜를 읽어 넘긴다 (SDD 5절 1-3). 못 읽었으면 None 이고
@@ -49,6 +51,7 @@ async def save(
     dest = destination if destination is not None else _destination(result)
     if session_id is None:
         session_id = await store.create_session(
+            session_id=new_id,
             user_id=user_id,
             preset=slots.preset or "meeting",
             participants=participants,

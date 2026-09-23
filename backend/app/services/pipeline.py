@@ -86,7 +86,9 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
     deps = deps or Deps()
     # 세션 id 는 첫 요청에서 만든다. 8단계 저장이 붙으면 이 값으로 행을 만들고, 그 전에도
     # 재질문(이전 슬롯 유지)과 Langfuse session_id 가 이어지도록 해야 한다 (SDD 5절 재질문, 22번)
-    session_id = req.session_id or uuid.uuid4().hex
+    # 새 세션이면 이 id 를 그대로 DB 행의 id 로 쓴다. DB 가 따로 만들면 Langfuse 세션과 어긋나
+    # 되묻기와 답변이 다른 세션으로 갈라진다 (09-23 적재 확인). 그래서 uuid 모양으로 만든다
+    session_id = req.session_id or str(uuid.uuid4())
     # 테스트가 넣지 않은 단계는 진짜 서비스로 채운다
     for stage_name in (
         "extract_text",
@@ -113,6 +115,10 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 try:
                     deps.previous_slots = await _load_previous(deps, session_id, user_id)
                     span.output = {"found": deps.previous_slots is not None}
+                    # 저장된 적 없는 id 다(날짜 되묻기·범위 밖은 세션을 남기지 않는다). 없는 행을 갱신하면
+                    # 저장이 조용히 사라지므로 같은 id 로 새로 만든다 (09-23)
+                    if deps.previous_slots is None and deps.load_session is not None:
+                        is_new_session = True
                 except (NotYourSession, SessionLocked):
                     raise
                 except Exception as e:  # noqa: BLE001  저장소가 없어도 계산은 이어 간다
@@ -294,9 +300,9 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                         deps.rank, slots, _judge_candidates(raw_candidates, slots), _judge_rows(routes, slots)
                     )
                     span.output = {"rankings": masking.mask(rankings, slots)}
-                    await _log_llm("judge", tr.id, session_id, started, "ok", routed_to=routed_to)
+                    await _log_llm("judge", tr.id, session_id, started, "ok", routed_to=routed_to, meta=_judge_meta())
                 except Exception as e:  # noqa: BLE001
-                    await _log_llm("judge", tr.id, session_id, started, "error", type(e).__name__, routed_to)
+                    await _log_llm("judge", tr.id, session_id, started, "error", type(e).__name__, routed_to, _judge_meta())
                     # 판정이 실패해도 멈추지 않는다. 규칙 점수 순서로 대신 채운다 (SDD 5절 6단계)
                     span.error = str(e)
                     rankings = None
@@ -503,7 +509,7 @@ async def _log_llm(
         request_id=request_id,
         session_id=session_id or None,
         stage=stage,
-        provider="local" if str(meta.get("model", "")).startswith("local/") else "openrouter",
+        provider=_provider_of(meta.get("model")),
         model_or_api=meta.get("model"),
         latency_ms=int((time.monotonic() - started) * 1000),
         status=status,
@@ -514,6 +520,32 @@ async def _log_llm(
         retry_no=max(0, int(meta.get("attempts", 1)) - 1),
         routed_to=routed_to,
     )
+
+
+def _provider_of(model: str | None) -> str:
+    """request_logs.provider. 모델 이름의 접두어가 어디로 불렀는지 정한다 (services/llm.py _client 와 같은 기준)."""
+    name = str(model or "")
+    if name.startswith("local/"):
+        return "local"
+    if name.startswith("google-ai/"):
+        return "google"
+    return "openrouter"
+
+
+def _judge_meta() -> dict[str, Any]:
+    """판정 한 줄의 모델·토큰·비용. judge.py 가 judge_ 접두어로 따로 남긴다.
+
+    넘기지 않으면 _log_llm 이 직전 슬롯 추출 값을 그대로 쓴다. 그러면 판정 비용이 빠지고 추출 비용이
+    두 번 세져 하루 상한이 틀어진다 (09-23 적재 확인).
+    """
+    meta = _llm_meta()
+    return {
+        "model": meta.get("judge_model"),
+        "tokens_in": meta.get("judge_tokens_in"),
+        "tokens_out": meta.get("judge_tokens_out"),
+        "cost_usd": meta.get("judge_cost_usd"),
+        "attempts": meta.get("judge_attempts", 1),
+    }
 
 
 def _vision_meta() -> dict[str, Any]:
@@ -926,6 +958,7 @@ async def _persist(
     dest = next((p for p in pins if p.kind == "destination"), None)
     return await deps.save(
         session_id=None if is_new else session_id,
+        new_id=session_id if is_new else None,
         user_id=user_id,
         slots=slots,
         participants=_participants_for_store(slots, pins),
