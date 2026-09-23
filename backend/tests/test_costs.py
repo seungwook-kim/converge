@@ -34,3 +34,23 @@ def test_모르는_모델은_None(monkeypatch):
 def test_단가표는_env로_덮는다(monkeypatch):
     monkeypatch.setenv("MODEL_COST_JSON", '{"my/model": [1.0, 3.0]}')
     assert costs.estimate_cost_usd("my/model", 1_000_000, 0) == 1.0
+
+
+def test_지금_쓰는_구글_모델도_비용을_잰다(monkeypatch):
+    """단가표에 없으면 None 이 되어 비용 상한이 걸리지 않는다 (09-23 확인)."""
+    monkeypatch.delenv("MODEL_COST_JSON", raising=False)
+    for model in (
+        "google-ai/gemini-3.5-flash-lite",
+        "google-ai/gemini-3.1-flash-lite",
+        "google/gemini-3.5-flash-lite",
+        "google/gemini-3.1-flash-lite",
+    ):
+        assert costs.estimate_cost_usd(model, 1000, 500) is not None, model
+
+
+def test_구글_직접과_OpenRouter_는_같은_단가로_잰다(monkeypatch):
+    """전환해도 비용 상한이 같은 기준으로 걸리게 한다."""
+    monkeypatch.delenv("MODEL_COST_JSON", raising=False)
+    direct = costs.estimate_cost_usd("google-ai/gemini-3.5-flash-lite", 1000, 500)
+    routed = costs.estimate_cost_usd("google/gemini-3.5-flash-lite", 1000, 500)
+    assert direct == routed

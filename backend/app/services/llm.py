@@ -87,6 +87,74 @@ def _api_model(model: str) -> str:
     return model[len(GOOGLE_PREFIX):] if model.startswith(GOOGLE_PREFIX) else model
 
 
+# ── 구글 직접 호출 → OpenRouter 전환 (미리 짜 둔 것. 아직 켜지 않았다) ─────────────────
+#
+# 09-22·09-23 에 구글 쪽 InternalServerError 와 한 번에 432초 걸린 호출이 있었다.
+# 구글이 계속 불안하면 아래 둘 중 하나로 옮긴다.
+#
+# [1] 수동 전환: 코드 변경 없이 .env 만 바꾼다
+#     접두어가 "google-ai/" 가 아니면 _client 가 이미 OpenRouter 로 보낸다. 구글 모델은
+#     OpenRouter 에서 "google/<이름>" 이다 (.env.example 참고, 이름은 openrouter.ai/models 에서 확인).
+#       MODEL_SMALL=google-ai/gemini-3.5-flash-lite  ->  google/gemini-3.5-flash-lite
+#       MODEL_LARGE=google-ai/gemini-3.1-flash-lite  ->  google/gemini-3.1-flash-lite
+#     OPENROUTER_API_KEY 는 .env 에 이미 있다. 판정(judge.py)과 캡처(MODEL_VISION)도 같은 _client 를 쓰므로
+#     따로 고칠 곳은 없다.
+#     단가: costs._GEMINI_RATES 에 google/·google-ai/ 둘 다 같은 값으로 있다 (09-23). 다른 모델로
+#           바꾸면 거기나 MODEL_COST_JSON 에 단가를 넣는다. 없으면 비용이 None 이고 상한이 걸리지 않는다.
+#
+# [2] 자동 폴백: 구글이 5xx·시간 초과로 실패하면 같은 모델을 OpenRouter 로 한 번 더 부른다
+#     켜는 조건은 env LLM_FALLBACK_OPENROUTER=1 로 둔다. 무료 할당이 유료 호출로 바뀌기 때문이다.
+#     형식 위반(ValidationError)은 폴백 대상이 아니다. 그건 attempt_models() 의 재시도·승격이 맡는다.
+#
+# FALLBACK_TIMEOUT_S = 30.0  # 432초 호출 대책. openai SDK 기본값은 600초, 재시도 2회다
+#
+#
+# def _openrouter_twin(model: str) -> str | None:
+#     """google-ai/<이름> 에 해당하는 OpenRouter 모델 이름. 구글 직접 호출이 아니면 None."""
+#     if not model.startswith(GOOGLE_PREFIX):
+#         return None
+#     return "google/" + model[len(GOOGLE_PREFIX):]
+#
+#
+# def _fallback_enabled() -> bool:
+#     return os.environ.get("LLM_FALLBACK_OPENROUTER") == "1" and bool(os.environ.get("OPENROUTER_API_KEY"))
+#
+#
+# async def _create(model: str, **kwargs: Any) -> tuple[Any, str]:
+#     """chat.completions.create 를 감싼다. (응답, 실제로 답한 모델) 을 돌려준다.
+#
+#     extract_slots·transcribe_image·judge.rank 의 create 호출을 이 함수로 바꾸면 세 곳이 함께 폴백한다.
+#     실제로 답한 모델을 돌려주는 이유: _last_meta["model"] 과 비용 계산이 OpenRouter 이름을 봐야 한다.
+#     """
+#     import openai
+#
+#     try:
+#         client = _client(model).with_options(timeout=FALLBACK_TIMEOUT_S, max_retries=0)
+#         res = await client.chat.completions.create(model=_api_model(model), **kwargs, **_extra_body(model))
+#         return res, model
+#     except (openai.InternalServerError, openai.APITimeoutError, openai.APIConnectionError, openai.RateLimitError):
+#         twin = _openrouter_twin(model)
+#         if not twin or not _fallback_enabled():
+#             raise
+#         # Langfuse 에 폴백했다는 흔적을 남긴다 (어느 호출이 유료로 넘어갔는지 보려고)
+#         _last_meta["fallback_from"] = model
+#         res = await _client(twin).chat.completions.create(model=twin, **kwargs, **_extra_body(twin))
+#         return res, twin
+#
+#
+# 호출부 바꾸는 법 (extract_slots 예시):
+#     res, used = await _create(model, messages=messages, temperature=0, response_format={"type": "json_object"})
+#     ...
+#     "model": used,
+#     "cost_usd": cost_guards.estimate_cost_usd(used, tokens_in, tokens_out),
+#
+# 켜기 전에 할 것:
+#   - tests/test_llm.py 에 "구글 5xx 면 OpenRouter 이름으로 한 번 더 부른다", "env 가 없으면 그대로 예외" 두 개
+#   - judge.py 는 지금 _client 를 루프 밖에서 한 번 만든다. _create 로 바꾸면 그 줄을 지운다
+#   - SDD 9절 env 표에 LLM_FALLBACK_OPENROUTER 추가
+# ────────────────────────────────────────────────────────────────────────────────────
+
+
 def model_large() -> str:
     return os.environ.get("MODEL_LARGE", DEFAULT_LARGE)
 

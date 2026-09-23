@@ -12,9 +12,21 @@ import os
 
 # (입력, 출력) $/1M 토큰. 대략값 (2026-09 기준). 실단가와 다를 수 있어
 # 정확한 단가는 MODEL_COST_JSON 으로 덮어쓴다. 예: {"my/model": [1.0, 3.0]}
+#
+# 구글 모델은 openrouter.ai/api/v1/models 의 단가다 (09-23 조회).
+# google-ai/ (구글 직접) 는 무료 할당이라 실제 청구는 0 일 수 있다. 그래도 같은 단가로 잰다.
+# 할당을 넘겨 유료로 넘어가거나 OpenRouter 로 전환해도 비용 상한이 같은 기준으로 걸리게 하려는 것이다.
+_GEMINI_RATES: dict[str, tuple[float, float]] = {
+    "gemini-3.8-flash": (0.75, 3.75),
+    "gemini-3.5-flash-lite": (0.3, 2.5),
+    "gemini-3.1-flash-lite": (0.25, 1.5),
+    "gemini-2.5-flash-lite": (0.1, 0.4),
+}
+
 _RATES: dict[str, tuple[float, float]] = {
     "anthropic/claude-sonnet-5": (3.0, 15.0),
-    "google/gemini-3.8-flash": (0.5, 1.5),
+    **{f"google/{name}": rate for name, rate in _GEMINI_RATES.items()},
+    **{f"google-ai/{name}": rate for name, rate in _GEMINI_RATES.items()},
     "openai/gpt-5.6-luna": (5.0, 20.0),
     "openai/gpt-4o-mini": (0.15, 0.6),
 }
