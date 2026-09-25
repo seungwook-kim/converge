@@ -1,10 +1,12 @@
 """슬롯 추출의 모델 시도 순서 (SDD 5절 1단계). 키 없이 돈다 (TEST_GUIDE)."""
 from __future__ import annotations
 
+import asyncio
 import os
 
 import pytest
 
+from backend.app.schemas.slots import Slots
 from backend.app.services import llm
 
 
@@ -215,3 +217,114 @@ def test_얻어_타는_사람의_이동수단은_운전자_것으로_채운다()
     assert "participants[0].transport" not in out.missing
     # 출발지는 그대로 둔다. 그건 파이프라인이 따로 판단한다
     assert "participants[0].origin" in out.missing
+
+
+# ── 출입 절차 보정이 추출 결과에 붙는지 (access.md "절차 판정", 09-23) ─────────
+
+
+def _fake_model(monkeypatch, output: dict):
+    """모델이 늘 output 을 JSON 으로 내는 가짜. 프롬프트는 고정 문자열."""
+    import json
+    from types import SimpleNamespace
+
+    async def create(**_):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(output, ensure_ascii=False)))],
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=10),
+        )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(llm, "_client", lambda _model: client)
+    monkeypatch.setattr(llm.langfuse, "get_prompt", lambda _name: ("{{text}}{{previous_slots}}{{preset_hint}}", "1"))
+    monkeypatch.setenv("MODEL_SMALL", "google-ai/small")
+    monkeypatch.setenv("MODEL_LARGE", "google-ai/large")
+
+
+def _slot_json(**over):
+    base = {
+        "preset": "meeting", "datetime": "금요일 18:00", "purpose": "저녁 약속", "destination": "잠실역 앞",
+        "participants": [{"name": "나", "origin": "강동구", "transport": "transit", "pickup": None,
+                          "pickup_at": None, "unfamiliar": False, "role": "site"}],
+        "rendezvous": None, "access": None, "schedule_confirmed": None, "constraints": [],
+        "missing": ["access.required"], "out_of_scope": False,
+    }
+    base.update(over)
+    return base
+
+
+def test_추출_결과의_출입_절차를_문장_단서로_확정한다(monkeypatch):
+    # 모델이 역 앞 저녁 약속을 모름으로 둔다(09-23 측정 3/3). 되묻지 않게 절차 없음으로 확정한다
+    _fake_model(monkeypatch, _slot_json())
+    slots = asyncio.run(llm.extract_slots("금요일 오후 6시 잠실역 앞에서 저녁 약속. 저는 강동구에서 지하철로"))
+    assert slots.access is not None and slots.access.required is False
+    assert "access.required" not in slots.missing
+
+
+def test_재질문_답에서_모델이_절차_값을_잃으면_이전_값을_둔다(monkeypatch):
+    # 1턴에 방문자 등록을 했다고 정했다. 2턴 답에 절차 이야기가 없다고 다시 되묻지 않는다
+    previous = Slots(**_slot_json(destination="여의도 사무실", preset="visit", purpose="미팅",
+                                  access={"required": True, "applied": True, "lead_min": None}, missing=[]))
+    _fake_model(monkeypatch, _slot_json(destination="여의도 사무실", preset="visit", purpose="미팅"))
+    slots = asyncio.run(llm.extract_slots("나는 강동구에서 지하철로 가요", previous))
+    assert slots.access is not None and slots.access.required is True and slots.access.applied is True
+    assert "access.required" not in slots.missing
+
+
+def _open_case(monkeypatch, judge_fn):
+    """규칙이 못 가르는 문장("성수동에서 만나"). 슬롯 모델은 절차 없음이라 한다."""
+    from backend.app.services import access_judge
+
+    _fake_model(monkeypatch, _slot_json(destination="성수동", purpose="만남",
+                                        participants=[{"name": "민지", "origin": "신촌", "transport": "transit", "pickup": None,
+                                                       "pickup_at": None, "unfamiliar": False, "role": "colleague"}],
+                                        access={"required": False, "applied": None, "lead_min": None}, missing=[]))
+    monkeypatch.setattr(access_judge, "enabled", lambda: True)
+    monkeypatch.setattr(access_judge, "judge", judge_fn)
+    llm._last_meta.clear()
+    return asyncio.run(llm.extract_slots("토요일 2시 성수동에서 만나. 민지는 신촌에서 지하철"))
+
+
+def test_규칙이_못_가르면_판단_모델에_이름을_가려_묻는다(monkeypatch):
+    seen = {}
+
+    async def judge(text, destination, purpose):
+        seen.update(text=text, destination=destination, purpose=purpose)
+        return {"choice": "none", "p_none": 0.95, "confidence": 0.9, "probabilities": {"none": 0.95},
+                "model": "jev-1.13", "input_tokens": 300, "cost_usd": 0.0000126}
+
+    slots = _open_case(monkeypatch, judge)
+    assert slots.access.required is False
+    assert "민지" not in seen["text"] and "신촌" not in seen["text"]  # 이름·출발지는 가려서 보낸다
+    assert seen["destination"] == "성수동"
+    meta = llm.last_meta()
+    assert meta["access_basis"] == "judge" and meta["access_judge"]["p_none"] == 0.95
+
+
+def test_판단_모델_호출이_실패하면_되묻는다(monkeypatch):
+    async def judge(*_):
+        raise TimeoutError("slow")
+
+    slots = _open_case(monkeypatch, judge)
+    assert slots.access is None and "access.required" in slots.missing
+    assert llm.last_meta()["access_judge"]["error"] == "TimeoutError"
+
+
+def test_규칙이_정하면_판단_모델을_부르지_않는다(monkeypatch):
+    from backend.app.services import access_judge
+
+    async def judge(*_):
+        raise AssertionError("부르면 안 된다")
+
+    _fake_model(monkeypatch, _slot_json())  # 잠실역 앞: 규칙 3순위로 정해진다
+    monkeypatch.setattr(access_judge, "enabled", lambda: True)
+    monkeypatch.setattr(access_judge, "judge", judge)
+    llm._last_meta.clear()
+    slots = asyncio.run(llm.extract_slots("금요일 오후 6시 잠실역 앞에서 저녁 약속. 저는 강동구에서 지하철로"))
+    assert slots.access.required is False and llm.last_meta()["access_basis"] == "open_place"
+
+
+def test_목적지가_비면_되묻는다(monkeypatch):
+    # gpt-4o-mini 가 "판교역 근처" 를 비우고 missing 에도 안 적었다. 그대로 가면 지오코딩에서 실패한다 (09-23)
+    _fake_model(monkeypatch, _slot_json(destination=None, missing=[]))
+    slots = asyncio.run(llm.extract_slots("판교역 근처에서 스터디 하려는데 시간은 아직입니다. 저는 분당에서 지하철"))
+    assert "destination" in slots.missing

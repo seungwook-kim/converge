@@ -61,6 +61,9 @@
 python evals/run_eval.py                 # 전체
 python evals/run_eval.py --dry-run       # 모델을 부르지 않고 문항만 확인
 python evals/run_eval.py --limit 3       # 앞 세 건만
+python evals/run_eval.py --model openai/gpt-4o-mini   # 이 실행에서만 추출·판정 모델을 바꾼다 (.env 그대로)
+python evals/run_eval.py --prompt-label staging      # 운영에 올리기 전 프롬프트를 잰다
+python evals/jev_neuron_probe.py         # 출입 절차 판단 모델(Jev, Cloudflare) 1회당 토큰 측정. 가상 예문 5건만 부른다
 ```
 
 결과는 `evals/results/<시각>.json` 에 남는다. 기준선과 비교할 때 그 파일을 본다.

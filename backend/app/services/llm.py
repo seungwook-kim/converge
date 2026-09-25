@@ -17,12 +17,14 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from typing import Any
 
 from pydantic import ValidationError
 
 from backend.app.observability import langfuse
-from backend.app.schemas.slots import Preset, Slots
+from backend.app.domain import rules as domain_rules
+from backend.app.schemas.slots import Access, Preset, Slots
 from backend.app.services import costs as cost_guards
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -276,6 +278,73 @@ def normalize_names(slots: Slots) -> Slots:
 LEGACY_PRESETS = ("ship_maintenance", "si_deploy")
 
 
+def drop_unstated_transports(slots: Slots, text: str) -> Slots:
+    """말하지 않은 이동수단을 비우고 되묻게 한다 (transport.md "말하지 않은 이동수단", 09-23).
+
+    차인지 대중교통인지로 출발 시각이 30분 넘게 갈린다. 지어낸 값으로 계산하는 것보다 한 번 묻는 편이 낫다.
+    """
+    if slots.out_of_scope:
+        return slots
+    rows = [{"name": p.name, "transport": p.transport, "pickup": p.pickup} for p in slots.participants]
+    drop = domain_rules.unstated_transports(text, rows)
+    if not drop:
+        return slots
+    participants = [
+        p.model_copy(update={"transport": None}) if i in drop else p for i, p in enumerate(slots.participants)
+    ]
+    missing = [*slots.missing, *[f"participants[{i}].transport" for i in drop if f"participants[{i}].transport" not in slots.missing]]
+    return slots.model_copy(update={"participants": participants, "missing": missing})
+
+
+async def settle_access(slots: Slots, text: str, previous: Slots | None) -> Slots:
+    """출입 절차를 문장 단서로 확정한다 (access.md "절차 판정", domain/rules.settle_access).
+
+    모델이 같은 문장에 절차 있음·없음·모름을 오간다(09-23 측정 0.78). 역 앞 저녁 약속에 매번
+    "출입 절차가 있나요?"를 묻거나, 단서 없는 사무실에 없는 절차 소요를 빼는 일을 막는다.
+    재질문의 답이면 문장 단서만 보고, 모델이 이전에 정한 절차 값을 잃었으면 이전 값을 그대로 둔다.
+
+    규칙이 못 가르는 5순위에서만 판단 모델(services/access_judge, Jev)을 부른다. 켜져 있을 때만이고,
+    이름·출발지를 가린 문장을 보낸다. 실패하면 "failed" 로 넘겨 되묻게 한다.
+    무엇으로 정했는지(access_basis)와 판단 모델 결과(access_judge)는 _last_meta 에 남긴다.
+    """
+    if slots.out_of_scope:
+        return slots
+    if not slots.destination and "destination" not in slots.missing:
+        # 목적지를 비우고 missing 에도 안 적는 모델이 있다(09-23 gpt-4o-mini). 그대로 가면 지오코딩에서 실패한다
+        slots = slots.model_copy(update={"missing": [*slots.missing, "destination"]})
+    from backend.app.domain import masking
+    from backend.app.services import access_judge
+
+    followup = previous is not None
+    model_access = slots.access.model_dump() if slots.access else None
+
+    def settle(judge: Any) -> tuple[dict[str, Any] | None, list[str], str]:
+        return domain_rules.settle_access(
+            text, slots.destination, slots.purpose, model_access, list(slots.missing), followup, judge
+        )
+
+    access, missing, basis = settle(None)
+    _last_meta.pop("access_judge", None)
+    if basis == "model" and access_judge.enabled():
+        started = time.monotonic()
+        try:
+            result = await access_judge.judge(masking.mask(text, slots), slots.destination, slots.purpose)
+        except Exception as e:  # noqa: BLE001  장애가 오답으로 새지 않게 되묻는다
+            _last_meta["access_judge"] = {"error": type(e).__name__, "latency_ms": int((time.monotonic() - started) * 1000)}
+            access, missing, basis = settle("failed")
+        else:
+            _last_meta["access_judge"] = {**result, "latency_ms": int((time.monotonic() - started) * 1000)}
+            access, missing, basis = settle(result)
+    if access is None and followup and previous.access is not None:
+        # 답 문장에 절차 이야기가 없는데 모델이 값을 비웠다. 이미 정한 것을 다시 묻지 않는다
+        access = previous.access.model_dump()
+        missing = [m for m in missing if m != "access.required"]
+        if access.get("applied") is None and access.get("required") and "access.applied" in previous.missing:
+            missing.append("access.applied")
+    _last_meta["access_basis"] = basis
+    return slots.model_copy(update={"access": Access(**access) if access else None, "missing": missing})
+
+
 def _parse(raw: str) -> Slots:
     """모델 출력을 Slots 로 검증한다. 어긋나면 ValidationError 가 위로 올라간다.
 
@@ -342,7 +411,7 @@ async def extract_slots(
             except (ValidationError, ValueError, json.JSONDecodeError) as e:
                 last_error = e
                 continue
-            return _finish(slots, preset, model, version, attempt, models)
+            return _finish(await settle_access(drop_unstated_transports(slots, text), text, previous), preset, model, version, attempt, models)
 
         messages = [{"role": "user", "content": filled}]
         if attempt > 1 and last_error is not None:
@@ -369,7 +438,7 @@ async def extract_slots(
         except (ValidationError, ValueError, json.JSONDecodeError) as e:
             last_error = e
             continue
-        slots = normalize_names(slots)
+        slots = await settle_access(drop_unstated_transports(normalize_names(slots), text), text, previous)
         # 사용자가 프리셋을 골랐으면 그 값이 우선이다 (SDD 2절 AgentRequest.preset)
         if preset and not slots.out_of_scope and slots.preset != preset:
             slots = slots.model_copy(update={"preset": preset})

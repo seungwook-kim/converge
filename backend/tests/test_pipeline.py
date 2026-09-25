@@ -704,3 +704,54 @@ def test_제공자_이름은_모델_접두어로_정한다():
     assert pipeline._provider_of("local/kanana") == "local"
     assert pipeline._provider_of("anthropic/claude-sonnet-5") == "openrouter"
     assert pipeline._provider_of(None) == "openrouter"
+
+
+def _judged_deps(basis, judge_meta=None, required=False):
+    """슬롯 추출이 access 를 basis 로 정했다고 흉내 낸다 (llm.settle_access 가 _last_meta 에 남기는 값)."""
+    from backend.app.services import llm
+
+    async def extract_slots(*_):
+        llm._last_meta.update({"access_basis": basis})
+        if judge_meta is not None:
+            llm._last_meta["access_judge"] = judge_meta
+        else:
+            llm._last_meta.pop("access_judge", None)
+        return slots(datetime="목요일 08:00", access=dict(required=required, applied=None if not required else True))
+
+    return _done_deps(extract_slots=extract_slots)
+
+
+def test_추정으로_절차_없음을_정했으면_완료_안내에_알린다():
+    out = run(AgentRequest(text="점검"), _judged_deps("judge", {"choice": "none", "p_none": 0.95}))
+    assert out.stage == "done"
+    assert "출입 절차가 없는 곳으로 보고 계산했습니다" in out.message
+
+
+def test_규칙으로_정한_절차_없음은_알리지_않는다():
+    out = run(AgentRequest(text="점검"), _judged_deps("open_place"))
+    assert "출입 절차가 없는 곳으로" not in out.message
+
+
+def test_판단_모델_호출은_요청_기록에_남는다(monkeypatch):
+    from backend.app.services import request_log
+
+    rows = []
+
+    async def write(**kwargs):
+        rows.append(kwargs)
+
+    monkeypatch.setattr(request_log, "write", write)
+    meta = {"choice": "none", "p_none": 0.95, "confidence": 0.9, "model": "jev-1.13", "input_tokens": 300, "cost_usd": 0.0000126}
+    run(AgentRequest(text="점검"), _judged_deps("judge", meta))
+    row = next(r for r in rows if r["stage"] == "access_judge")
+    assert (row["provider"], row["model_or_api"], row["tokens_in"], row["status"]) == ("typesafe", "jev-1.13", 300, "ok")
+    assert row["cost_usd"] == 0.0000126
+
+    rows.clear()
+    run(AgentRequest(text="점검"), _judged_deps("judge", {"error": "TimeoutError"}))
+    row = next(r for r in rows if r["stage"] == "access_judge")
+    assert (row["status"], row["error_type"]) == ("error", "TimeoutError")
+
+
+def test_목적지를_되묻는_말이_있다():
+    assert pipeline._questions_for(["destination"]) == ["어디서 모이나요?"]

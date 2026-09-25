@@ -377,6 +377,152 @@ def clock(hhmm: str) -> str:
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
+def _squash(text: str | None) -> str:
+    """띄어쓰기를 지운다. "방문자등록" 과 "방문자 등록" 을 같게 본다."""
+    return re.sub(r"\s+", "", text or "")
+
+
+def _has_any(text: str | None, words: list[str]) -> bool:
+    body = _squash(text)
+    return any(_squash(w) in body for w in words)
+
+
+def _place_kind(destination: str | None, rule: dict) -> str | None:
+    """목적지의 마지막 장소 단어로 "open" / "closed" 를 가른다. 못 가르면 None.
+
+    한국어는 끝말이 종류를 정한다. "판교 본사 앞" 은 밖(open), "여의도역 근처 사무실" 은 안(closed).
+    그래서 가장 뒤에서 끝나는 단어의 종류를 쓴다. 같은 자리에서 끝나면 긴 단어가 이긴다.
+    """
+    body = _squash(destination)
+    best: tuple[int, int, str] | None = None
+    for kind, key in (("open", "open_place_words"), ("closed", "closed_place_words")):
+        for word in rule[key]:
+            w = _squash(word)
+            at = body.rfind(w)
+            if at >= 0:
+                cand = (at + len(w), len(w), kind)
+                best = cand if best is None or cand[:2] > best[:2] else best
+    return best[2] if best else None
+
+
+def settle_access(
+    text: str,
+    destination: str | None,
+    purpose: str | None,
+    access: dict[str, Any] | None,
+    missing: list[str],
+    followup: bool = False,
+    judge: dict[str, Any] | str | None = None,
+) -> tuple[dict[str, Any] | None, list[str], str]:
+    """모델이 뽑은 access 를 문장 단서로 확정한다 (access.md "절차 판정").
+
+    돌려주는 것: (access dict 또는 None, missing, 근거). access 가 None 이면 파이프라인 1-2 가
+    "출입 절차가 있나요?"를 묻는다. 근거는 어느 순위에서 정했는지다:
+      stated_none · cue · open_place · closed_place · casual · followup · judge · model
+    followup: 재질문 뒤의 답이다(이전 슬롯이 있다). 그때는 1·2순위 단서만 보고 나머지는 모델을 믿는다.
+              답 문장에는 장소가 없고, 이미 정한 절차를 목적지만 보고 다시 모름으로 돌리면 끝없이 묻는다.
+    judge: 규칙이 못 정한 5순위에서 판단 모델(Jev)에 물은 결과. access.md judge_none_min_probability 참고.
+      None      물어보지 않았다(꺼져 있음). 슬롯 모델 값을 따른다. 단서 없는 "절차 있음"은 믿지 않는다
+      "failed"  물었는데 실패했다. 되묻는다. 장애가 오답으로 새지 않게 한다
+      dict      {"choice", "p_none", "confidence"}. "없음" 만, 확률이 기준 이상이고 슬롯 모델도
+                "있음" 이라 하지 않을 때만 받는다. 판단 모델은 "있음" 을 만들지 못한다
+                (절차가 있는데 없다고 하면 당일 못 들어가고, 없는데 있다고 하면 15분을 헛되이 뺀다)
+    """
+    rule = load_rule("access")
+    rest = [m for m in missing if not m.startswith("access.")]
+    model_required = access.get("required") if access else None
+    model_applied = access.get("applied") if access else None
+
+    def none_needed(basis: str) -> tuple[dict[str, Any], list[str], str]:
+        return {"required": False, "applied": None, "lead_min": None}, rest, basis
+
+    def ask(basis: str) -> tuple[None, list[str], str]:
+        return None, [*rest, "access.required"], basis
+
+    # 1. 절차가 없다고 말했다
+    if _has_any(text, rule["no_procedure_words"]):
+        return none_needed("stated_none")
+    # 2. 절차 단서가 있다. 신청 여부는 모델이 읽은 값을 쓰고, 모르면 되묻는다
+    if _has_any(text, rule["procedure_words"]):
+        applied = model_applied if model_required is True else None
+        # 남이 해 주기로 했거나 앞으로 할 신청을 끝난 것으로 읽는 경우가 있다(09-23 측정). 모르면 되묻는다
+        if applied is True and _has_any(text, rule["applied_pending_words"]):
+            applied = None
+        # "아직 안 했어요" 를 모름으로 두는 모델이 있다(09-23 gpt-4o-mini). 말한 그대로 신청 안 함이다
+        if _has_any(text, rule["applied_not_yet_words"]):
+            applied = False
+        return (
+            {"required": True, "applied": applied, "lead_min": None},
+            rest if applied is not None else [*rest, "access.applied"],
+            "cue",
+        )
+    if followup:
+        # 되물은 뒤의 답("아니요", "없어요")은 모델을 믿는다. 다시 모름으로 돌리면 끝없이 묻는다
+        return (access, missing, "followup") if access is not None else ask("followup")
+    # 3. 목적지의 종류
+    kind = _place_kind(destination, rule)
+    if kind == "open":
+        return none_needed("open_place")
+    if kind == "closed":
+        return ask("closed_place")
+    # 4. 목적이 일상 약속
+    if _has_any(purpose, rule["casual_purpose_words"]):
+        return none_needed("casual")
+    # 5. 규칙이 못 정한 구간
+    if isinstance(judge, dict):
+        sure = float(judge.get("p_none") or 0.0) >= float(rule["judge_none_min_probability"])
+        if judge.get("choice") == "none" and sure and model_required is not True:
+            return none_needed("judge")
+        return ask("judge")
+    if judge == "failed":
+        return ask("judge")
+    # 판단 모델을 안 쓰면 슬롯 모델 값. 단서 없는 "절차 있음"은 믿지 않는다 (없는 절차 소요를 빼게 된다)
+    if model_required is True or access is None:
+        return ask("model")
+    return none_needed("model")
+
+
+def access_assumed(basis: str, access: dict[str, Any] | None) -> bool:
+    """"절차 없음" 을 문장 단서가 아니라 모델 추정으로 정했는가. 그렇다면 결과에 알린다.
+
+    틀렸을 때 가장 큰 피해(절차가 있는데 없다고 해서 당일 못 들어감)를 사용자가 바로 잡을 수 있게 한다.
+    역 앞·식당처럼 규칙으로 정한 것까지 알리면 매번 같은 말이 붙어 소음이 된다.
+    """
+    return bool(access) and access.get("required") is False and basis in ("judge", "model")
+
+
+# 문장을 사람별 이야기로 나누는 자리. 쉼표·마침표와 "가고 ", "오며 ", "오면서 " 뒤
+_CLAUSE_SPLIT = re.compile(r"[,.!?\n;]|(?<=고)\s+|(?<=며)\s+|(?<=면서)\s+")
+# "나" 로 정리된 참석자를 문장에서 찾는 말. "나가야"·"하나" 에 걸리지 않게 앞뒤가 한글이 아니어야 한다
+_FIRST_PERSON = re.compile(r"(?<![가-힣])(나|저|제가|내가)(는|도|랑|가|의)?(?![가-힣])")
+_HONORIFIC = re.compile(r"(씨|님|이)$")
+
+
+def _mentions(clause: str, name: str) -> bool:
+    if name == "나":
+        return bool(_FIRST_PERSON.search(clause))
+    core = _HONORIFIC.sub("", name)
+    return name in clause or (len(core) >= 2 and core in clause)
+
+
+def unstated_transports(text: str, people: list[dict[str, Any]]) -> list[int]:
+    """이동수단을 말하지 않았는데 채워진 참석자 번호 (transport.md "말하지 않은 이동수단").
+
+    people: [{"name", "transport", "pickup"}]. 이동수단이 비었거나 태워지는 사람은 보지 않는다.
+    이름이 문장 어디에도 없으면 모른다고 보고 건드리지 않는다 (캡처 옮긴 글 등).
+    """
+    words = load_rule("transport")["transport_words"]
+    clauses = [c for c in _CLAUSE_SPLIT.split(text or "") if c and c.strip()]
+    out: list[int] = []
+    for index, person in enumerate(people):
+        if person.get("transport") is None or person.get("pickup"):
+            continue
+        mine = [c for c in clauses if _mentions(c, str(person.get("name") or ""))]
+        if mine and not any(_has_any(c, words) for c in mine):
+            out.append(index)
+    return out
+
+
 def candidate_score(kind: str, access_required: bool) -> int:
     """후보를 줄 세우는 점수. 클수록 앞. 대형 모델을 부르지 않는 경우에 쓴다 (SDD 5절 라우팅 small).
 

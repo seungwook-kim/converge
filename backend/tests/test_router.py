@@ -48,3 +48,11 @@ def test_출입조치를_아직_신청하지_않았으면_대형():
 
 def test_출입조치를_이미_신청했으면_소형():
     assert route(slots(access=Access(required=True, applied=True, lead_min=15).model_dump())) == "small"
+
+
+def test_출입조치가_없으면_소형():
+    """SDD 5절 small 조건 "출입조치가 없거나 이미 신청됨". 없음(required=false)은 신청할 것이 없다 (09-23 수정).
+
+    applied 만 보면 절차가 없는 약속(applied=None)까지 전부 대형으로 갔다.
+    """
+    assert route(slots(access=Access(required=False, applied=None, lead_min=None).model_dump())) == "small"

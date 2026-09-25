@@ -157,6 +157,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         with tr.span("extract") as span:
             started = time.monotonic()
             span.input = {"chars": len(text)}
+            _forget_access_meta()
             try:
                 slots = await _call(deps.extract_slots, text, deps.previous_slots, req.preset)
                 span.input = {"text": masking.mask(text, slots)[:200]}
@@ -167,6 +168,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 span.error = type(e).__name__
                 await _log_llm("extract", tr.id, session_id, started, "error", type(e).__name__)
                 return _answer(session_id, "failed", None, tr.id, "요청을 이해하지 못했습니다. 다시 입력해 주세요.")
+        await _log_access_judge(tr, session_id)
 
         # 1-1. 범위 밖. 무엇을 하는 도구인지 알려준다 (output-contract.md).
         # 실시간 질문만 오는 게 아니다(메뉴 추천 등, 09-23). 이유를 모르므로 한 사례에 묶인 말을 하지 않는다
@@ -370,6 +372,11 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         done_names = {r.name for r in result.per_participant}
         missing_people = [p.name for p in slots.participants if p.name not in done_names]
         stranded = [r.name for r in result.per_participant if r.candidate_rank == first and r.train_note and "막차" in r.train_note]
+        # 절차 없음을 문장 단서가 아니라 추정으로 정했으면 알린다 (access.md 5순위). 틀렸을 때 가장 큰
+        # 피해(당일 못 들어감)를 사용자가 바로 잡게 한다
+        assumed = domain_rules.access_assumed(
+            str(_llm_meta().get("access_basis", "")), slots.access.model_dump() if slots.access else None
+        )
         return _answer(
             session_id,
             "done",
@@ -377,7 +384,8 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
             tr.id,
             (f"{top.name}에서 {arrive_by} 까지 모이는 안을 1순위로 제안합니다." if top else "결과를 정리했습니다.")
             + (f" {', '.join(missing_people)} 님은 경로를 조회하지 못해 표에서 빠졌습니다." if missing_people else "")
-            + (f" {', '.join(stranded)} 님은 지하철 막차가 끊긴 시간에 타야 합니다." if stranded else ""),
+            + (f" {', '.join(stranded)} 님은 지하철 막차가 끊긴 시간에 타야 합니다." if stranded else "")
+            + (" 출입 절차가 없는 곳으로 보고 계산했습니다. 출입증이나 방문자 등록이 필요하면 알려 주세요." if assumed else ""),
             geocoded=pins,
             result=result,
         )
@@ -464,6 +472,8 @@ def _questions_for(missing: list[str]) -> list[str]:
             questions.append("차로 오시나요, 대중교통으로 오시나요?")
         elif path == "datetime":
             questions.append("몇 시에 시작하나요?")
+        elif path == "destination":
+            questions.append("어디서 모이나요?")
         elif path == "access.required":
             # 절차가 있는지 자체를 모르면 준비물도 역산 기준도 정할 수 없다 (SDD 5절 7-1단계)
             questions.append("이 장소에 출입 절차가 있나요? (출입증·방문자 등록·출입조치)")
@@ -519,6 +529,47 @@ async def _log_llm(
         error_type=error_type,
         retry_no=max(0, int(meta.get("attempts", 1)) - 1),
         routed_to=routed_to,
+    )
+
+
+def _forget_access_meta() -> None:
+    """이전 요청의 출입 절차 판정 기록을 지운다. _last_meta 는 모듈 전역이라 남아 있으면 이번 요청에 섞인다."""
+    from backend.app.services import llm
+
+    llm._last_meta.pop("access_basis", None)
+    llm._last_meta.pop("access_judge", None)
+
+
+async def _log_access_judge(tr: Any, session_id: str) -> None:
+    """판단 모델(Jev) 호출 한 번을 Langfuse 와 request_logs 에 남긴다. 부르지 않았으면 아무것도 안 한다.
+
+    확률을 남기는 이유: judge_none_min_probability(access.md) 를 실제 분포를 보고 조정하려면 필요하다.
+    문장은 남기지 않는다 (가린 문장도 장소 이름은 그대로라 기록을 늘리지 않는다).
+    """
+    from backend.app.services import request_log
+
+    meta = _llm_meta().get("access_judge")
+    if not meta:
+        return
+    with tr.span("access_judge") as span:
+        span.output = {k: v for k, v in meta.items() if k in ("choice", "p_none", "confidence", "probabilities", "error")}
+        span.output["basis"] = _llm_meta().get("access_basis")
+        if meta.get("error"):
+            span.error = meta["error"]
+    await request_log.write(
+        request_id=tr.id,
+        session_id=session_id or None,
+        stage="access_judge",
+        provider=meta.get("provider") or "typesafe",
+        model_or_api=meta.get("model"),
+        latency_ms=int(meta.get("latency_ms") or 0),
+        status="error" if meta.get("error") else "ok",
+        tokens_in=meta.get("input_tokens"),
+        tokens_out=0 if not meta.get("error") else None,
+        cost_usd=meta.get("cost_usd"),
+        error_type=meta.get("error"),
+        retry_no=0,
+        routed_to=None,
     )
 
 

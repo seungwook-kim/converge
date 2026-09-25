@@ -24,7 +24,7 @@ backend/app/         FastAPI. POST /api/agent
   │    7 departure   출발 시각 역산                  [domain/, 계산]
   │    8 store       암호화 저장
   │
-  ├─ services/       바깥과 통신 (LLM, 카카오, TMAP, Postgres)
+  ├─ services/       바깥과 통신 (LLM, 판단 모델 Jev, 카카오, TMAP, 첫차·막차 공공 API, Postgres)
   ├─ domain/         계산만. 네트워크·LLM 없음
   └─ mcp_server/     같은 프로세스에 /mcp 로 마운트. 2·3·4단계가 쓰는 도구
   │

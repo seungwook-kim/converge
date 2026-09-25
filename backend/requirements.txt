@@ -3,6 +3,7 @@ uvicorn[standard]>=0.32
 pydantic>=2.9
 python-dotenv>=1.0
 openai>=1.60          # OpenRouter도 이 SDK로 부릅니다(base_url만 교체)     
+typesafe-sdk>=0.7      # 출입 절차 판단 모델 Jev (access.md 5순위, 09-23)
 langfuse>=2.50        # 필수 조건 4
 mcp>=2.2              # 필수 조건 5 — MCPServer (2.x. 1.x의 FastMCP는 import 안 됨)
 asyncpg>=0.30       # Postgres 접속 (services/store.py). DATABASE_URL

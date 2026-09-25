@@ -36,7 +36,8 @@ def route(slots: Slots) -> RoutedTo:
         return "large"
     if slots.rendezvous is not None:
         return "large"
-    # 출입조치 정보가 있는데 아직 신청 전(None·False)이면 후보가 열리는지 자체가 갈린다
-    if slots.access is not None and slots.access.applied is not True:
+    # 출입조치가 있는데 아직 신청 전(None·False)이면 후보가 열리는지 자체가 갈린다.
+    # 조치가 없으면(required=false) 신청할 것이 없으므로 여기 걸리지 않는다 (09-23 수정)
+    if slots.access is not None and slots.access.required and slots.access.applied is not True:
         return "large"
     return "small"

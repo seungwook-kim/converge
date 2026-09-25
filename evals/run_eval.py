@@ -221,9 +221,19 @@ async def main() -> int:
     parser.add_argument("--dataset", default=str(DEFAULT_DATASET))
     parser.add_argument("--limit", type=int, help="앞에서 몇 문항만")
     parser.add_argument("--dry-run", action="store_true", help="모델을 부르지 않고 문항만 검사한다")
+    parser.add_argument("--model", help="이 실행에서만 MODEL_SMALL·MODEL_LARGE 를 바꾼다. 예: openai/gpt-4o-mini (.env 는 그대로)")
+    parser.add_argument("--prompt-label", help="Langfuse 프롬프트 라벨. 운영에 올리기 전 staging 을 잴 때 (기본 production)")
     args = parser.parse_args()
 
     load_env()
+    if args.model:
+        # load_env 가 .env 로 덮어쓴 뒤에 바꾼다. 모델 비교(2개 이상)와 한도 소진 때 대체 실행용 (09-23)
+        os.environ["MODEL_SMALL"] = os.environ["MODEL_LARGE"] = args.model
+    if args.prompt_label:
+        from backend.app.observability import langfuse as lf
+
+        original = lf.get_prompt
+        lf.get_prompt = lambda name, label="production": original(name, label=args.prompt_label)
     rows, todo = load_dataset(Path(args.dataset))
     if todo:
         print(f"아직 안 쓴 문항 {len(todo)}건은 건너뛴다: {', '.join(todo[:5])}")
