@@ -319,8 +319,8 @@ async def build_candidates(slots: Slots, pins: list[GeocodedPin]) -> list[dict[s
     """집결 후보를 찾는다. 순위·이유는 여기서 매기지 않는다 (5·6단계 몫).
 
     절차가 시작되는 자리를 먼저 둔다 (access.md rendezvous_is_procedure_start).
-      절차 있음: 목적지 건물 1층, 그리고 둘레의 정문·출입구. 이름에 그 말이 들어간 결과만 쓴다
-      SI: 목적지 건물 1층. 건물 로비는 목적지 그 자체라 따로 찾지 않는다
+      절차 있음: 목적지 건물 1층. 건물 로비는 목적지 그 자체라 따로 찾지 않는다
+      절차 없음: 목적지 그 자리. 둘레 정문을 찾지 않는다 (09-27)
     그 밖에서 만날 때를 위해 가까운 역을 하나 더 둔다 (outside_landmark_kinds).
     한 곳도 못 찾으면 목적지 좌표 자체를 후보로 쓴다 (SDD 5절 3단계 "후보 0곳이면").
     """
@@ -341,17 +341,10 @@ async def build_candidates(slots: Slots, pins: list[GeocodedPin]) -> list[dict[s
             # 출입 절차는 목적지 건물 1층에서 시작된다
             add({"name": f"{dest.name} 1층", "kind": "lobby", "address": "", "lng": dest.lng, "lat": dest.lat})
         else:
-            for query, kind in GATE_QUERIES:
-                if len(found) >= 2:
-                    break
-                try:
-                    docs = await _nearby(client, query, center)
-                except httpx.HTTPError:
-                    continue
-                for doc in docs:
-                    if any(w in doc["place_name"] for w in GATE_NAME_WORDS):
-                        add(_as_candidate(doc, kind))
-                        break
+            # 절차가 없으면 건물 정문에서 모일 이유가 없다 (access.md no_procedure_all_transit_no_rendezvous).
+            # 둘레의 "정문"을 찾으면 학교·아파트·복지시설 정문이 1순위로 나왔다 (09-27: 거제 장승포항 →
+            # "거제도애광원 정문", 홍대입구 → "홍대정문 복권판매점"). 사람이 말한 목적지 그 자리가 먼저다
+            add({"name": dest.name, "kind": "landmark", "address": "", "lng": dest.lng, "lat": dest.lat})
 
         # 절차 밖 랜드마크: 가까운 역 하나
         try:

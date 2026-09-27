@@ -43,3 +43,47 @@ def test_geocode_one_uses_core_place_and_keeps_confidence(monkeypatch) -> None:
     assert pin.name == "성수역 근처"  # 화면에는 사람이 쓴 말을 그대로 보인다
     # 꼬리말만 뗀 것은 같은 자리다. 확인 질문으로 넘기지 않는다
     assert pin.confidence >= 0.8
+
+
+def _slots(access_required: bool | None):
+    from backend.app.schemas.slots import Slots
+
+    access = None if access_required is None else {"required": access_required, "applied": True}
+    return Slots(
+        preset="visit" if access_required else "meeting",
+        destination="거제 장승포항",
+        participants=[{"name": "나", "origin": "부산역", "transport": "car", "role": "site"}],
+        access=access,
+    )
+
+
+def _dest_pins():
+    from backend.app.schemas.result import GeocodedPin
+
+    return [GeocodedPin(name="거제 장승포항", lng=128.72, lat=34.87, confidence=0.95, kind="destination")]
+
+
+def test_절차가_없으면_정문을_찾지_않고_목적지를_첫_후보로_둔다(monkeypatch):
+    """09-27: 절차 없는 약속에 학교·아파트 정문이 1순위로 나왔다 ("거제도애광원 정문")."""
+    asked: list[str] = []
+
+    async def fake_nearby(client, query, center, limit=5, radii=()):
+        asked.append(query)
+        if query == geo.STATION_SUFFIX:
+            return [_doc("장승포역", 128.73, 34.88, "SW8")]
+        return [_doc("거제도애광원 정문", 128.70, 34.86)]
+
+    monkeypatch.setattr(geo, "_nearby", fake_nearby)
+    cands = asyncio.run(geo.build_candidates(_slots(False), _dest_pins()))
+    assert [c["name"] for c in cands] == ["거제 장승포항", "장승포역"]
+    assert all(q == geo.STATION_SUFFIX for q in asked)  # 정문·출입구는 묻지 않는다
+    assert cands[0]["kind"] == "landmark"
+
+
+def test_절차가_있으면_건물_1층이_먼저다(monkeypatch):
+    async def fake_nearby(client, query, center, limit=5, radii=()):
+        return []
+
+    monkeypatch.setattr(geo, "_nearby", fake_nearby)
+    cands = asyncio.run(geo.build_candidates(_slots(True), _dest_pins()))
+    assert cands[0]["kind"] == "lobby"
