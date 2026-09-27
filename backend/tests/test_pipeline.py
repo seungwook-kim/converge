@@ -266,6 +266,56 @@ def test_재질문이면_이전_슬롯을_추출에_넘긴다():
     assert seen["previous"].destination == "창원 사무소"
 
 
+def test_다시_계산해도_누가_핀을_고쳤는지는_남는다():
+    """09-27: 다시 계산하면 참석자를 새로 저장하면서 수정 기록(SDD 7절)이 지워졌다."""
+    saved = {}
+
+    async def load_session(_):
+        return {
+            "user_id": "u1",
+            "locked": False,
+            "participants": [
+                {
+                    "name": "김현장",
+                    "origin_text": "창원시청",
+                    "transport": "car",
+                    "role": "site",
+                    "owner_user_id": "other",
+                    "origin_set_by": "other",
+                    "last_edited_by": "u1",
+                    "self_edited_at": "2026-09-27T09:00:00+00:00",
+                }
+            ],
+        }
+
+    async def save(**kwargs):
+        saved.update(kwargs)
+        return "s1"
+
+    req = AgentRequest(
+        session_id="s1", text="핀 위치 확인", confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25)]
+    )
+    run(req, _done_deps(load_session=load_session, save=save), user_id="u1")
+    person = next(p for p in saved["participants"] if p["name"] == "김현장")
+    assert person["last_edited_by"] == "u1"
+    assert person["self_edited_at"] == "2026-09-27T09:00:00+00:00"
+    assert person["origin_set_by"] == "other"
+
+
+def test_처음_저장하면_수정_기록은_비어_있다():
+    saved = {}
+
+    async def save(**kwargs):
+        saved.update(kwargs)
+        return "s1"
+
+    run(AgentRequest(text="점검"), _done_deps(save=save))
+    person = saved["participants"][0]
+    assert person["self_edited_at"] is None
+    assert person.get("last_edited_by") is None
+    assert person["origin_set_by"] == "organizer"
+
+
 def test_되묻기_단계에서도_세션을_만든다():
     """메인에서 문장만 받고 /s/{id} 로 보내려면 링크가 먼저 있어야 한다 (화면 구조, 09-20)."""
     saved = {}

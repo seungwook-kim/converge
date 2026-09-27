@@ -56,6 +56,7 @@ class Deps:
     save: Callable[..., Awaitable[str]] | None = None  # 8 store
     load_session: Callable[..., Awaitable[Any]] | None = None  # 재질문: 이전 세션 읽기
     previous_slots: Slots | None = None  # 재질문이면 이전 슬롯 (SDD 5절 재질문)
+    previous_participants: list[dict[str, Any]] | None = None  # 이전에 저장된 참석자. 수정 기록을 옮길 때 쓴다
     extras: dict[str, Any] = field(default_factory=dict)
 
 
@@ -959,6 +960,7 @@ async def _load_previous(deps: Deps, session_id: str, user_id: str) -> Slots | N
         raise NotYourSession(session_id)
     if row.get("locked"):
         raise SessionLocked(session_id)
+    deps.previous_participants = list(row.get("participants") or [])
     from backend.app.services import session_store
 
     return session_store.slots_from_session(row)
@@ -1027,7 +1029,7 @@ async def _persist(
         new_id=session_id if is_new else None,
         user_id=user_id,
         slots=slots,
-        participants=_participants_for_store(slots, pins),
+        participants=_participants_for_store(slots, pins, deps.previous_participants),
         result=result,
         trace_id=trace_id,
         status=status,
@@ -1045,15 +1047,25 @@ def _meet_at(slots: Slots) -> datetime | None:
     return domain_rules.meet_at_local(meet_date, domain_rules.parse_meet_time(slots.datetime))
 
 
-def _participants_for_store(slots: Slots, pins: list[GeocodedPin]) -> list[dict[str, Any]]:
+# 다시 저장해도 지우면 안 되는 수정 기록 (SDD 7절 핀 소유권). 누구나 고칠 수 있는 대신 누가 고쳤는지 남긴다
+EDIT_FIELDS = ("origin_set_by", "last_edited_by", "self_edited_at")
+
+
+def _participants_for_store(
+    slots: Slots, pins: list[GeocodedPin], previous: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     """저장용 참석자 평문 구조 (테이블정의서 1절 participants_enc).
 
     좌표는 슬롯이 아니라 지오코딩 결과에 있으므로 여기서 이름으로 붙여 넣는다.
+    이전에 저장된 참석자가 있으면 수정 기록을 이름으로 찾아 옮긴다. 핀을 고친 뒤 다시 계산하면
+    기록이 지워져 "누가 고쳤는지"가 화면에서 사라졌다 (09-27).
     """
     coords = {p.name: p for p in pins if p.kind == "participant"}
+    before = {p.get("name"): p for p in previous or []}
     out: list[dict[str, Any]] = []
     for person in slots.participants:
         pin = coords.get(person.name)
+        kept = {k: before[person.name][k] for k in EDIT_FIELDS if before.get(person.name, {}).get(k) is not None}
         out.append(
             {
                 "name": person.name,
@@ -1068,7 +1080,9 @@ def _participants_for_store(slots: Slots, pins: list[GeocodedPin]) -> list[dict[
                 "confirmed": bool(pin and pin.confidence >= 1.0),
                 "owner_user_id": person.owner_user_id,
                 "origin_set_by": "self" if person.owner_user_id else "organizer",
+                "last_edited_by": None,
                 "self_edited_at": None,
+                **kept,
             }
         )
     return out
