@@ -328,3 +328,46 @@ def test_목적지가_비면_되묻는다(monkeypatch):
     _fake_model(monkeypatch, _slot_json(destination=None, missing=[]))
     slots = asyncio.run(llm.extract_slots("판교역 근처에서 스터디 하려는데 시간은 아직입니다. 저는 분당에서 지하철"))
     assert "destination" in slots.missing
+
+
+def test_소형이_시간_초과면_다음_차례로_넘어간다(monkeypatch):
+    """09-27: 구글 호출 하나가 멈추면 SDK 기본값(600초, 재시도 2회)대로 5분 넘게 기다렸다."""
+    import json
+    from types import SimpleNamespace
+
+    import httpx
+    import openai
+
+    calls: list[str] = []
+
+    def client_for(model):
+        async def create(**kwargs):
+            calls.append(model)
+            if model == "google-ai/small":
+                raise openai.APITimeoutError(request=httpx.Request("POST", "https://example.invalid"))
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(_slot_json(), ensure_ascii=False)))],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=10),
+            )
+
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    monkeypatch.setattr(llm, "_client", client_for)
+    monkeypatch.setattr(llm.langfuse, "get_prompt", lambda _name: ("{{text}}{{previous_slots}}{{preset_hint}}", "1"))
+    monkeypatch.setenv("MODEL_SMALL", "google-ai/small")
+    monkeypatch.setenv("MODEL_LARGE", "google-ai/large")
+
+    slots = asyncio.run(llm.extract_slots("금요일 오후 6시 잠실역 앞에서 저녁 약속. 저는 강동구에서 지하철로"))
+    assert slots.destination == "잠실역 앞"
+    assert calls[-1] == "google-ai/large"  # 소형이 멈추면 대형으로 넘어가 답을 받는다
+
+
+def test_클라이언트는_시간_제한을_걸고_SDK_재시도를_끈다(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    monkeypatch.delenv("LLM_TIMEOUT_SEC", raising=False)
+    client = llm._client("google-ai/small")
+    assert client.timeout == llm.LLM_TIMEOUT_SEC
+    assert client.max_retries == 0
+
+    monkeypatch.setenv("LLM_TIMEOUT_SEC", "12")
+    assert llm._client("google-ai/small").timeout == 12.0

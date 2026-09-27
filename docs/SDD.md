@@ -407,7 +407,7 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 | 단계 | 함수 | 입력 → 출력 | 실패 시 |
 |---|---|---|---|
 | 0 | vision.extract_text | 이미지 → 텍스트. 모델은 MODEL_VISION, 비어 있으면 MODEL_LARGE | 같은 모델 1회 재시도 → 실패면 need_info("캡처를 읽지 못했습니다, 문장으로 입력") |
-| 1 | llm.extract_slots | 텍스트(+이전 슬롯) → Slots. 뽑은 뒤 access 를 문장 단서로 확정한다(domain/rules.settle_access, 단서 목록과 순서는 access.md "절차 판정"). 모델이 같은 문장에 절차 있음·없음·모름을 오가서다 (09-23) | 스키마 위반 시 재시도 1회 → 대형 모델 승격 → 실패면 failed |
+| 1 | llm.extract_slots | 텍스트(+이전 슬롯) → Slots. 뽑은 뒤 access 를 문장 단서로 확정한다(domain/rules.settle_access, 단서 목록과 순서는 access.md "절차 판정"). 모델이 같은 문장에 절차 있음·없음·모름을 오가서다 (09-23) | 스키마 위반·시간 초과(LLM_TIMEOUT_SEC)·5xx·429 시 재시도 1회 → 대형 모델 승격 → 실패면 failed. 호출 하나는 LLM_TIMEOUT_SEC 초에서 끊고 SDK 자체 재시도는 끈다 (09-27) |
 | 1-1 | 범위 판정 | slots.out_of_scope → out_of_scope 응답 | |
 | 1-2 | 누락 판정 | slots.missing 비어 있지 않으면 need_info. 절차 단서가 없어 slots.access 가 통째로 None 이면 코드가 missing 에 "access.required" 를 넣고 되묻는다("이 장소에 출입 절차가 있나요? (출입증·방문자 등록)"). 없다고 답하면 required=false 로 두고 체크리스트를 만들지 않는다 | |
 | 1-3 | 기간 판정 | domain/rules.parse_meet_date 가 slots.datetime 에서 날짜를 읽는다. 오늘보다 앞이면 need_info("이미 지난 날짜입니다"), 오늘인데 그 시각이 지났으면 need_info("오늘 그 시각은 이미 지났습니다". 요일만 말하면 오늘을 포함해 읽으므로 다음 주를 뜻했는지 추측하지 않고 묻는다), 오늘+30일을 넘으면 need_info("30일 안의 약속만 잡을 수 있습니다"). 날짜를 못 읽으면 판정하지 않고 넘어가며 meet_at 은 None(임시 세션). 30과 기준 시간대는 session.md 의 값. 1-2 보다 먼저 본다: 받을 수 없는 날짜면 빠진 정보를 묻지 않고 날짜부터 되묻고, 임시 세션도 남기지 않는다 (09-23) | 코드라 실패 없음 |
@@ -467,6 +467,8 @@ session_id가 있으면 먼저 잠금 검사: 세션의 user_id가 토큰과 다
 
 `route_car` 는 `departure_time` 이 있으면 카카오모빌리티 미래 운행(`/v1/future/directions`)으로 간다. 같은 구간에서 값이 달라지는 것을 확인했다 (09-20 실측: 즉시 1280초, 다음 날 08:00 기준 1388초).
 
+TMAP 대중교통이 "너무 가까움"(status 11, 130m 에서도 온다)을 주거나 카카오 길찾기가 5m 이내(result_code 104)라고 하면 경로 실패로 보지 않고 도보로 계산한다 (domain/rules.walk_seconds, transport.md). 실패로 두면 집결지 옆에 있는 사람이 결과에서 빠진다 (09-27). 픽업 경유지가 있는 경로는 그대로 실패로 둔다.
+
 route_transit 이 부르는 TMAP 대중교통은 초당 호출 제한이 있어 연속 호출 시 429 THROTTLED 가 온다 (scripts/fetch_mock_routes.py 에서 확인). 간격을 두거나 재시도로 처리한다.
 
 description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다. 예: first_last_train은 "약속이 늦은 시각이라 막차를 넘길지, 끝나고 첫차를 기다려야 할지 볼 때 쓴다".
@@ -498,6 +500,8 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | transport.md | luggage_requires_car | true | 장비·짐이 있으면 대중교통으로 보내지 않는다 |
 | transport.md | pickup_wait_min | 5 | 태우는 지점에서 기다리는 시간 |
 | transport.md | pickup_counts_from_board | true | 태워지는 사람의 소요시간은 탑승 이후 구간만 |
+| transport.md | walk_speed_m_per_min | 67 | 경로 API 가 너무 가깝다며 길을 주지 않을 때 쓰는 걷는 속도(분당 m) |
+| transport.md | walk_detour_pct | 30 | 그때 직선거리에 얹는 우회분(%) |
 | transport.md | max_pickup_per_car | 1 | 차 1대당 1명. 다중 픽업 순서 최적화는 범위 밖 |
 | transport.md | route_cache_ttl_hours | 24 | 경로 응답 캐시 보관 시간 (테이블정의서 4절) |
 | transport.md | geocode_cache_ttl_hours | 720 | 지오코딩 응답 캐시 보관 시간 |
@@ -605,6 +609,7 @@ GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일
 MODEL_LARGE=anthropic/claude-sonnet-5
 MODEL_VISION=google/gemini-3.8-flash   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다 (그 모델이 이미지를 받아야 한다)
 MODEL_EVAL_JUDGE=openai/gpt-5.6-luna
+LLM_TIMEOUT_SEC=30           # LLM 호출 하나의 상한(초). 기본 30. 넘으면 다음 차례(재시도·대형)로 넘긴다
 COST_LIMIT_USD_PER_REQUEST=0.05
 DAILY_COST_LIMIT_USD=1.0       # 하루 합계 상한. 비우면 제한 없음 (41번)
 ```

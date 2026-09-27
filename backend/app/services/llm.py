@@ -50,6 +50,18 @@ class LlmUnavailable(RuntimeError):
 GOOGLE_PREFIX = "google-ai/"
 GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
+# 호출 하나의 상한(초). openai SDK 기본값은 600초에 재시도 2회라, 구글 호출 하나가 멈추면 사용자가
+# 5분 넘게 기다리다 502 를 받았다 (09-27, 앞서 09-22 에는 432초). 100회 측정 최대가 21.2초다.
+# SDK 재시도는 끄고 재시도·승격은 extract_slots 의 attempt_models() 가 맡는다. LLM_TIMEOUT_SEC 로 바꾼다
+LLM_TIMEOUT_SEC = 30.0
+
+
+def _timeout() -> float:
+    try:
+        return float(os.environ.get("LLM_TIMEOUT_SEC") or LLM_TIMEOUT_SEC)
+    except ValueError:
+        return LLM_TIMEOUT_SEC
+
 
 def _client(model: str = "") -> Any:
     """모델 이름을 보고 어디로 부를지 정한다.
@@ -65,12 +77,12 @@ def _client(model: str = "") -> Any:
         key = os.environ.get("GEMINI_API_KEY")
         if not key:
             raise LlmUnavailable("GEMINI_API_KEY 가 없습니다 (aistudio.google.com 에서 발급)")
-        return AsyncOpenAI(api_key=key, base_url=GOOGLE_BASE_URL)
+        return AsyncOpenAI(api_key=key, base_url=GOOGLE_BASE_URL, timeout=_timeout(), max_retries=0)
 
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise LlmUnavailable("OPENROUTER_API_KEY 가 없습니다")
-    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_BASE_URL)
+    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_BASE_URL, timeout=_timeout(), max_retries=0)
 
 
 def _extra_body(model: str) -> dict[str, Any]:
@@ -176,6 +188,17 @@ def model_small() -> str | None:
     if slot_model.available():
         return slot_model.model_name()
     return None
+
+
+def _transient_errors() -> tuple[type[Exception], ...]:
+    try:
+        import openai
+    except ImportError:  # 키 없는 테스트 환경
+        return ()
+    return (openai.APITimeoutError, openai.APIConnectionError, openai.InternalServerError, openai.RateLimitError)
+
+
+_TRANSIENT = _transient_errors()
 
 
 def attempt_models() -> list[str]:
@@ -422,13 +445,18 @@ async def extract_slots(
                 }
             )
         # 클라이언트는 모델마다 고른다. 소형은 구글, 대형은 OpenRouter 처럼 섞일 수 있다
-        res = await _client(model).chat.completions.create(
-            model=_api_model(model),
-            messages=messages,
-            temperature=0,
-            response_format={"type": "json_object"},
-            **_extra_body(model),
-        )
+        try:
+            res = await _client(model).chat.completions.create(
+                model=_api_model(model),
+                messages=messages,
+                temperature=0,
+                response_format={"type": "json_object"},
+                **_extra_body(model),
+            )
+        except _TRANSIENT as e:
+            # 시간 초과·연결 끊김·5xx·429 는 다음 차례(재시도 → 대형)로 넘긴다. 형식 위반과 같은 길이다
+            last_error = e
+            continue
         raw = res.choices[0].message.content or ""
         usage = getattr(res, "usage", None)
         tokens_in = int(getattr(usage, "prompt_tokens", 0) or 0)
