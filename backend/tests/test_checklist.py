@@ -268,3 +268,24 @@ def test_준비물이_없으면_그_칸이_빠진다():
 def test_일정이_미확정이면_계획서에_적는다():
     text = build_summary(_slots(), _result(provisional=True))
     assert "확정이 아닙니다" in text
+
+
+def test_해_먹는다는_단서가_없으면_cook_을_뺀다():
+    """09-27: "강남역 근처에서 고기 먹기" 에 숯·버너가 붙었다. 고깃집에 가는 약속이 대부분이다."""
+    from backend.app.domain.checklist import unstated_cook
+
+    assert unstated_cook("토요일 저녁 7시 강남역 근처에서 고기 먹기로 했어", ["cook"]) is True
+    assert unstated_cook("고깃집에서 구워 먹자", ["cook"]) is True  # 고깃집에서도 굽는다
+
+
+def test_해_먹는다는_단서가_있으면_cook_은_남는다():
+    from backend.app.domain.checklist import unstated_cook
+
+    assert unstated_cook("한강에서 바베큐 하자", ["cook"]) is False
+    assert unstated_cook("캠핑 가서 고기 구워 먹자", ["cook"]) is False
+    assert unstated_cook("장 봐서 해 먹자", ["cook"]) is False
+    # 야외나 누구 집이면 직접 해 먹는 자리다
+    assert unstated_cook("공원에서 고기 먹자", ["cook", "outdoor"]) is False
+    assert unstated_cook("민수네서 고기 먹자", ["cook", "host_home"]) is False
+    # cook 이 없으면 볼 것도 없다
+    assert unstated_cook("강남역에서 고기", []) is False

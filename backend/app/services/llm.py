@@ -319,6 +319,21 @@ def drop_unstated_transports(slots: Slots, text: str) -> Slots:
     return slots.model_copy(update={"participants": participants, "missing": missing})
 
 
+def drop_unstated_cook(slots: Slots, text: str, previous: Slots | None = None) -> Slots:
+    """직접 해 먹는다는 단서가 없으면 cook 을 지운다 (checklist.md "사 먹는 자리와 해 먹는 자리", 09-27).
+
+    모델이 "고기"만 보고 cook 을 붙여 고깃집 약속에 숯·버너를 준비물로 냈다.
+    재질문의 답("저는 강동구에서 지하철로")에는 단서가 없다. 이전 슬롯에서 이미 살아남은 cook 은 둔다.
+    """
+    from backend.app.domain import checklist as domain_checklist
+
+    if previous is not None and "cook" in (previous.constraints or []):
+        return slots
+    if slots.out_of_scope or not domain_checklist.unstated_cook(text, list(slots.constraints)):
+        return slots
+    return slots.model_copy(update={"constraints": [c for c in slots.constraints if c != "cook"]})
+
+
 async def settle_access(slots: Slots, text: str, previous: Slots | None) -> Slots:
     """출입 절차를 문장 단서로 확정한다 (access.md "절차 판정", domain/rules.settle_access).
 
@@ -434,7 +449,7 @@ async def extract_slots(
             except (ValidationError, ValueError, json.JSONDecodeError) as e:
                 last_error = e
                 continue
-            return _finish(await settle_access(drop_unstated_transports(slots, text), text, previous), preset, model, version, attempt, models)
+            return _finish(await settle_access(drop_unstated_cook(drop_unstated_transports(slots, text), text, previous), text, previous), preset, model, version, attempt, models)
 
         messages = [{"role": "user", "content": filled}]
         if attempt > 1 and last_error is not None:
@@ -466,7 +481,7 @@ async def extract_slots(
         except (ValidationError, ValueError, json.JSONDecodeError) as e:
             last_error = e
             continue
-        slots = await settle_access(drop_unstated_transports(normalize_names(slots), text), text, previous)
+        slots = await settle_access(drop_unstated_cook(drop_unstated_transports(normalize_names(slots), text), text, previous), text, previous)
         # 사용자가 프리셋을 골랐으면 그 값이 우선이다 (SDD 2절 AgentRequest.preset)
         if preset and not slots.out_of_scope and slots.preset != preset:
             slots = slots.model_copy(update={"preset": preset})

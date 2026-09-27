@@ -513,6 +513,7 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | checklist.md | visit_access | 방문자 등록(+차로 가면 차량번호), 신분증·출입증 수령 | 출입 절차가 있을 때의 준비물 |
 | checklist.md | luggage | 장비 반입 신고, 장비·전원 어댑터 | 장비는 절차와 별도로 걸린다 |
 | checklist.md | cook | 식재료, 숯·버너, 식기·집게, 쓰레기봉투 | 구워 먹는 자리는 누가 뭘 사 오냐가 항상 걸린다 |
+| checklist.md | cook_words / cook_places | 바베큐·캠핑·해 먹·장보기·숯 등 / outdoor·host_home | 둘 다 없으면 코드가 cook 을 지운다. 고깃집 약속에 숯·버너를 내지 않는다 (09-27) |
 | checklist.md | outdoor | 돗자리, 물, 물티슈, 쓰레기봉투 | 야외는 사서 해결할 데가 없다 |
 | checklist.md | host_home | 먹을 것·마실 것, 슬리퍼 | 남의 집에 빈손으로 가지 않는다 |
 | checklist.md | booking | 예약자 이름·시간 확인 | 예약자가 늦으면 자리가 날아간다 |

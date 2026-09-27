@@ -25,6 +25,20 @@ _TRANSPORT_WORD = {"car": "차", "transit": "대중교통", "walk": "도보"}
 _AFTER_WORD = {"car": "차로", "transit": "대중교통으로", "walk": "걸어서"}
 
 
+def unstated_cook(text: str, constraints: list[str]) -> bool:
+    """cook 이 붙었는데 직접 해 먹는다는 단서가 없는가 (checklist.md "사 먹는 자리와 해 먹는 자리").
+
+    True 면 부르는 쪽이 cook 을 지운다. 고깃집 약속에 숯·버너를 내놓지 않으려는 것이다 (09-27).
+    """
+    if "cook" not in constraints:
+        return False
+    rules = load_rule("checklist")
+    if any(place in constraints for place in rules["cook_places"]):
+        return False
+    lowered = (text or "").lower()
+    return not any(str(word).lower() in lowered for word in rules["cook_words"])
+
+
 def _dedupe(items: list[str]) -> list[str]:
     """순서를 지키면서 중복만 없앤다. 두 목록을 합치면 신분증이 두 번 나온다."""
     return list(dict.fromkeys(items))

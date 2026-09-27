@@ -371,3 +371,25 @@ def test_클라이언트는_시간_제한을_걸고_SDK_재시도를_끈다(monk
 
     monkeypatch.setenv("LLM_TIMEOUT_SEC", "12")
     assert llm._client("google-ai/small").timeout == 12.0
+
+
+def test_해_먹는다는_말이_없으면_모델이_붙인_cook_을_지운다(monkeypatch):
+    _fake_model(monkeypatch, _slot_json(constraints=["cook"], purpose="고기 먹기", destination="강남역 근처"))
+    slots = asyncio.run(llm.extract_slots("금요일 오후 6시 강남역 근처에서 고기 먹기. 저는 강동구에서 지하철로"))
+    assert "cook" not in slots.constraints
+
+
+def test_바베큐면_cook_을_남긴다(monkeypatch):
+    _fake_model(monkeypatch, _slot_json(constraints=["cook", "outdoor"], purpose="바베큐", destination="한강공원"))
+    slots = asyncio.run(llm.extract_slots("금요일 오후 6시 한강공원에서 바베큐. 저는 강동구에서 지하철로"))
+    assert "cook" in slots.constraints
+
+
+def test_재질문_답에_단서가_없어도_이전에_남은_cook_은_지우지_않는다(monkeypatch):
+    """처음 문장에 바베큐가 있어 남은 cook 을, 출발지만 답한 문장 때문에 지우면 안 된다."""
+    from backend.app.schemas.slots import Slots
+
+    _fake_model(monkeypatch, _slot_json(constraints=["cook", "booking"], purpose="바베큐", destination="강남역"))
+    previous = Slots.model_validate(_slot_json(constraints=["cook", "booking"], purpose="바베큐", destination="강남역"))
+    slots = asyncio.run(llm.extract_slots("저는 강동구에서 지하철로 가요", previous))
+    assert "cook" in slots.constraints

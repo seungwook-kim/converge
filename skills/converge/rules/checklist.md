@@ -64,6 +64,24 @@ split:                                  # constraints 에 split. 회비·N빵
   before:
     - 정산 방법 정하기
 
+cook_words:                             # 직접 해 먹는다는 단서. 하나도 없고 outdoor·host_home 도 아니면 cook 을 뺀다 (09-27)
+  - 바베큐                               # "구워"는 넣지 않는다. 고깃집에서도 굽는다
+  - 바비큐
+  - BBQ
+  - 캠핑
+  - 글램핑
+  - 해 먹
+  - 해먹
+  - 요리
+  - 장 보
+  - 장보
+  - 장봐
+  - 숯
+  - 그릴
+  - 버너
+cook_places:                            # 이 constraints 가 같이 있으면 직접 해 먹는 자리로 본다
+  - outdoor
+  - host_home
 not_applied_prefix: "[미완료] "         # access.applied 가 false 면 사전 신청 항목 앞에 붙인다
 assign_car: "차로 오는 {name}"          # assign: car 일 때 항목 뒤에 괄호로 붙인다
 assign_first: "먼저 출발하는 {name}"    # assign: first 일 때
@@ -101,6 +119,17 @@ assign_first: "먼저 출발하는 {name}"    # assign: first 일 때
 
 `access.applied` 가 false 면 `visit_access` 의 `before` 항목 앞에 `not_applied_prefix` 를 붙인다.
 신청을 아직 안 했다는 뜻이고, 이 줄이 늦으면 당일 출입이 막힌다.
+
+## 사 먹는 자리와 해 먹는 자리
+
+"강남역 근처에서 고기 먹기"는 대개 고깃집에 가는 약속이다. 그런데 모델은 "고기"만 보고 `cook` 을 붙여
+숯·버너·집게를 준비물로 내놓았다 (09-27 확인). 사 먹는 자리에 숯을 사 오라고 하면 그 목록 전체를 믿지 않게 된다.
+
+그래서 `cook` 은 직접 해 먹는다는 단서가 있을 때만 남긴다.
+- 문장에 `cook_words` 중 하나가 있다 (바베큐·캠핑·해 먹·장보기·숯 등)
+- 또는 `constraints` 에 `cook_places`(outdoor·host_home)가 같이 있다. 공원·한강·누구 집에서는 해 먹는다
+
+둘 다 아니면 코드가 `cook` 을 지운다 (domain/checklist.unstated_cook). "구워"는 단서로 보지 않는다. 고깃집에서도 굽는다.
 
 ## 누가 맡나
 
