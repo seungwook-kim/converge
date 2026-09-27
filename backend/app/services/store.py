@@ -347,24 +347,28 @@ async def save_result(
     provisional: bool = False,
     trace_id: str | None = None,
     confidence: float | None = None,
+    rendezvous_legs: list[dict] | None = None,
 ) -> str:
     """결과 한 건 INSERT (SDD 5절 8단계 store.save). 새 result id를 돌려준다.
 
     candidates: 집결 후보 리스트(평문). 정문·로비 좌표가 있어 암호화 (테이블정의서 7절).
     per_participant: 참석자별 경로·출발 시각(평문). 경로선이 곧 위치정보라 암호화.
     routed_to: 'small' / 'large'. 라우팅 전후 비용 집계에 쓴다 (SDD 5절 라우팅).
+    rendezvous_legs: 두 단계 집결의 집결지 → 후보 경로선. 위치정보라 암호화. 없으면 NULL (09-27).
     """
     pool = await get_pool()
     row = await pool.fetchrow(
         """
         INSERT INTO results (
             session_id, candidates_enc, per_participant_enc, model_small, model_large,
-            prompt_version, routed_to, rendezvous_departure, provisional, trace_id, confidence
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            prompt_version, routed_to, rendezvous_departure, provisional, trace_id, confidence,
+            rendezvous_legs_enc
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id
         """,
         session_id, encrypt(candidates), encrypt(per_participant), model_small, model_large,
         prompt_version, routed_to, rendezvous_departure, provisional, trace_id, confidence,
+        encrypt(rendezvous_legs) if rendezvous_legs else None,
     )
     return str(row["id"])
 
@@ -380,6 +384,8 @@ async def get_latest_result(session_id: str) -> dict | None:
     d = dict(row)
     d["candidates"] = decrypt(d.pop("candidates_enc"))
     d["per_participant"] = decrypt(d.pop("per_participant_enc"))
+    legs = d.pop("rendezvous_legs_enc", None)
+    d["rendezvous_legs"] = decrypt(legs) if legs is not None else []
     d["id"] = str(d["id"])
     d["session_id"] = str(d["session_id"])
     if d["confidence"] is not None:

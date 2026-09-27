@@ -25,7 +25,7 @@ from backend.app.domain import router as model_router
 from backend.app.domain import rules as domain_rules
 from backend.app.observability import langfuse
 from backend.app.schemas.request import AgentRequest
-from backend.app.schemas.result import AgentResponse, Candidate, GeocodedPin, ParticipantResult, Result
+from backend.app.schemas.result import AgentResponse, Candidate, GeocodedPin, ParticipantResult, RendezvousLeg, Result
 from backend.app.schemas.slots import Participant, Slots
 from backend.app.services import costs as cost_guards
 
@@ -843,6 +843,7 @@ def _build_result(
     members = _two_stage_members(slots)
     gather_time = domain_rules.parse_meet_time(slots.rendezvous.time) if members and slots.rendezvous else None
     rendezvous_departure: str | None = None
+    legs: list[RendezvousLeg] = []
 
     for rank, (index, cand) in enumerate(scored, start=1):
         # 두 단계 집결: 무리 구간에서 집결지 출발 시각을 먼저 구한다. 모이는 사람은 그 시각(또는 정한 집결 시각)까지 간다
@@ -856,6 +857,14 @@ def _build_result(
             gather_at = gather_time or leave
             if rank == 1:
                 rendezvous_departure = leave
+            legs.append(
+                RendezvousLeg(
+                    candidate_rank=rank,
+                    transport=g_transport,
+                    raw_duration_min=g_raw,
+                    polyline=[(float(x), float(y)) for x, y in group["polyline"]],
+                )
+            )
         ok = domain_rules.access_ok(cand["kind"], applied)
         verdict = judged.get(index)
         if verdict:
@@ -923,6 +932,7 @@ def _build_result(
         provisional=domain_rules.is_provisional(slots.schedule_confirmed),
         per_participant=rows,
         rendezvous_departure=rendezvous_departure,
+        rendezvous_legs=legs,
         confidence=0.8,
         model_small=_llm_meta().get("model", "unknown"),
         model_large=(rankings[0].get("model") if rankings else None),

@@ -985,3 +985,20 @@ def test_핀_확인_요청이면_슬롯_추출을_건너뛰고_이전_슬롯으�
     out = run(req, d)
     assert called == []
     assert out.stage != "out_of_scope"
+
+
+def test_두_단계_집결의_무리_경로를_결과에_담는다():
+    """지도가 집결지 → 후보 경로선을 그릴 수 있게 한다 (09-27)."""
+    routes = [
+        {"key": (0, "창고 3명"), "duration_sec": 1800, "polyline": [[0, 0], [1, 1]], "transfer_count": None},
+        {"key": (0, pipeline.GROUP_KEY), "duration_sec": 5400, "polyline": [[128.4, 35.05], [128.11, 34.95]], "transfer_count": None},
+    ]
+    result = pipeline._build_result(_two_stage_slots(), _CANDS, routes, "13:00")
+    leg = result.rendezvous_legs[0]
+    assert (leg.candidate_rank, leg.transport, leg.raw_duration_min) == (1, "car", 90)
+    assert leg.polyline[0] == (128.4, 35.05)
+
+
+def test_두_단계가_아니면_무리_경로는_없다():
+    out = run(AgentRequest(text="점검"), _done_deps())
+    assert out.result.rendezvous_legs == []

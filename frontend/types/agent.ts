@@ -82,6 +82,14 @@ export interface ParticipantResult {
   via_pickup: boolean;
 }
 
+// 두 단계 집결에서 무리가 집결지 → 후보로 함께 가는 구간 (SDD 4절, 09-27)
+export interface RendezvousLeg {
+  candidate_rank: number;
+  transport: Transport;
+  raw_duration_min: number;
+  polyline: [number, number][];
+}
+
 export interface Checklist {
   before: string[];
   onsite: string[];
@@ -92,6 +100,7 @@ export interface Result {
   provisional: boolean;
   per_participant: ParticipantResult[];
   rendezvous_departure: string | null;
+  rendezvous_legs?: RendezvousLeg[];
   confidence: number;
   checklist: Checklist | null;
   summary_text: string;

@@ -7,7 +7,7 @@ import { loadKakao, nameLabel, pinImage, type Kakao, type PinStyle } from "@/lib
 import type { AgentResponse, CandidateKind, ParticipantResult } from "@/types/agent";
 import ParticipantPins, { PIN_COLORS, type ParticipantPin, type Viewer } from "./ParticipantPins";
 import PinPicker from "./PinPicker";
-import RouteLines, { ROUTE_STYLES } from "./RouteLines";
+import RouteLines, { GROUP_LEG_STYLE, ROUTE_STYLES } from "./RouteLines";
 
 const DEFAULT_CENTER = { lat: 36.35, lng: 127.8 }; // 국토 중앙쯤. 핀이 생기면 bounds 로 옮긴다
 const ALL_ROUTES_MAX = 4;
@@ -102,6 +102,12 @@ export default function MapView({ response, participantPins, viewer, selectedRan
     return selected ? drawable.filter((r) => r.name === selected) : [];
   }, [rankRows, selected, showRoutes]);
 
+  // 두 단계 집결의 무리 구간. 선택한 후보 것만, 경로선을 켰을 때만 그린다
+  const groupLegs = useMemo(() => {
+    if (stage !== "done" || !result || !showRoutes) return [];
+    return (result.rendezvous_legs ?? []).filter((leg) => leg.candidate_rank === selectedRank);
+  }, [stage, result, selectedRank, showRoutes]);
+
   const placePins: PlacePin[] = useMemo(() => {
     const out: PlacePin[] = [];
     if (showCandidates && result) {
@@ -136,9 +142,25 @@ export default function MapView({ response, participantPins, viewer, selectedRan
             text: g.kind === "destination" ? `목적지 ${g.name}` : `집결지 ${g.name}`,
             style: { fill: "#111827", stroke: "#ffffff", label: g.kind === "destination" ? "목" : "집", shape: "circle" },
             zIndex: 4,
-            showLabel: false,
+            // 두 단계 집결이면 집결지가 계획의 한 단계라 이름을 늘 보인다 (09-27)
+            showLabel: g.kind === "rendezvous" && (result?.rendezvous_legs?.length ?? 0) > 0,
           });
         }
+      }
+      // 공유 링크로 다시 열면 집결지 좌표가 없다(세션에는 참석자·목적지만 남는다). 무리 경로의 첫 점이 집결지다 (09-27)
+      const leg = (result?.rendezvous_legs ?? []).find((l) => l.candidate_rank === selectedRank);
+      const gatherName = response.slots?.rendezvous?.name;
+      if (leg && leg.polyline.length > 0 && gatherName && !geocoded.some((g) => g.kind === "rendezvous")) {
+        const [lng, lat] = leg.polyline[0];
+        out.push({
+          key: `rendezvous:${gatherName}`,
+          lng,
+          lat,
+          text: `집결지 ${gatherName}`,
+          style: { fill: "#111827", stroke: "#ffffff", label: "집", shape: "circle" },
+          zIndex: 4,
+          showLabel: true,
+        });
       }
       // 픽업 지점: 지오코딩 결과가 있으면 그 좌표, 없으면 태워지는 사람 경로의 첫 점(탑승 지점)
       const pickupPins = geocoded.filter((g) => g.kind === "pickup");
@@ -237,7 +259,7 @@ export default function MapView({ response, participantPins, viewer, selectedRan
             onSelect={onSelectParticipant}
             onMove={onMove}
           />
-          <RouteLines kakao={kakao} map={map} rows={visibleRows} highlighted={selected} />
+          <RouteLines kakao={kakao} map={map} rows={visibleRows} highlighted={selected} legs={groupLegs} />
           <PinPicker
             kakao={kakao}
             map={map}
@@ -271,6 +293,12 @@ export default function MapView({ response, participantPins, viewer, selectedRan
                 {s.label}
               </li>
             ))}
+            {groupLegs.length > 0 && (
+              <li>
+                <span className="legend-line legend-line-group" style={{ borderTopStyle: "dashed" }} />
+                {GROUP_LEG_STYLE.label}
+              </li>
+            )}
           </ul>
           <p className="hint">
             {showRoutes

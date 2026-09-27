@@ -66,6 +66,7 @@ converge/
     db/
       001_init.sql          테이블정의서.md의 표 5개. 로컬(compose initdb)과 Supabase(SQL Editor)에 같은 파일을 실행
       002_datetime_text.sql sessions.datetime_text 추가. 001 로 이미 만든 DB 에만 필요 (09-27)
+      003_rendezvous_legs.sql results.rendezvous_legs_enc 추가. 001 로 이미 만든 DB 에만 필요 (09-27)
     tests/
       TEST_GUIDE.md
       fixtures/               spike 샘플 응답 (실제 API 응답 원문)
@@ -397,6 +398,7 @@ class Result(BaseModel):
     provisional: bool               # 약속 시각이 미확정이면 True
     per_participant: list[ParticipantResult]
     rendezvous_departure: str | None   # 집결지에서 출발할 시각
+    rendezvous_legs: list[RendezvousLeg] = []   # 두 단계 집결의 집결지 → 후보 구간 (후보 순위별). 지도에 경로선으로 그린다 (09-27)
     confidence: float
     checklist: Checklist | None     # 꺼낼 항목이 하나도 없으면 None (7-1단계)
     summary_text: str               # 카톡·메일에 붙여넣을 집결 계획서. 코드가 조립. LLM 호출 없음
@@ -427,7 +429,7 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 | 1-3 | 기간 판정 | domain/rules.parse_meet_date 가 slots.datetime 에서 날짜를 읽는다. 오늘보다 앞이면 need_info("이미 지난 날짜입니다"), 오늘인데 그 시각이 지났으면 need_info("오늘 그 시각은 이미 지났습니다". 요일만 말하면 오늘을 포함해 읽으므로 다음 주를 뜻했는지 추측하지 않고 묻는다), 오늘+30일을 넘으면 need_info("30일 안의 약속만 잡을 수 있습니다"). 날짜를 못 읽으면 판정하지 않고 넘어가며 meet_at 은 None(임시 세션). 30과 기준 시간대는 session.md 의 값. 1-2 보다 먼저 본다: 받을 수 없는 날짜면 빠진 정보를 묻지 않고 날짜부터 되묻고, 임시 세션도 남기지 않는다 (09-23) | 코드라 실패 없음 |
 | 2 | geo.geocode_all | 참석자·집결지·목적지 지명 → 좌표, confidence | 한 명이라도 confidence < 0.8 → need_confirm |
 | 2-1 | 핀 확인 | 사용자가 confirmed_participants 반환. 누구 핀이든 고칠 수 있다 (7절 핀 소유권) | |
-| 3 | geo.candidates | 집결 후보 생성: 절차 시작점(정문·1층 로비·본사) + 도착 어긋남 시 랜드마크(역·주차장 입구) | 후보 0곳이면 목적지 좌표 자체를 후보로 |
+| 3 | geo.candidates | 집결 후보 생성: 절차가 있으면 목적지 건물 1층, 없으면 목적지 그 자리 + 가까운 역 하나. 절차 없는 약속에 둘레 정문을 찾지 않는다(학교·아파트 정문이 1순위로 나왔다, 09-27) | 후보 0곳이면 목적지 좌표 자체를 후보로 |
 | 4 | routes.compute_all | 참석자 × 후보, 집결지 있으면 2구간, pickup_at 있으면 운전자 경로에 경유지로 추가하고 태워지는 사람은 탑승 이후 구간만 계산. 캐시 확인 후 API | 타임아웃·5xx 백오프 2회 → 실패 참석자만 "조회 실패", 나머지로 진행 |
 | 5 | rules.apply | 절차 소요 반영, 출입 절차 상태별 후보 가능 여부(access_ok), 도착 어긋남 전환 조건, 여유·정체 가산 | 코드라 실패 없음 |
 | 6 | judge.rank | 후보 표 + 규칙 문서 → rank·reason·switched_from | 스키마 위반 재시도 1회 → 실패면 rules.apply 순으로 rank, reason은 규칙 문구 그대로 |

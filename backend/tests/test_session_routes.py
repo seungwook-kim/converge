@@ -408,3 +408,13 @@ def test_재질문으로_알게_된_집결지도_저장한다(monkeypatch):
     asyncio.run(session_store.save(session_id="s1", user_id="u1", slots=slots, participants=[], result=None,
                                    trace_id="t", status="draft"))
     assert seen["rendezvous"]["members"] == ["창고 3명"]
+
+
+def test_저장된_무리_경로를_되살린다():
+    from backend.app.services import session_store
+
+    row = dict(RESULT_ROW, rendezvous_legs=[
+        {"candidate_rank": 1, "transport": "car", "raw_duration_min": 90, "polyline": [[128.4, 35.05], [128.67, 35.144]]}
+    ])
+    result = session_store.result_from_row(row)
+    assert result.rendezvous_legs[0].raw_duration_min == 90

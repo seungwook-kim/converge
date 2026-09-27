@@ -105,6 +105,15 @@ class Checklist(BaseModel):
     onsite: list[str] = Field(default_factory=list)
 
 
+class RendezvousLeg(BaseModel):
+    """두 단계 집결에서 무리가 집결지 → 후보로 함께 가는 구간. 지도에 경로선으로 그린다 (SDD 4절, 09-27)."""
+
+    candidate_rank: int
+    transport: Transport
+    raw_duration_min: int = Field(ge=0, description="경로 API 값(분). 정체·여유를 얹기 전")
+    polyline: list[tuple[float, float]] = Field(default_factory=list, description="[[lng, lat], ...]")
+
+
 class Result(BaseModel):
     """집결지 판정 + 참석자별 결과. 이 값이 results 표에 암호화돼 저장된다 (테이블정의서 2절)."""
 
@@ -112,6 +121,9 @@ class Result(BaseModel):
     provisional: bool = Field(description="약속 시각이 아직 확정이 아니면 True (SDD 7절 schedule.md)")
     per_participant: list[ParticipantResult] = Field(default_factory=list)
     rendezvous_departure: str | None = Field(default=None, description="집결지에서 출발할 시각")
+    rendezvous_legs: list[RendezvousLeg] = Field(
+        default_factory=list, description="두 단계 집결의 집결지 → 후보 구간. 두 단계가 아니면 빈 목록"
+    )
     confidence: float = Field(ge=0.0, le=1.0)
     checklist: Checklist | None = Field(
         default=None, description="출입 절차가 없거나(required=false) 아직 모르면(null) None"

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS results (
   prompt_version        text,
   routed_to             text NOT NULL,                     -- small / large
   rendezvous_departure  text,                              -- "HH:MM"
+  rendezvous_legs_enc   bytea,                             -- 두 단계 집결의 집결지 → 후보 경로선 암호화. 없으면 NULL
   provisional           boolean NOT NULL DEFAULT false,
   trace_id              text,
   confidence            numeric(3,2),

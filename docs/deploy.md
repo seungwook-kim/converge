@@ -28,7 +28,7 @@ supabase.com 에서 새 프로젝트를 만든다. 리전은 가까운 곳(North
 ### 1-2. 표 만들기
 
 SQL Editor 에서 `backend/db/001_init.sql` 을 통째로 붙여넣고 실행한다. 표 다섯 개가 생긴다.
-001 로 이미 만든 DB 라면 `002_datetime_text.sql` 도 실행한다 (새 DB 는 001 에 들어 있어 실행해도 그냥 지나간다).
+001 로 이미 만든 DB 라면 `002_datetime_text.sql`, `003_rendezvous_legs.sql` 도 실행한다 (새 DB 는 001 에 들어 있어 실행해도 그냥 지나간다).
 
 ```
 sessions  results  request_logs  route_cache  feedback

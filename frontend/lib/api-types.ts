@@ -48,6 +48,7 @@ export interface Result {
   provisional: boolean;
   per_participant: ParticipantResult[];
   rendezvous_departure: string | null;
+  rendezvous_legs: RendezvousLeg[];
   confidence: number;
   checklist: Checklist | null;
   summary_text: string;
@@ -168,6 +169,13 @@ export interface Rendezvous {
   transport_after: Transport | null;
   members: string[];
   time: string | null;
+}
+
+export interface RendezvousLeg {
+  candidate_rank: number;
+  transport: Transport;
+  raw_duration_min: number;
+  polyline: [number, number][];
 }
 
 export interface SessionBrief {
