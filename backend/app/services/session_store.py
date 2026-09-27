@@ -125,9 +125,23 @@ def slots_from_session(row: dict[str, Any]) -> Slots:
         constraints=row.get("constraints") or [],
         # 되묻기 중에 저장된 세션은 이동수단이 비어 있다. missing 을 비우면 슬롯 검증(이동수단이 없으면
         # missing 에 있어야 한다)에 걸려 공유 링크가 500 이 난다 (09-27)
-        missing=[f"participants[{i}].transport" for i, p in enumerate(people) if p.transport is None],
+        missing=_restored_missing(people),
         out_of_scope=False,
     )
+
+
+def _restored_missing(people: list[Participant]) -> list[str]:
+    """저장된 참석자에서 아직 모르는 것을 되살린다. 출발지·이동수단이 빈 사람이다.
+
+    태워지는 사람은 태우는 지점부터 재므로 출발지가 없어도 된다 (slot-extract 픽업 규칙).
+    """
+    out: list[str] = []
+    for i, p in enumerate(people):
+        if getattr(p, "origin", None) is None and not (getattr(p, "pickup", None) and getattr(p, "pickup_at", None)):
+            out.append(f"participants[{i}].origin")
+        if getattr(p, "transport", None) is None:
+            out.append(f"participants[{i}].transport")
+    return out
 
 
 def _rendezvous(stored: dict[str, Any] | None) -> Rendezvous | None:
@@ -252,17 +266,23 @@ def to_agent_response(session_id: str, row: dict[str, Any], result_row: dict[str
     slots = slots_from_session(row)
     if result is not None:
         _rebuild_checklist(slots, result)
-    # 결과가 있으면 done, 아직 계산 전이면 핀 확인 단계로 본다. 초안 세션(되묻기 중)도 같은 화면에서
-    # 이어서 답하므로 참석자 핀만 먼저 보여 주면 된다
+    # 결과가 있으면 done. 계산 전이면 빠진 정보가 있을 때 되묻기, 없으면 핀 확인 단계로 본다.
+    # 빠진 정보가 있는데 핀 확인으로 보이면 "이 위치로 계산" 버튼이 질문과 같이 떴다 (09-27)
+    from backend.app.services import pipeline
+
+    questions = [] if result else pipeline._questions_for(slots.missing, slots.participants)
+    stage = "done" if result else ("need_info" if questions else "need_confirm")
     return AgentResponse(
         session_id=session_id,
-        stage="done" if result else "need_confirm",
+        stage=stage,
         slots=slots,
         result=result,
-        questions=[],
+        questions=questions,
         message=(
             "주선자가 공유한 집결 계획입니다."
             if result
+            else "계산하려면 몇 가지가 더 필요합니다."
+            if questions
             else "아직 계산 전입니다. 참석자 위치만 표시합니다."
         ),
         trace_id=str(result_row.get("trace_id") or "") if result_row else "",

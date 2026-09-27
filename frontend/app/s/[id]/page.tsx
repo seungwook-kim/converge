@@ -142,7 +142,8 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
         return (await res.json()) as AgentResponse;
       })
       .then((data) => {
-        if (alive && data) apply(data, true);
+        // 되묻기 중인 링크는 질문을 보여 줘야 이어서 답한다. 나머지는 안내 문구를 띄우지 않는다 (09-27)
+        if (alive && data) apply(data, data.stage !== "need_info");
       })
       .catch((e: Error) => alive && setLoadError(e.message));
     return () => {

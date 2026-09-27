@@ -339,5 +339,38 @@ def test_이동수단을_되묻는_중인_세션도_공유_링크가_열린다()
         ],
     }
     res = session_store.to_agent_response("s1", row, None)
-    assert res.stage == "need_confirm"
+    assert res.stage == "need_info"  # 빠진 정보가 있으면 되묻기로 연다
     assert "participants[1].transport" in res.slots.missing
+
+
+def test_빠진_정보가_있는_세션은_되묻기_단계로_연다():
+    """09-27: 되묻기 중 링크를 열면 핀 확인 단계로 보여 '이 위치로 계산' 버튼이 같이 떴다."""
+    from backend.app.services import session_store
+
+    row = {
+        "preset": "meeting",
+        "meet_at": None,
+        "participants": [{"name": "나머지 2명", "origin_text": None, "transport": None}],
+    }
+    res = session_store.to_agent_response("s1", row, None)
+    assert res.stage == "need_info"
+    assert res.questions == [
+        "나머지 2명은 어디서 출발하시나요?",
+        "나머지 2명은 차로 오시나요, 대중교통으로 오시나요?",
+    ]
+
+
+def test_출발지를_모르는_참석자도_되묻는다_태워지는_사람은_빼고():
+    from backend.app.services import session_store
+
+    row = {
+        "preset": "meeting",
+        "meet_at": None,
+        "participants": [
+            {"name": "나머지 2명", "origin_text": None, "transport": "car"},
+            {"name": "하단 2명", "origin_text": None, "transport": "car", "pickup": "완호 창고지 3명", "pickup_at": "하단"},
+        ],
+    }
+    slots = session_store.slots_from_session(row)
+    assert "participants[0].origin" in slots.missing
+    assert "participants[1].origin" not in slots.missing  # 태우는 지점부터 재므로 출발지가 없어도 된다

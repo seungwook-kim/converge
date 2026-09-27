@@ -78,7 +78,8 @@ def test_같은_종류의_누락은_질문을_한_번만_한다():
         missing=["participants[0].transport", "participants[1].transport"],
     )
     out = run(AgentRequest(text="점검"), deps(s))
-    assert out.questions == ["차로 오시나요, 대중교통으로 오시나요?"]
+    # 한 번만 묻되 누구에게 묻는지는 적는다 (09-27)
+    assert out.questions == ["김현장·박업체는 차로 오시나요, 대중교통으로 오시나요?"]
 
 
 def test_확신도가_낮으면_need_confirm_으로_멈추고_핀을_보낸다():
@@ -824,3 +825,38 @@ def test_판단_모델_호출은_요청_기록에_남는다(monkeypatch):
 
 def test_목적지를_되묻는_말이_있다():
     assert pipeline._questions_for(["destination"]) == ["어디서 모이나요?"]
+
+
+def test_질문에_누구에게_묻는지_적는다():
+    """09-27 실제 캡처: 무리가 셋인데 "차로 오시나요?"만 물어 누구 얘기인지 몰랐다."""
+    from backend.app.schemas.slots import Participant
+
+    people = [
+        Participant.model_construct(name="완호 창고지 3명"),
+        Participant.model_construct(name="하단 2명"),
+        Participant.model_construct(name="나머지 2명"),
+    ]
+    qs = pipeline._questions_for(
+        ["participants[0].transport", "participants[1].pickup", "participants[1].pickup_at", "participants[2].origin"],
+        people,
+    )
+    assert qs == [
+        "완호 창고지 3명은 차로 오시나요, 대중교통으로 오시나요?",
+        "하단 2명은 누가 어디서 태우나요?",
+        "나머지 2명은 어디서 출발하시나요?",
+    ]
+
+
+def test_말하는_사람에게는_이름_없이_묻는다():
+    from backend.app.schemas.slots import Participant
+
+    people = [Participant.model_construct(name="나"), Participant.model_construct(name="민수")]
+    assert pipeline._questions_for(["participants[0].origin"], people) == ["어디서 출발하시나요?"]
+    assert pipeline._questions_for(["participants[1].origin"], people) == ["민수는 어디서 출발하시나요?"]
+    both = pipeline._questions_for(["participants[0].origin", "participants[1].origin"], people)
+    assert both == ["본인·민수는 어디서 출발하시나요?"]
+
+
+def test_모르는_경로는_내부_이름을_내보내지_않는다():
+    qs = pipeline._questions_for(["participants[0].unknown_field"])
+    assert qs and all("participants[" not in q for q in qs)

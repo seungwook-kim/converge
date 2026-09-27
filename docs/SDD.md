@@ -288,7 +288,7 @@ backend/app/schemas/slots.py. 파인튜닝 데이터의 output과 완전히 같�
 
 ```python
 class Participant(BaseModel):
-    name: str
+    name: str                       # 사람 이름. 이름 없이 인원으로만 말하면 무리 하나를 한 항목으로 "<출발지> N명" (09-27, slot-extract v11)
     origin: str | None              # 지명 텍스트. 없으면 None
     transport: Literal["car", "transit", "walk"] | None   # 없으면 None, 추측 금지
     pickup: str | None              # 이 사람을 태워 주는 참석자 이름

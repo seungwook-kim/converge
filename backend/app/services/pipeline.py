@@ -12,6 +12,7 @@ Deps 로 바깥 함수를 받는 이유:
 from __future__ import annotations
 
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -224,7 +225,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 slots,
                 tr.id,
                 "계산하려면 몇 가지가 더 필요합니다.",
-                questions=_questions_for(slots.missing),
+                questions=_questions_for(slots.missing, slots.participants),
             )
 
         # 2. 지오코딩
@@ -461,17 +462,54 @@ def _drop_needless(slots: Slots) -> list[str]:
     return [path for path in slots.missing if path not in needless]
 
 
-def _questions_for(missing: list[str]) -> list[str]:
+_PERSON_PATH = re.compile(r"^participants\[(\d+)\]\.(\w+)$")
+
+# 참석자 한 명(또는 한 무리)에 대한 질문. 앞에 "누구는" 을 붙인다
+_PERSON_QUESTION = {
+    "origin": "어디서 출발하시나요?",
+    "transport": "차로 오시나요, 대중교통으로 오시나요?",
+    "pickup": "누가 어디서 태우나요?",
+    "pickup_at": "누가 어디서 태우나요?",  # pickup 과 짝이라 한 줄로 묻는다
+}
+
+
+def _topic(names: list[str]) -> str:
+    """"민수는", "완호 창고지 3명은", "김현장·박업체는".
+
+    말하는 사람("나")에게만 묻는 거면 이름을 붙이지 않는다. 다른 사람과 같이 물으면 "본인"으로 적는다.
+    빼 버리면 "나머지는 어디서 출발하시나요?"만 남아 내 출발지를 묻는지 모른다 (09-27).
+    """
+    others = [n for n in names if n not in ("나", "저")]
+    if not others:
+        return ""
+    shown = ["본인" if n in ("나", "저") else n for n in names]
+    last = shown[-1][-1]
+    # 받침이 있으면 "은", 없으면 "는". 한글이 아니면 "은" 으로 둔다
+    has_final = not ("가" <= last <= "힣") or (ord(last) - 0xAC00) % 28 != 0
+    return "·".join(shown) + ("은 " if has_final else "는 ")
+
+
+def _questions_for(missing: list[str], people: list[Any] | None = None) -> list[str]:
     """누락된 슬롯 경로를 사람 말 질문으로 바꾼다 (SDD 2절 need_info).
 
     문구를 코드에 두는 이유: 이건 프롬프트가 아니라 화면 문구다. LLM을 부르지 않는다.
+    같은 종류의 질문은 한 번만 하되 누구에게 묻는지 적는다. 이름 없이 인원으로만 말한 캡처에서
+    "차로 오시나요?"만 물어 어느 무리 얘기인지 몰랐다 (09-27). 내부 경로는 화면에 내보내지 않는다.
     """
+    names = [str(getattr(p, "name", "") or "") for p in people or []]
+    by_kind: dict[str, list[str]] = {}
     questions: list[str] = []
     for path in missing:
-        if path.endswith(".origin"):
-            questions.append("어디서 출발하시나요?")
-        elif path.endswith(".transport"):
-            questions.append("차로 오시나요, 대중교통으로 오시나요?")
+        hit = _PERSON_PATH.match(path)
+        if hit and hit.group(2) in _PERSON_QUESTION:
+            index, field_name = int(hit.group(1)), hit.group(2)
+            text = _PERSON_QUESTION[field_name]
+            who = names[index] if index < len(names) else ""
+            if text not in by_kind:
+                by_kind[text] = []
+                questions.append(text)
+            if who and who not in by_kind[text]:
+                by_kind[text].append(who)
         elif path == "datetime":
             questions.append("몇 시에 시작하나요?")
         elif path == "destination":
@@ -482,9 +520,10 @@ def _questions_for(missing: list[str]) -> list[str]:
         elif path == "access.applied":
             questions.append("출입조치(또는 방문 신청)는 해 두셨나요?")
         else:
-            questions.append(f"{path} 를 알려 주세요.")
-    # 같은 질문이 사람 수만큼 반복되지 않게 한 번씩만
-    return list(dict.fromkeys(questions))
+            questions.append("계산에 필요한 정보가 더 있습니다. 조금 더 자세히 적어 주세요.")
+    out = [_topic(by_kind[q]) + q if q in by_kind else q for q in questions]
+    # 같은 질문이 반복되지 않게 한 번씩만
+    return list(dict.fromkeys(out))
 
 
 def _apply_confirmed(pins: list[GeocodedPin], confirmed: list[Any]) -> list[GeocodedPin]:
