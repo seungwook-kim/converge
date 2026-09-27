@@ -30,8 +30,9 @@ SEARCH_SIZE = 10
 # 같은 이름이 여러 지역에 있을 때 지역만 거르는 용도다. 거른 뒤 순서는 검색 순위를 따른다.
 SAME_REGION_DEG = 0.6
 
-# 검색이 비면 검색어를 줄여 다시 본다. 사람은 "김해시청 앞", "여의도 사무실"처럼 쓰는데
-# 지도에 그런 이름의 장소는 없다. 꼬리말을 떼고 다시 찾는다.
+# 사람은 "김해시청 앞", "성수역 근처"처럼 쓰는데 지도에 그런 이름의 장소는 없다.
+# 꼬리말은 처음부터 떼고 찾는다. 그대로 찾으면 이름이 비슷한 엉뚱한 가게가 한 건 걸려
+# 그 자리로 가 버린다 ("성수역 근처" → 화양동 카페, 09-27).
 TAIL_WORDS = ("앞", "근처", "쪽", "일대", "부근", "인근")
 
 # 확신도. 지오코딩이 애매하면 사용자에게 핀을 확인받는다 (SDD 5절 2단계, 기준값 0.8)
@@ -64,12 +65,19 @@ async def _kakao_keyword(client: httpx.AsyncClient, query: str, size: int = SEAR
     return res.json().get("documents", [])
 
 
+def _strip_tail(query: str) -> str:
+    """"김해시청 앞" → "김해시청". 한 낱말뿐이면 그대로 둔다."""
+    words = query.split()
+    if len(words) > 1 and words[-1] in TAIL_WORDS:
+        return " ".join(words[:-1])
+    return query
+
+
 def _variants(query: str) -> list[str]:
     """검색어와, 결과가 없을 때 대신 써 볼 짧은 말들. 앞에 있는 것부터 쓴다."""
+    query = _strip_tail(query)
     out = [query]
     words = query.split()
-    if words and words[-1] in TAIL_WORDS:  # "김해시청 앞" → "김해시청"
-        out.append(" ".join(words[:-1]))
     if len(words) > 1:  # "여의도 사무실" → "여의도"
         out.append(" ".join(words[:-1]))
         out.append(words[0])
@@ -144,8 +152,8 @@ async def geocode_one(
     if not docs:
         raise GeocodeFailed(f"'{query}' 위치를 찾지 못했습니다")
     doc, confidence = _pick(used, docs, bias)
-    if used != query:
-        # 검색어를 줄여 찾은 자리다. 사용자에게 확인을 받는다
+    if used != _strip_tail(query):
+        # 검색어를 줄여 찾은 자리다. 사용자에게 확인을 받는다 (꼬리말만 뗀 것은 같은 자리라 뺀다)
         confidence = min(confidence, CONF_PARTIAL)
     return GeocodedPin(
         name=label or query,
@@ -170,7 +178,7 @@ async def geocode_lookup(
         raise GeocodeFailed(f"'{query}' 위치를 찾지 못했습니다")
 
     doc, confidence = _pick(used, docs, bias)
-    if used != query:
+    if used != _strip_tail(query):
         confidence = min(confidence, CONF_PARTIAL)  # 검색어를 줄여 찾은 자리다
     return {
         "lng": float(doc["x"]),
