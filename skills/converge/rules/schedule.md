@@ -2,6 +2,7 @@
 # 시각과 일정 규칙값. 코드(backend/app/domain/rules.py)가 이 프론트매터를 읽는다.
 # 값을 바꾸려면 여기만 고친다. 코드에 숫자를 적지 않는다 (SDD 7절 원칙).
 unconfirmed_is_provisional: true        # 약속 시각이 확정이 아니면 결과에 잠정 표시를 단다
+bare_hour_afternoon_max: 6              # 오전·새벽 같은 말 없이 "1시"~"6시"만 쓰면 오후로 읽는다 ("1시 도착" = 13시, 09-27)
 night_start: "22:00"                    # 이 시각 이후를 야간으로 본다
 night_end: "06:00"                      # 이 시각까지가 야간이다
 night_check_last_train: true            # 야간에 끝나면 막차를, 넘겼으면 첫차를 같이 알려 준다

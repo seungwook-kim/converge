@@ -18,11 +18,15 @@ interface Props {
   // 탈락 이유는 후보 목록에 이미 붙어 있어 아래 칸이 같은 말을 두 번 하고,
   // 계획서 전문은 그 하나로 화면 두 개를 밀어낸다. 결과 화면에서는 둘 다 나온다
   compact?: boolean;
+  rendezvousName?: string | null; // 두 단계 집결의 집결지 이름. 표에 "OO 집결" 로 적는다 (09-27)
 }
 
-function basis(p: Participant | undefined, viaPickup: boolean, viaRendezvous: boolean): string {
-  if (viaPickup && p?.pickup) return `${p.pickup} 님 차로 ${p.pickup_at ?? "픽업 지점"}에서 탑승`;
-  if (viaRendezvous) return "집결지를 거쳐 이동";
+function basis(p: Participant | undefined, viaPickup: boolean, viaRendezvous: boolean, gather?: string | null): string {
+  if (viaPickup && p?.pickup) {
+    const ride = `${p.pickup} 님 차로 ${p.pickup_at ?? "픽업 지점"}에서 탑승`;
+    return viaRendezvous && gather ? `${ride}, ${gather} 집결` : ride;
+  }
+  if (viaRendezvous) return gather ? `${gather}에 먼저 모임 (도착 기한은 집결 시각)` : "집결지를 거쳐 이동";
   return "출발지에서 바로 이동";
 }
 
@@ -32,6 +36,7 @@ export default function ResultTable({
   selectedRank,
   onSelectRank,
   compact = false,
+  rendezvousName = null,
 }: Props) {
   const ranked = [...result.candidates].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   const current = result.candidates.find((c) => c.rank === selectedRank) ?? null;
@@ -74,7 +79,10 @@ export default function ResultTable({
           <h3>
             {current.name} 기준 출발 시각
             {result.rendezvous_departure && (
-              <span className="muted"> · 집결지 출발 {result.rendezvous_departure}</span>
+              <span className="muted">
+                {" "}
+                · {rendezvousName ?? "집결지"} 출발 {result.rendezvous_departure}
+              </span>
             )}
           </h3>
           <div className="table-scroll">
@@ -113,7 +121,7 @@ export default function ResultTable({
                         {/* 야간에 지하철이 끊기거나 조회를 못 했으면 그 칸에서 바로 보이게 한다 */}
                         {r.train_note && <div className="error">{r.train_note}</div>}
                       </td>
-                      <td>{basis(p, r.via_pickup, r.via_rendezvous)}</td>
+                      <td>{basis(p, r.via_pickup, r.via_rendezvous, rendezvousName)}</td>
                     </tr>
                   );
                 })}

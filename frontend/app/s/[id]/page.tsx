@@ -310,6 +310,7 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
             participants={participants}
             selectedRank={selectedRank}
             onSelectRank={setSelectedRank}
+            rendezvousName={response.slots?.rendezvous?.members?.length ? response.slots.rendezvous.name : null}
           />
         )}
 

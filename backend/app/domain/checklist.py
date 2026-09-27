@@ -174,12 +174,27 @@ def build_summary(slots: Slots, result: Result) -> str:
     head = " ".join(part for part in (slots.datetime, slots.destination, slots.purpose) if part)
     lines: list[str] = [head] if head else []
 
+    via = [r for r in rows if r.via_rendezvous]
+    direct = [r for r in rows if not r.via_rendezvous]
     if top and rows:
-        gather = f"집결: {top.name} {rows[0].arrive_by}"
-        if slots.rendezvous and slots.rendezvous.transport_after:
+        # 집결지로 먼저 가는 사람의 도착 기한은 집결 시각이다. 최종 집결은 바로 가는 사람 기준 (09-27)
+        final_at = (direct or rows)[0].arrive_by
+        gather = f"집결: {top.name} {final_at}"
+        if slots.rendezvous and slots.rendezvous.transport_after and not via:
             word = _AFTER_WORD.get(slots.rendezvous.transport_after, "")
             gather += f", {word} 이동" if word else ""
         lines.append(gather)
+    if top and via and slots.rendezvous:
+        # 두 단계 집결 (SDD 3절 Rendezvous.members). 정한 시각이 늦으면 최종 도착에 늦는다고 적는다
+        word = _AFTER_WORD.get(slots.rendezvous.transport_after or "car", "차로")
+        members = "·".join(r.name for r in via)
+        leave = result.rendezvous_departure
+        line = f"{slots.rendezvous.name} {via[0].arrive_by} 집결 ({members}) → {word} {top.name} 이동"
+        if leave:
+            line += f", {leave} 까지 출발"
+        lines.append(line)
+        if leave and _minutes(via[0].arrive_by) > _minutes(leave):
+            lines.append(f"  {via[0].arrive_by} 에 모이면 {top.name} 도착이 늦습니다. {leave} 까지는 집결지를 떠나야 합니다.")
     if top and top.switched_from:
         lines.append(f"({top.switched_from} 에서 옮김: {top.reason})")
 
@@ -193,6 +208,8 @@ def build_summary(slots: Slots, result: Result) -> str:
                 driver = next((p.pickup for p in slots.participants if p.name == row.name), None)
                 if driver:
                     line += f" ({driver} 차 탑승)"
+            if row.via_rendezvous and slots.rendezvous:
+                line += f" ({slots.rendezvous.name} 집결)"
             lines.append(line)
             # 야간에 지하철이 끊기는 사람은 계획서만 받아 봐도 알아야 한다 (schedule.md 야간)
             if row.train_note:

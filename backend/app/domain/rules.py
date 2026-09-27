@@ -124,14 +124,22 @@ def parse_meet_time(text: str | None) -> str | None:
         return None
 
     hhmm = re.search(r"(\d{1,2})\s*:\s*(\d{2})", text)
+    spoken = False  # "3시" 처럼 말로 쓴 시각인가. "03:00" 은 24시간 표기라 그대로 믿는다
     if hhmm:
         hour, minute = int(hhmm.group(1)), int(hhmm.group(2))
     else:
+        spoken = True
         korean = re.search(r"(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?", text)
         if not korean:
             return None
         hour, minute = int(korean.group(1)), int(korean.group(2) or 0)
 
+    # 시간대 말 없이 "1시"~"6시"만 쓰면 오후다. 새벽 1시에 모이는 약속은 드물고,
+    # 그렇게 읽으면 역산한 출발이 전날 밤으로 간다 (schedule.md bare_hour_afternoon_max, 09-27)
+    if spoken and 1 <= hour <= int(load_rule("schedule")["bare_hour_afternoon_max"]) and not any(
+        word in text for word in _TIME_WORDS
+    ):
+        hour += 12
     # "오후 2시" 처럼 앞에 붙은 말로 12시간제를 푼다
     if hour < 12:
         for word, base in _TIME_WORDS.items():
@@ -513,6 +521,14 @@ _FIRST_PERSON = re.compile(r"(?<![가-힣])(나|저|제가|내가)(는|도|랑|�
 _HONORIFIC = re.compile(r"(씨|님|이)$")
 
 
+def _has_collective(clause: str, words: list[str]) -> bool:
+    """"다 차로", "다들 지하철" 처럼 모두를 가리키는 말이 낱말로 있는가. "다음"·"바다" 에는 걸리지 않게 앞뒤를 본다."""
+    for word in words:
+        if re.search(rf"(?<![가-힣]){re.escape(word)}(?![가-힣])", clause):
+            return True
+    return False
+
+
 def _mentions(clause: str, name: str) -> bool:
     if name == "나":
         return bool(_FIRST_PERSON.search(clause))
@@ -526,8 +542,13 @@ def unstated_transports(text: str, people: list[dict[str, Any]]) -> list[int]:
     people: [{"name", "transport", "pickup"}]. 이동수단이 비었거나 태워지는 사람은 보지 않는다.
     이름이 문장 어디에도 없으면 모른다고 보고 건드리지 않는다 (캡처 옮긴 글 등).
     """
-    words = load_rule("transport")["transport_words"]
+    rule = load_rule("transport")
+    words = rule["transport_words"]
     clauses = [c for c in _CLAUSE_SPLIT.split(text or "") if c and c.strip()]
+    # "다 차로 가" 처럼 모두에게 한꺼번에 말했으면 아무도 지우지 않는다 (transport.md, 09-27)
+    together = rule.get("collective_words") or []
+    if any(_has_collective(c, together) and _has_any(c, words) for c in clauses):
+        return []
     out: list[int] = []
     for index, person in enumerate(people):
         if person.get("transport") is None or person.get("pickup"):

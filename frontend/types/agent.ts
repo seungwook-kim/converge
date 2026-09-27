@@ -25,6 +25,8 @@ export interface Participant {
 export interface Rendezvous {
   name: string;
   transport_after: Transport | null;
+  members?: string[]; // 집결지에 먼저 모이는 참석자. 비면 두 단계 계산 없음 (SDD 3절, 09-27)
+  time?: string | null; // 집결 시각 원문
 }
 
 export interface Access {

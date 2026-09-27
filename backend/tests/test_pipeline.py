@@ -272,9 +272,15 @@ def test_다시_계산해도_누가_핀을_고쳤는지는_남는다():
     saved = {}
 
     async def load_session(_):
+        # 실제 세션처럼 채운다. 핀 확인 요청은 추출을 건너뛰고 이 값으로 계산한다 (SDD 5절 2-1)
         return {
             "user_id": "u1",
             "locked": False,
+            "preset": "visit",
+            "destination_name": "창원 사무소",
+            "datetime_text": "목요일 08:00",
+            "access": {"required": True, "applied": True, "lead_min": None},
+            "constraints": [],
             "participants": [
                 {
                     "name": "김현장",
@@ -860,3 +866,122 @@ def test_말하는_사람에게는_이름_없이_묻는다():
 def test_모르는_경로는_내부_이름을_내보내지_않는다():
     qs = pipeline._questions_for(["participants[0].unknown_field"])
     assert qs and all("participants[" not in q for q in qs)
+
+
+# --- 두 단계 집결 (SDD 3절 Rendezvous.members·time, 09-27) ---
+
+
+def _two_stage_slots(time: str | None = "10시"):
+    return slots(
+        preset="meeting",
+        access=dict(required=False, applied=None),
+        datetime="목요일 13:00",
+        destination="사천 대포항",
+        participants=[
+            dict(name="창고 3명", origin="완호 창고지", transport="car", role="colleague"),
+            dict(name="나머지 2명", origin="부산역", transport="car", role="colleague"),
+        ],
+        rendezvous=dict(name="낚시벨리", transport_after="car", members=["창고 3명"], time=time),
+    )
+
+
+def _two_stage_pins():
+    return [
+        GeocodedPin(name="창고 3명", lng=128.90, lat=35.10, confidence=0.95, kind="participant"),
+        GeocodedPin(name="나머지 2명", lng=129.04, lat=35.11, confidence=0.95, kind="participant"),
+        GeocodedPin(name="낚시벨리", lng=128.40, lat=35.05, confidence=0.95, kind="rendezvous"),
+        GeocodedPin(name="사천 대포항", lng=128.10, lat=34.95, confidence=0.9, kind="destination"),
+    ]
+
+
+_CANDS = [{"name": "대포항 입구", "kind": "landmark", "address": "테스트", "lng": 128.11, "lat": 34.95}]
+
+
+def test_두_단계_집결이면_모이는_사람은_집결지로_무리는_집결지에서_후보로_간다():
+    plans = pipeline._route_plans(_two_stage_slots(), _two_stage_pins(), _CANDS)
+    by = {p["key"][1]: p for p in plans}
+    assert by["창고 3명"]["dest"] == (128.40, 35.05)  # 집결지로
+    assert by["나머지 2명"]["dest"] == (128.11, 34.95)  # 최종 후보로 바로
+    group = by[pipeline.GROUP_KEY]
+    assert (group["origin"], group["dest"], group["transport"]) == ((128.40, 35.05), (128.11, 34.95), "car")
+
+
+def test_두_단계_집결의_출발_시각을_집결_시각과_최종_도착으로_나눠_계산한다():
+    from backend.app.domain import rules as domain_rules
+
+    routes = [
+        {"key": (0, "창고 3명"), "duration_sec": 1800, "polyline": [[0, 0]], "transfer_count": None},
+        {"key": (0, "나머지 2명"), "duration_sec": 3600, "polyline": [[0, 0]], "transfer_count": None},
+        {"key": (0, pipeline.GROUP_KEY), "duration_sec": 5400, "polyline": [[0, 0]], "transfer_count": None},
+    ]
+    result = pipeline._build_result(_two_stage_slots(), _CANDS, routes, "13:00")
+    rows = {r.name: r for r in result.per_participant}
+    assert pipeline.GROUP_KEY not in rows  # 무리 구간은 참석자 행이 아니다
+
+    member, direct = rows["창고 3명"], rows["나머지 2명"]
+    assert member.via_rendezvous is True and member.arrive_by == "10:00"
+    assert direct.via_rendezvous is False and direct.arrive_by == "13:00"
+
+    buffer = domain_rules.buffer_min("meeting")
+    extra = domain_rules.traffic_extra_min(90, "car", None)
+    expected = domain_rules.calc_departure("13:00", 5400, extra + buffer, 0)["depart_at"]
+    assert result.rendezvous_departure == expected  # 집결지에서 늦어도 이때 떠나야 한다
+    extra_m = domain_rules.traffic_extra_min(30, "car", None)
+    assert member.departure_time == domain_rules.calc_departure("10:00", 1800, extra_m + buffer, 0)["depart_at"]
+
+
+def test_집결_시각이_없으면_집결지_출발_시각에_맞춰_모인다():
+    routes = [
+        {"key": (0, "창고 3명"), "duration_sec": 1800, "polyline": [[0, 0]], "transfer_count": None},
+        {"key": (0, pipeline.GROUP_KEY), "duration_sec": 5400, "polyline": [[0, 0]], "transfer_count": None},
+    ]
+    result = pipeline._build_result(_two_stage_slots(time=None), _CANDS, routes, "13:00")
+    member = next(r for r in result.per_participant if r.name == "창고 3명")
+    assert member.arrive_by == result.rendezvous_departure
+
+
+def test_계획서에_집결지_단계를_적는다():
+    from backend.app.domain.checklist import build_summary
+
+    routes = [
+        {"key": (0, "창고 3명"), "duration_sec": 1800, "polyline": [[0, 0]], "transfer_count": None},
+        {"key": (0, "나머지 2명"), "duration_sec": 3600, "polyline": [[0, 0]], "transfer_count": None},
+        {"key": (0, pipeline.GROUP_KEY), "duration_sec": 5400, "polyline": [[0, 0]], "transfer_count": None},
+    ]
+    s = _two_stage_slots()
+    result = pipeline._build_result(s, _CANDS, routes, "13:00")
+    text = build_summary(s, result)
+    assert "집결: 대포항 입구 13:00" in text  # 최종 집결은 최종 도착 시각
+    assert "낚시벨리 10:00 집결 (창고 3명) → 차로 대포항 입구 이동" in text
+    assert "(낚시벨리 집결)" in text
+
+
+def test_정한_집결_시각이_너무_늦으면_계획서에_경고한다():
+    from backend.app.domain.checklist import build_summary
+
+    routes = [
+        {"key": (0, "창고 3명"), "duration_sec": 1800, "polyline": [[0, 0]], "transfer_count": None},
+        {"key": (0, pipeline.GROUP_KEY), "duration_sec": 5400, "polyline": [[0, 0]], "transfer_count": None},
+    ]
+    s = _two_stage_slots(time="12시")  # 90분 걸리는데 12시에 모이면 13시에 못 닿는다
+    text = build_summary(s, pipeline._build_result(s, _CANDS, routes, "13:00"))
+    assert "늦습니다" in text
+
+
+def test_핀_확인_요청이면_슬롯_추출을_건너뛰고_이전_슬롯으로_계산한다():
+    """SDD 5절 2-1: confirmed_participants 가 오면 추출을 건너뛴다. 09-27 "핀 위치 확인" 을 모델이 범위 밖으로 읽었다."""
+    called = []
+
+    async def extract_slots(*_):
+        called.append(1)
+        return Slots(out_of_scope=True)
+
+    prev = slots()
+    d = deps(prev, pins(confidence=0.5), extract_slots=extract_slots)
+    d.previous_slots = prev
+    req = AgentRequest(
+        session_id="s1", text="핀 위치 확인", confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25)]
+    )
+    out = run(req, d)
+    assert called == []
+    assert out.stage != "out_of_scope"

@@ -166,6 +166,8 @@ export interface ParticipantResult {
 export interface Rendezvous {
   name: string;
   transport_after: Transport | null;
+  members: string[];
+  time: string | null;
 }
 
 export interface SessionBrief {

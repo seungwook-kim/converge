@@ -14,7 +14,7 @@ from typing import Any
 from backend.app.domain import checklist as domain_checklist
 from backend.app.domain import rules
 from backend.app.schemas.result import AgentResponse, GeocodedPin, ParticipantEdit, Result
-from backend.app.schemas.slots import Participant, Rendezvous, Slots
+from backend.app.schemas.slots import Access, Participant, Rendezvous, Slots
 from backend.app.services import store
 
 
@@ -67,7 +67,13 @@ async def save(
             constraints=slots.constraints,
         )
     await store.update_session(
-        session_id, participants=participants, status=status, meet_at=meet_at, datetime_text=slots.datetime
+        session_id,
+        participants=participants,
+        status=status,
+        meet_at=meet_at,
+        datetime_text=slots.datetime,
+        # 재질문으로 집결지를 새로 알게 되면 만들 때가 아니라 여기서 들어온다. 빠뜨리면 다시 열 때 사라진다 (09-27)
+        rendezvous=slots.rendezvous.model_dump() if slots.rendezvous else None,
     )
     # 결과가 없으면(되묻기·핀 확인 중) 세션만 남긴다. 링크를 먼저 만들어 줘야 참석자들이 모일 수 있다
     if result is not None:
@@ -120,13 +126,25 @@ def slots_from_session(row: dict[str, Any]) -> Slots:
         destination=row.get("destination_name"),
         participants=people,
         rendezvous=_rendezvous(row.get("rendezvous")),
-        access=row.get("access"),
+        # 표에는 jsonb 로 남아 dict 로 온다. 모델로 바꾸지 않으면 slots.access.required 에서 터진다.
+        # 핀 확인 요청은 추출을 건너뛰고 이 값으로 바로 계산한다 (SDD 5절 2-1, 09-27)
+        access=_access(row.get("access")),
         schedule_confirmed=row.get("schedule_confirmed"),
         constraints=row.get("constraints") or [],
         # 되묻기 중에 저장된 세션은 이동수단이 비어 있다. missing 을 비우면 슬롯 검증(이동수단이 없으면
         # missing 에 있어야 한다)에 걸려 공유 링크가 500 이 난다 (09-27)
         missing=_restored_missing(people),
         out_of_scope=False,
+    )
+
+
+def _access(stored: Any) -> Access | None:
+    if not stored:
+        return None
+    if isinstance(stored, Access):
+        return stored
+    return Access.model_construct(
+        required=stored.get("required"), applied=stored.get("applied"), lead_min=stored.get("lead_min")
     )
 
 
@@ -148,7 +166,13 @@ def _rendezvous(stored: dict[str, Any] | None) -> Rendezvous | None:
     """저장된 집결지(rendezvous_enc 복호화본). 비우면 다시 연 계획서에서 "집결: OO, 차로 이동" 이 빠진다."""
     if not stored:
         return None
-    return Rendezvous.model_construct(name=stored.get("name"), transport_after=stored.get("transport_after"))
+    # members·time 을 버리면 다시 계산할 때 두 단계 집결이 사라진다 (09-27)
+    return Rendezvous.model_construct(
+        name=stored.get("name"),
+        transport_after=stored.get("transport_after"),
+        members=list(stored.get("members") or []),
+        time=stored.get("time"),
+    )
 
 
 def _datetime_text(meet_at: datetime | None) -> str | None:

@@ -414,6 +414,20 @@ def _parse(raw: str) -> Slots:
         if "access.required" in missing:
             data["access"] = None
 
+    # 태우는 곳만 알고 누가 태우는지 모르면(또는 그 반대) pickup_at 만 채워 온다 (09-27 실제 캡처
+    # "2명은 하단에 태워서"). 스키마는 둘을 짝으로만 받아 재시도·대형까지 모두 실패했다.
+    # 반쪽은 믿지 않고 둘 다 비운 뒤 되묻는다("누가 어디서 태우나요?")
+    for index, person in enumerate(data.get("participants") or []):
+        if isinstance(person, dict) and bool(person.get("pickup")) != bool(person.get("pickup_at")):
+            person["pickup"] = person["pickup_at"] = None
+            path = f"participants[{index}].pickup"
+            if path not in missing:
+                missing.append(path)
+    # 집결지의 모인 뒤 이동수단·시각·모이는 사람은 비어도 계산된다(없으면 차, 역산, 한 단계 계산. SDD 3절).
+    # 모델이 missing 에 적으면 "정보가 더 필요합니다" 같은 두루뭉술한 질문만 나간다 (09-27)
+    missing = [m for m in missing if not m.startswith("rendezvous.")]
+    data["missing"] = missing
+
     if data.get("preset") in LEGACY_PRESETS:
         # 옛 값에는 일반 약속에 해당하는 것이 없었다. 절차가 있다고 본 경우만 visit 으로 옮기고,
         # 절차가 없거나 아직 모르면 meeting 으로 둔다. visit 으로 몰면 없는 절차 소요를 빼게 된다

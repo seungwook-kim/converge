@@ -298,9 +298,22 @@ class Participant(BaseModel):
     owner_user_id: str | None = None  # 이 핀을 소유한 사용자. None 이면 주선자 소유 (LLM 출력에는 없고 서버가 채운다)
 
 class Rendezvous(BaseModel):
-    name: str                       # 전원이 모이는 집결지 ("문정동 본사", "건물 정문"). 개인 픽업 지점은 participants[].pickup_at 에 둔다
-    transport_after: Literal["car", "transit", "walk"] | None
+    name: str                       # 먼저 모이는 집결지 ("낚시벨리", "건물 정문"). 개인 픽업 지점은 participants[].pickup_at 에 둔다
+    transport_after: Literal["car", "transit", "walk"] | None   # 모인 뒤 최종 목적지까지. 없으면 차로 계산
+    members: list[str] = []         # 집결지에 먼저 모이는 참석자 이름. 비면 두 단계 계산을 하지 않는다 (09-27)
+    time: str | None = None         # 집결 시각 원문 ("10시"). 없으면 최종 도착에서 거꾸로 계산한다 (09-27)
+```
 
+두 단계 집결 (09-27 구현. 4·7단계의 "2구간·2단 역산"):
+- members 가 있을 때만 한다. 비어 있으면 전처럼 모두 최종 후보로 바로 계산한다(기존 세션·평가셋 그대로).
+- 무리 구간: 집결지 → 최종 후보, transport_after(없으면 car). 집결지 출발 = 최종 도착 − 절차 소요 − 무리 구간 − 정체·여유.
+  이 값이 Result.rendezvous_departure 다.
+- 집결 시각 = time 을 읽은 값, 없으면 집결지 출발 시각. time 이 집결지 출발보다 늦으면 최종 도착에 늦는다고 경고한다.
+- members 는 출발지 → 집결지로 계산하고 도착 기한은 집결 시각이다 (via_rendezvous = true). 픽업도 집결지까지다.
+- 나머지는 최종 후보로 바로 간다.
+- 계획서에 "OO HH:MM 집결 (누구·누구) → 차로 최종 후보 이동, HH:MM 출발" 을 넣는다.
+
+```python
 class Access(BaseModel):
     required: bool                  # 출입 절차(방문자 등록·출입증·인솔)가 있는 곳인가
     applied: bool | None            # 사전 신청 여부. 모르면 None
@@ -501,12 +514,14 @@ description은 "언제 쓰는 도구인지"가 한 문장에 드러나게 쓴다
 | transport.md | luggage_requires_car | true | 장비·짐이 있으면 대중교통으로 보내지 않는다 |
 | transport.md | pickup_wait_min | 5 | 태우는 지점에서 기다리는 시간 |
 | transport.md | pickup_counts_from_board | true | 태워지는 사람의 소요시간은 탑승 이후 구간만 |
+| transport.md | collective_words | 다·다들·모두·전부·전원 | 이동수단 단어와 한 구절에 있으면 모두 이동수단을 말한 것으로 본다 ("다 차로 가", 09-27) |
 | transport.md | walk_speed_m_per_min | 67 | 경로 API 가 너무 가깝다며 길을 주지 않을 때 쓰는 걷는 속도(분당 m) |
 | transport.md | walk_detour_pct | 30 | 그때 직선거리에 얹는 우회분(%) |
 | transport.md | max_pickup_per_car | 1 | 차 1대당 1명. 다중 픽업 순서 최적화는 범위 밖 |
 | transport.md | route_cache_ttl_hours | 24 | 경로 응답 캐시 보관 시간 (테이블정의서 4절) |
 | transport.md | geocode_cache_ttl_hours | 720 | 지오코딩 응답 캐시 보관 시간 |
 | schedule.md | unconfirmed_is_provisional | true | 시각이 확정이 아니면 결과에 잠정 표시 |
+| schedule.md | bare_hour_afternoon_max | 6 | 오전·새벽 같은 말 없이 "1시"~"6시"만 쓰면 오후로 읽는다 ("1시 도착" = 13시, 09-27) |
 | schedule.md | night_start / night_end | 22:00 / 06:00 | 이 사이에 끝나면 야간으로 본다 |
 | schedule.md | night_check_last_train | true | 야간이면 막차·첫차를 같이 알려 준다 |
 | schedule.md | late_arrival_switch_min | 30 | 도착이 이만큼 벌어지면 집결 방식을 다시 본다 |

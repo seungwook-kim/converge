@@ -393,3 +393,27 @@ def test_재질문_답에_단서가_없어도_이전에_남은_cook_은_지우�
     previous = Slots.model_validate(_slot_json(constraints=["cook", "booking"], purpose="바베큐", destination="강남역"))
     slots = asyncio.run(llm.extract_slots("저는 강동구에서 지하철로 가요", previous))
     assert "cook" in slots.constraints
+
+
+def test_태우는_곳만_알고_누가_태우는지_모르면_둘_다_비우고_되묻는다():
+    """09-27: "2명은 하단에 태워서" 에 pickup_at 만 채워 짝 규칙에 걸려 세 번 다 실패했다."""
+    import json
+
+    data = _slot_json()
+    data["participants"].append({"name": "하단 2명", "origin": "하단", "transport": None, "pickup": None,
+                                 "pickup_at": "하단", "unfamiliar": False, "role": "colleague"})
+    data["missing"] = ["participants[1].transport"]
+    slots = llm._parse(json.dumps(data, ensure_ascii=False))
+    rider = slots.participants[1]
+    assert (rider.pickup, rider.pickup_at) == (None, None)
+    assert "participants[1].pickup" in slots.missing
+
+
+def test_집결지의_선택_칸은_되묻지_않는다():
+    """transport_after 는 없으면 차, time 은 없으면 역산 (SDD 3절). 모델이 missing 에 적어도 뺀다."""
+    import json
+
+    data = _slot_json(rendezvous={"name": "낚시벨리", "transport_after": None, "members": [], "time": None})
+    data["missing"] = ["access.required", "rendezvous.transport_after", "rendezvous.time", "rendezvous.members"]
+    slots = llm._parse(json.dumps(data, ensure_ascii=False))
+    assert not any(m.startswith("rendezvous.") for m in slots.missing)

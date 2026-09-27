@@ -374,3 +374,37 @@ def test_출발지를_모르는_참석자도_되묻는다_태워지는_사람은
     slots = session_store.slots_from_session(row)
     assert "participants[0].origin" in slots.missing
     assert "participants[1].origin" not in slots.missing  # 태우는 지점부터 재므로 출발지가 없어도 된다
+
+
+def test_다시_열어도_두_단계_집결의_모이는_사람과_시각을_되살린다():
+    from backend.app.services import session_store
+
+    row = {
+        "preset": "meeting",
+        "participants": [],
+        "rendezvous": {"name": "낚시벨리", "transport_after": "car", "members": ["창고 3명"], "time": "10시"},
+    }
+    rdv = session_store.slots_from_session(row).rendezvous
+    assert (rdv.members, rdv.time) == (["창고 3명"], "10시")
+
+
+def test_재질문으로_알게_된_집결지도_저장한다(monkeypatch):
+    import asyncio
+
+    from backend.app.schemas.slots import Rendezvous, Slots
+    from backend.app.services import session_store
+
+    seen: dict = {}
+
+    async def update_session(session_id, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr(session_store.store, "update_session", update_session)
+    slots = Slots.model_construct(
+        preset="meeting", datetime=None, purpose=None, destination="대포항", participants=[],
+        rendezvous=Rendezvous(name="낚시벨리", members=["창고 3명"], time="10시"),
+        access=None, schedule_confirmed=None, constraints=[], missing=[], out_of_scope=False,
+    )
+    asyncio.run(session_store.save(session_id="s1", user_id="u1", slots=slots, participants=[], result=None,
+                                   trace_id="t", status="draft"))
+    assert seen["rendezvous"]["members"] == ["창고 3명"]

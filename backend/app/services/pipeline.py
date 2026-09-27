@@ -161,10 +161,17 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
             span.input = {"chars": len(text)}
             _forget_access_meta()
             try:
-                slots = await _call(deps.extract_slots, text, deps.previous_slots, req.preset)
-                span.input = {"text": masking.mask(text, slots)[:200]}
-                span.output = masking.mask(slots.model_dump(exclude={"participants"}), slots)
-                await _log_llm("extract", tr.id, session_id, started, "ok")
+                if req.confirmed_participants and deps.previous_slots is not None:
+                    # 핀 확인 뒤 다시 계산이면 슬롯은 그대로다. 추출을 건너뛴다 (SDD 5절 2-1).
+                    # "핀 위치 확인" 을 모델에 넣으면 범위 밖으로 읽는 일이 있었다 (09-27).
+                    # LLM 을 부르지 않았으니 request_logs 에도 남기지 않는다. 남기면 앞 호출 비용이 두 번 세진다
+                    slots = deps.previous_slots
+                    span.output = {"skipped": "핀 확인 요청"}
+                else:
+                    slots = await _call(deps.extract_slots, text, deps.previous_slots, req.preset)
+                    span.input = {"text": masking.mask(text, slots)[:200]}
+                    span.output = masking.mask(slots.model_dump(exclude={"participants"}), slots)
+                    await _log_llm("extract", tr.id, session_id, started, "ok")
             except Exception as e:  # noqa: BLE001
                 # 스키마 위반 오류 문구에는 모델 출력 원문(이름·출발지)이 들어 있다. 종류만 남긴다
                 span.error = type(e).__name__
@@ -281,7 +288,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
             except Exception as e:  # noqa: BLE001
                 span.error = str(e)
                 routes = []
-            failed_names = sorted({r["key"][1] for r in routes if r.get("error")})
+            failed_names = sorted({r["key"][1] for r in routes if r.get("error") and r["key"][1] != GROUP_KEY})
             span.output = {
                 "요청": len(plans),
                 "실패": len([r for r in routes if r.get("error")]),
@@ -370,7 +377,10 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
 
         first = min((c.rank for c in result.candidates if c.rank), default=None)
         top = next((c for c in result.candidates if c.rank == first), None)
-        arrive_by = result.per_participant[0].arrive_by
+        # 집결지로 먼저 가는 사람의 도착 기한은 집결 시각이다. 최종 도착은 바로 가는 사람 기준으로 적는다
+        arrive_by = next(
+            (r.arrive_by for r in result.per_participant if not r.via_rendezvous), result.per_participant[0].arrive_by
+        )
         # 경로를 못 구한 사람은 표에서 빠진다. 말없이 빼면 "왜 저 사람만 없지"가 되므로 알린다
         done_names = {r.name for r in result.per_participant}
         missing_people = [p.name for p in slots.participants if p.name not in done_names]
@@ -669,6 +679,19 @@ def _vision_meta() -> dict[str, Any]:
     }
 
 
+# 두 단계 집결에서 무리가 집결지 → 최종 후보로 가는 구간의 경로 키 (SDD 3절 Rendezvous.members).
+# 참석자 이름과 겹치지 않게 사람 이름에 쓰지 않는 모양으로 둔다
+GROUP_KEY = "__집결지에서 이동__"
+
+
+def _two_stage_members(slots: Slots) -> set[str]:
+    """집결지에 먼저 모이는 참석자. 비면 두 단계 계산을 하지 않는다 (SDD 3절, 09-27)."""
+    if slots.rendezvous is None:
+        return set()
+    names = {p.name for p in slots.participants}
+    return {m for m in (slots.rendezvous.members or []) if m in names}
+
+
 def _pin_of(pins: list[GeocodedPin], name: str, kind: str) -> GeocodedPin | None:
     return next((p for p in pins if p.kind == kind and p.name == name), None)
 
@@ -681,10 +704,24 @@ def _route_plans(slots: Slots, pins: list[GeocodedPin], candidates: list[Any]) -
     """
     riders = {p.pickup: p for p in slots.participants if p.pickup and p.pickup_at}
     plans: list[dict[str, Any]] = []
+    # 두 단계 집결: 모이는 사람은 집결지까지, 무리는 집결지에서 후보까지 한 구간 (SDD 3절, 09-27)
+    members = _two_stage_members(slots)
+    gather = _pin_of(pins, slots.rendezvous.name, "rendezvous") if members and slots.rendezvous else None
 
     for index, cand in enumerate(candidates):
-        dest = (cand["lng"], cand["lat"])
+        final = (cand["lng"], cand["lat"])
+        if gather is not None:
+            plans.append(
+                {
+                    "key": (index, GROUP_KEY),
+                    "transport": (slots.rendezvous.transport_after if slots.rendezvous else None) or "car",
+                    "origin": (gather.lng, gather.lat),
+                    "dest": final,
+                    "waypoint": None,
+                }
+            )
         for person in slots.participants:
+            dest = (gather.lng, gather.lat) if gather is not None and person.name in members else final
             origin_pin = _pin_of(pins, person.name, "participant")
             waypoint = None
 
@@ -741,6 +778,8 @@ def _judge_rows(routes: list[dict[str, Any]], slots: Slots) -> list[dict[str, An
         if route.get("error"):
             continue
         index, name = route["key"]
+        if name == GROUP_KEY:
+            continue
         rows.append(
             {
                 "candidate_idx": index,
@@ -801,8 +840,22 @@ def _build_result(
 
     candidates: list[Candidate] = []
     rows: list[ParticipantResult] = []
+    members = _two_stage_members(slots)
+    gather_time = domain_rules.parse_meet_time(slots.rendezvous.time) if members and slots.rendezvous else None
+    rendezvous_departure: str | None = None
 
     for rank, (index, cand) in enumerate(scored, start=1):
+        # 두 단계 집결: 무리 구간에서 집결지 출발 시각을 먼저 구한다. 모이는 사람은 그 시각(또는 정한 집결 시각)까지 간다
+        gather_at: str | None = None
+        group = by_key.get((index, GROUP_KEY)) if members else None
+        if group is not None:
+            g_transport = (slots.rendezvous.transport_after if slots.rendezvous else None) or "car"
+            g_raw = round(group["duration_sec"] / 60)
+            g_extra = domain_rules.traffic_extra_min(g_raw, g_transport, group.get("transfer_count"))
+            leave = domain_rules.calc_departure(meet_at, group["duration_sec"], g_extra + buffer, lead)["depart_at"]
+            gather_at = gather_time or leave
+            if rank == 1:
+                rendezvous_departure = leave
         ok = domain_rules.access_ok(cand["kind"], applied)
         verdict = judged.get(index)
         if verdict:
@@ -834,11 +887,18 @@ def _build_result(
             route = by_key.get((index, person.name))
             if route is None:
                 continue
+            via = person.name in members
+            if via and gather_at is None:
+                continue  # 무리 구간을 못 구했으면 집결 시각을 모른다. 지어내지 않고 뺀다
             transport = person.transport or "car"
             raw_min = round(route["duration_sec"] / 60)
             extra = domain_rules.traffic_extra_min(raw_min, transport, route.get("transfer_count"))
             total = raw_min + extra + buffer
-            calc = domain_rules.calc_departure(meet_at, route["duration_sec"], extra + buffer, lead)
+            if via:
+                # 절차는 최종 목적지에서 받는다. 집결지까지는 절차 소요를 빼지 않는다
+                calc = domain_rules.calc_departure(gather_at, route["duration_sec"], extra + buffer, 0)
+            else:
+                calc = domain_rules.calc_departure(meet_at, route["duration_sec"], extra + buffer, lead)
             rows.append(
                 ParticipantResult(
                     name=person.name,
@@ -853,7 +913,7 @@ def _build_result(
                     first_train=None,
                     last_train=None,
                     polyline=[(float(x), float(y)) for x, y in route["polyline"]],
-                    via_rendezvous=False,
+                    via_rendezvous=via,
                     via_pickup=bool(person.pickup and person.pickup_at),
                 )
             )
@@ -862,7 +922,7 @@ def _build_result(
         candidates=candidates,
         provisional=domain_rules.is_provisional(slots.schedule_confirmed),
         per_participant=rows,
-        rendezvous_departure=None,
+        rendezvous_departure=rendezvous_departure,
         confidence=0.8,
         model_small=_llm_meta().get("model", "unknown"),
         model_large=(rankings[0].get("model") if rankings else None),

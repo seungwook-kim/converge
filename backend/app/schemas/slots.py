@@ -59,14 +59,22 @@ class Participant(BaseModel):
 
 
 class Rendezvous(BaseModel):
-    """전원이 모이는 집결지. 개인 픽업 지점은 Participant.pickup_at 에 둔다."""
+    """먼저 모이는 집결지. 개인 픽업 지점은 Participant.pickup_at 에 둔다.
+
+    members 가 있으면 두 단계로 계산한다: members 는 집결지로, 나머지는 최종 후보로 바로 (SDD 3절, 09-27).
+    """
 
     name: str
     transport_after: Transport | None = None
+    members: list[str] = Field(default_factory=list, description="집결지에 먼저 모이는 참석자 이름. 비면 두 단계 계산 없음")
+    time: str | None = Field(default=None, description='집결 시각 원문("10시"). 없으면 최종 도착에서 역산')
 
     @model_validator(mode="after")
     def _check(self) -> Rendezvous:
         check_text(self.name, "집결지 이름")
+        check_text(self.time, "집결 시각")
+        for member in self.members:
+            check_text(member, "집결 참석자 이름")
         return self
 
 

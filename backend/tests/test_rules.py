@@ -422,3 +422,28 @@ def test_가게_지점은_열린_장소다():
     assert _settle("신촌 매장 앞", "신촌 매장")[0]["required"] is False
     # 끝말이 닫힌 장소면 그대로 되묻는다
     assert _settle("강남점 사무실", "강남점 사무실")[0] is None
+
+
+def test_다_차로_가면_모두_이동수단을_말한_것으로_본다():
+    """09-27: "다 차로 가. 나머지 2명은 부산역에서 출발해" 에서 나머지의 차를 지웠다."""
+    text = "다 차로 가. 하단 2명은 완호 창고지 3명이 태워 가고, 나머지 2명은 부산역에서 출발해"
+    people = [{"name": "완호 창고지 3명", "transport": "car", "pickup": None},
+              {"name": "나머지 2명", "transport": "car", "pickup": None}]
+    assert rules.unstated_transports(text, people) == []
+    # "다"가 이동수단 단어와 같은 구절에 없으면 여전히 본다
+    text2 = "다 모여. 나머지 2명은 부산역에서 출발해"
+    assert rules.unstated_transports(text2, [{"name": "나머지 2명", "transport": "car", "pickup": None}]) == [0]
+
+
+def test_오전_오후_없이_1시에서_6시면_오후로_읽는다():
+    """09-27 실제 캡처 "1시도착" 을 새벽 1시로 읽어 집결지 출발이 전날 밤으로 나왔다."""
+    assert rules.parse_meet_time("1시도착") == "13:00"
+    assert rules.parse_meet_time("10월 4일 3시 반") == "15:00"
+    assert rules.parse_meet_time("6시") == "18:00"
+    # 시간대 말이 있거나 24시간 표기면 그대로
+    assert rules.parse_meet_time("새벽 1시") == "01:00"
+    assert rules.parse_meet_time("아침 6시") == "06:00"
+    assert rules.parse_meet_time("01:00") == "01:00"
+    # 7시부터는 전처럼 둔다 (저녁인지 아침인지 문장만으로 갈리지 않는다)
+    assert rules.parse_meet_time("7시") == "07:00"
+    assert rules.parse_meet_time("10시") == "10:00"
