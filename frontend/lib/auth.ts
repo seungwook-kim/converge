@@ -61,7 +61,8 @@ export async function signInWithGoogle(): Promise<void> {
   if (!sb) return;
   await sb.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: window.location.href },
+    // 해시는 뺀다. 지난 로그인의 #access_token 이 남아 있으면 새 토큰이 그 뒤에 붙어 세션을 못 읽는다 (09-27)
+    options: { redirectTo: window.location.origin + window.location.pathname + window.location.search },
   });
 }
 
