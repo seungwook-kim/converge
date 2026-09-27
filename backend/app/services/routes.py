@@ -78,6 +78,25 @@ class RouteFailed(RuntimeError):
     """경로를 구하지 못했다. 그 사람만 빠지고 나머지는 계속 간다."""
 
 
+class RouteTooClose(RouteFailed):
+    """출발지와 도착지가 가까워 경로 API 가 길을 주지 않았다. 실패가 아니라 걸어서 잰다 (transport.md)."""
+
+
+KAKAO_TOO_CLOSE = 104  # 카카오 길찾기: 출발지와 도착지가 5m 이내
+TMAP_TOO_CLOSE = 11  # TMAP 대중교통: 출발지와 도착지가 너무 가까움 (09-27 실측, 130m 에서도 온다)
+
+
+def _walk(origin: LngLat, dest: LngLat) -> dict[str, Any]:
+    """경로 API 대신 도보 한 구간. 모양은 _transit 결과와 같다."""
+    sec = domain_rules.walk_seconds(origin, dest)
+    return {
+        "duration_sec": sec,
+        "polyline": [list(origin), list(dest)],
+        "transfer_count": 0,
+        "legs": [{"mode": "WALK", "route": None, "from": "출발지", "to": "도착지", "sec": sec}],
+    }
+
+
 def _thin(points: list[list[float]]) -> list[list[float]]:
     if len(points) <= MAX_POLYLINE_POINTS:
         return points
@@ -116,6 +135,8 @@ async def _car(
     res = await client.get(url, params=params, headers={"Authorization": f"KakaoAK {key}"})
     res.raise_for_status()
     route = res.json()["routes"][0]
+    if route.get("result_code") == KAKAO_TOO_CLOSE:
+        raise RouteTooClose(route.get("result_msg") or "출발지와 도착지가 너무 가까움")
     if route.get("result_code") != 0:
         raise RouteFailed(f"경로 없음: {route.get('result_msg')}")
 
@@ -167,6 +188,8 @@ async def _transit_once(client: httpx.AsyncClient, origin: LngLat, dest: LngLat)
         raise RouteFailed("TMAP 호출 한도(429)")
     res.raise_for_status()
     data = res.json()
+    if (data.get("result") or {}).get("status") == TMAP_TOO_CLOSE:
+        raise RouteTooClose("출발지와 도착지가 너무 가까움")
     if "metaData" not in data:
         raise RouteFailed("대중교통 경로 없음")
     itinerary = data["metaData"]["plan"]["itineraries"][0]
@@ -210,10 +233,19 @@ async def route_one(
     dest: LngLat,
     waypoint: LngLat | None = None,
 ) -> dict[str, Any]:
-    """한 사람의 한 후보까지 경로. 도보는 대중교통 API 로 대신한다(짧은 거리는 걷기 구간이 나온다)."""
-    if transport == "car":
-        return await _car(client, origin, dest, waypoint)
-    return await _transit(client, origin, dest)
+    """한 사람의 한 후보까지 경로. 도보는 대중교통 API 로 대신한다(짧은 거리는 걷기 구간이 나온다).
+
+    API 가 너무 가깝다며 길을 주지 않으면 걸어서 잰다. 실패로 두면 그 사람이 결과에서 빠진다 (09-27).
+    경유지(픽업)가 있으면 그 경우가 아니다. 경유지를 빼고 걸어서 재면 픽업이 사라진다.
+    """
+    try:
+        if transport == "car":
+            return await _car(client, origin, dest, waypoint)
+        return await _transit(client, origin, dest)
+    except RouteTooClose:
+        if waypoint is not None:
+            raise
+        return _walk(origin, dest)
 
 
 async def car_route(

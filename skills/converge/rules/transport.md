@@ -11,6 +11,8 @@ luggage_requires_car: true       # 장비·짐이 있으면 대중교통으로 �
 pickup_wait_min: 5               # 태우는 지점에서 기다리는 시간(분)
 pickup_counts_from_board: true   # 태워지는 사람의 소요시간은 탑승 이후 구간만
 max_pickup_per_car: 1            # 차 한 대당 픽업 한 명. 다중 픽업 순서 최적화는 범위 밖
+walk_speed_m_per_min: 67         # 걷는 속도(분당 m, 시속 4km). 경로 API 가 "너무 가깝다"며 길을 안 줄 때 쓴다 (09-27)
+walk_detour_pct: 30              # 직선거리에 얹는 우회분(%). 실제 길은 직선보다 돌아간다
 route_cache_ttl_hours: 24        # 경로 응답을 캐시에 두는 시간. 길이 하루 뒤에는 달라진다
 geocode_cache_ttl_hours: 720     # 지오코딩 응답을 캐시에 두는 시간(30일). 장소 좌표는 잘 안 바뀐다
 transport_words:                 # 이동수단을 말했다는 단서. 그 사람 이야기에 하나도 없으면 모델이 채운 이동수단을 지우고 되묻는다 (09-23)
@@ -72,3 +74,10 @@ transport_words:                 # 이동수단을 말했다는 단서. 그 사�
 보여 주기 위해서다 (docs/SDD.md 4절 ParticipantResult).
 
 관련: docs/SDD.md 7절, 5절 4·5·7단계
+
+## 가까운 거리는 걸어서 잰다
+
+대중교통 길찾기(TMAP)는 출발지와 도착지가 가까우면 "너무 가까움"(status 11)이라며 길을 주지 않는다.
+130m 에서도 그랬다. 자동차 길찾기(카카오)는 5m 안이면 못 찾는다(result_code 104).
+그걸 경로 실패로 보면 집결지 바로 옆에 있는 사람이 결과에서 통째로 빠진다 (09-27 확인).
+그래서 이 두 경우는 직선거리에 walk_detour_pct 를 얹고 walk_speed_m_per_min 으로 나눠 도보 시간으로 계산한다.

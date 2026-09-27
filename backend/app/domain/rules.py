@@ -276,6 +276,21 @@ def traffic_extra_min(raw_min: int, transport: str, transfer_count: int | None) 
     return 0
 
 
+def walk_seconds(origin: tuple[float, float], dest: tuple[float, float]) -> int:
+    """두 좌표(lng, lat) 사이를 걸어서 몇 초. 직선거리에 우회분을 얹는다 (transport.md "가까운 거리는 걸어서 잰다").
+
+    경로 API 가 너무 가깝다며 길을 주지 않을 때만 쓴다. 먼 거리를 이걸로 재지 않는다.
+    """
+    import math
+
+    rules = load_rule("transport")
+    lng1, lat1, lng2, lat2 = map(math.radians, (*origin, *dest))
+    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lng2 - lng1) / 2) ** 2
+    meters = 2 * 6_371_000 * math.asin(math.sqrt(h))
+    walked = meters * (1 + int(rules["walk_detour_pct"]) / 100)
+    return round(walked / float(rules["walk_speed_m_per_min"]) * 60)
+
+
 def access_ok(kind: str, applied: bool | None) -> bool:
     """이 자리에서 지금 만날 수 있는가 (SDD 4절 Candidate.access_ok).
 
