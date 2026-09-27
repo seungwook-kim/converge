@@ -178,6 +178,7 @@ async def create_session(
     preset: str,
     participants: list[dict],
     meet_at: datetime | None = None,
+    datetime_text: str | None = None,
     purpose: str | None = None,
     destination_name: str | None = None,
     destination_lng: float | None = None,
@@ -204,9 +205,9 @@ async def create_session(
         INSERT INTO sessions (
             id, preset, meet_at, purpose, destination_name, destination_lng, destination_lat,
             participants_enc, participant_count, rendezvous_enc, access, schedule_confirmed,
-            constraints, status, user_id, created_at, updated_at, expires_at
+            constraints, status, user_id, created_at, updated_at, expires_at, datetime_text
         ) VALUES (COALESCE($16::uuid, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                  'draft', $13, $14, $14, $15)
+                  'draft', $13, $14, $14, $15, $17)
         RETURNING id
         """,
         preset, meet_at, purpose, destination_name, destination_lng, destination_lat,
@@ -217,6 +218,7 @@ async def create_session(
         json.dumps(constraints or []),
         user_id, now, calc_expires_at(meet_at, now),
         session_id,
+        datetime_text,
     )
     return str(row["id"])
 
@@ -253,6 +255,7 @@ async def update_session(
     meet_at: datetime | None = None,
     status: str | None = None,
     rendezvous: dict | None = None,
+    datetime_text: str | None = None,
 ) -> None:
     """세션 일부 갱신. 넘긴 것만 바꾼다.
 
@@ -277,6 +280,8 @@ async def update_session(
         add("status", status)
     if rendezvous is not None:
         add("rendezvous_enc", encrypt(rendezvous))
+    if datetime_text is not None:
+        add("datetime_text", datetime_text)
 
     pool = await get_pool()
     if meet_at is not None:

@@ -276,3 +276,68 @@ def test_다시_열어도_집결지를_되살린다():
     rendezvous = session_store.slots_from_session(row).rendezvous
     assert rendezvous.name == "강남역" and rendezvous.transport_after == "car"
     assert session_store.slots_from_session({"preset": "meeting", "participants": []}).rendezvous is None
+
+
+def test_날짜_없이_시각만_말한_약속은_원문으로_되살린다():
+    """09-27 결정: "저녁 7시" 는 meet_at 이 없어 재질문 때마다 시각을 다시 물었다."""
+    from backend.app.services import session_store
+
+    row = {"preset": "meeting", "participants": [], "meet_at": None, "datetime_text": "저녁 7시"}
+    assert session_store.slots_from_session(row).datetime == "저녁 7시"
+
+
+def test_meet_at_이_있으면_원문보다_meet_at_을_쓴다():
+    from backend.app.services import session_store
+
+    row = {
+        "preset": "meeting",
+        "participants": [],
+        "meet_at": datetime(2026, 9, 23, 10, 0, tzinfo=timezone.utc),
+        "datetime_text": "목요일 저녁 7시",
+    }
+    assert session_store.slots_from_session(row).datetime == "2026-09-23 19:00"
+
+
+def test_저장할_때_시각_원문을_넘긴다(monkeypatch):
+    import asyncio
+
+    from backend.app.schemas.slots import Slots
+    from backend.app.services import session_store
+
+    seen: dict = {}
+
+    async def create_session(**kwargs):
+        seen["create"] = kwargs
+        return "s1"
+
+    async def update_session(session_id, **kwargs):
+        seen["update"] = kwargs
+
+    monkeypatch.setattr(session_store.store, "create_session", create_session)
+    monkeypatch.setattr(session_store.store, "update_session", update_session)
+    slots = Slots.model_construct(
+        preset="meeting", datetime="저녁 7시", purpose=None, destination="강남역", participants=[],
+        rendezvous=None, access=None, schedule_confirmed=None, constraints=[], missing=[], out_of_scope=False,
+    )
+    asyncio.run(session_store.save(session_id=None, user_id="u1", slots=slots, participants=[], result=None,
+                                   trace_id="t", status="draft"))
+    assert seen["create"]["datetime_text"] == "저녁 7시"
+    assert seen["update"]["datetime_text"] == "저녁 7시"
+
+
+def test_이동수단을_되묻는_중인_세션도_공유_링크가_열린다():
+    """09-27: 되묻기 중 세션을 열면 missing 이 비어 슬롯 검증에 걸려 500 이 났다."""
+    from backend.app.services import session_store
+
+    row = {
+        "preset": "meeting",
+        "meet_at": None,
+        "datetime_text": "저녁 9시",
+        "participants": [
+            {"name": "나", "origin_text": "잠실역", "transport": "transit", "lng": 127.1, "lat": 37.51},
+            {"name": "민수", "origin_text": None, "transport": None},
+        ],
+    }
+    res = session_store.to_agent_response("s1", row, None)
+    assert res.stage == "need_confirm"
+    assert "participants[1].transport" in res.slots.missing

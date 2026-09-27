@@ -56,6 +56,7 @@ async def save(
             preset=slots.preset or "meeting",
             participants=participants,
             meet_at=meet_at,
+            datetime_text=slots.datetime,
             purpose=slots.purpose,
             destination_name=slots.destination,
             destination_lng=dest[0],
@@ -65,7 +66,9 @@ async def save(
             schedule_confirmed=slots.schedule_confirmed,
             constraints=slots.constraints,
         )
-    await store.update_session(session_id, participants=participants, status=status, meet_at=meet_at)
+    await store.update_session(
+        session_id, participants=participants, status=status, meet_at=meet_at, datetime_text=slots.datetime
+    )
     # 결과가 없으면(되묻기·핀 확인 중) 세션만 남긴다. 링크를 먼저 만들어 줘야 참석자들이 모일 수 있다
     if result is not None:
         await store.save_result(
@@ -105,21 +108,24 @@ def slots_from_session(row: dict[str, Any]) -> Slots:
     """저장된 세션을 Slots 로 되돌린다. 재질문 프롬프트와 공유 링크 화면이 쓴다.
 
     검증을 거치지 않는 이유: 저장 당시에 통과한 값이고, 지금은 참고 자료이기 때문이다.
-    사람이 쓴 시각 표현("목요일 아침 8시")은 표에 남지 않는다. 대신 meet_at 에서 되살린다.
-    비우면 재질문 때마다 시각을 다시 묻는다 (09-22 실측). 날짜 없이 시각만 말한 약속은 meet_at 이
-    없어 여전히 비어 있다.
+    날짜까지 읽힌 약속은 meet_at 에서 되살린다. 비우면 재질문 때마다 시각을 다시 묻는다 (09-22 실측).
+    날짜 없이 시각만 말한 약속("저녁 7시")은 meet_at 이 없어 원문(datetime_text)으로 되살린다 (09-27).
     """
+    people = [Participant.model_construct(**_participant_fields(p)) for p in row.get("participants") or []]
     return Slots.model_construct(
         preset=row.get("preset"),
-        datetime=_datetime_text(row.get("meet_at")),
+        # 날짜까지 읽혔으면 meet_at 이 정확하다. 시각만 말한 약속은 원문으로 되살린다 (09-27)
+        datetime=_datetime_text(row.get("meet_at")) or row.get("datetime_text"),
         purpose=row.get("purpose"),
         destination=row.get("destination_name"),
-        participants=[Participant.model_construct(**_participant_fields(p)) for p in row.get("participants") or []],
+        participants=people,
         rendezvous=_rendezvous(row.get("rendezvous")),
         access=row.get("access"),
         schedule_confirmed=row.get("schedule_confirmed"),
         constraints=row.get("constraints") or [],
-        missing=[],
+        # 되묻기 중에 저장된 세션은 이동수단이 비어 있다. missing 을 비우면 슬롯 검증(이동수단이 없으면
+        # missing 에 있어야 한다)에 걸려 공유 링크가 500 이 난다 (09-27)
+        missing=[f"participants[{i}].transport" for i, p in enumerate(people) if p.transport is None],
         out_of_scope=False,
     )
 

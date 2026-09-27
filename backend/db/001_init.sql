@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   preset             text NOT NULL DEFAULT 'meeting',     -- meeting(일반 약속) / visit(출입 절차가 있는 방문)
   meet_at            timestamptz,                          -- 미정이면 NULL (임시 세션)
+  datetime_text      text,                                 -- 사람이 말한 시각 원문. 날짜 없이 "저녁 7시"만 말하면 meet_at 이 없어 이걸로 되살린다
   purpose            text,
   destination_name   text,
   destination_lng    double precision,
