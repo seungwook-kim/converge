@@ -135,6 +135,40 @@ def test_내_핀이면_위치를_고치고_기록을_남긴다(client):
     assert edit["by_owner"] is True  # 주인이 직접 고쳤다
 
 
+def test_출발지_이름을_같이_보내면_이름도_바뀐다(client):
+    """09-27: 좌표만 바꾸면 계획서에 옛 출발지 이름이 남았다."""
+    api, state = client
+    state["session"] = make_session(owner=ME)
+    res = api.patch(
+        "/api/session/s1/participants",
+        json={"name": "김현장", "lng": 128.7, "lat": 35.25, "origin": "창원중앙역", "claim": False},
+    )
+    assert res.status_code == 200
+    assert state["saved"][0]["origin_text"] == "창원중앙역"
+    person = next(p for p in res.json()["slots"]["participants"] if p["name"] == "김현장")
+    assert person["origin"] == "창원중앙역"
+
+
+def test_출발지_이름이_없으면_이름은_그대로다(client):
+    api, state = client
+    state["session"] = make_session(owner=ME)
+    before = state["session"]["participants"][0].get("origin_text")
+    res = api.patch("/api/session/s1/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": False})
+    assert res.status_code == 200
+    assert state["saved"][0].get("origin_text") == before
+
+
+def test_claim_은_출발지_이름을_바꾸지_않는다(client):
+    api, state = client
+    before = state["session"]["participants"][0].get("origin_text")
+    res = api.patch(
+        "/api/session/s1/participants",
+        json={"name": "김현장", "lng": 128.68, "lat": 35.22, "origin": "다른곳", "claim": True},
+    )
+    assert res.status_code == 200
+    assert state["saved"][0].get("origin_text") == before
+
+
 def test_잠긴_세션은_409(client):
     api, state = client
     state["locked"] = True

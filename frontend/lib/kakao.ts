@@ -87,6 +87,20 @@ export function searchPlaces(kakao: Kakao, query: string): Promise<PlaceHit[]> {
   });
 }
 
+// 좌표 → 주소. 지도 클릭·드래그로 옮긴 핀은 장소 이름이 없어 주소를 출발지 이름으로 쓴다 (09-27).
+// 못 찾으면 null. 그때는 출발지 이름을 바꾸지 않는다
+export function addressAt(kakao: Kakao, lng: number, lat: number): Promise<string | null> {
+  const Geocoder = kakao.maps.services?.Geocoder;
+  if (!Geocoder) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    new Geocoder().coord2Address(lng, lat, (data: any[], status: string) => {
+      if (status !== kakao.maps.services.Status.OK || !data?.length) return resolve(null);
+      const a = data[0];
+      resolve(String(a.road_address?.address_name || a.address?.address_name || "") || null);
+    });
+  });
+}
+
 // 핀 모양. SVG 를 data URL 로 만들어 MarkerImage 에 넣는다.
 
 export type PinShape = "drop" | "square" | "circle";

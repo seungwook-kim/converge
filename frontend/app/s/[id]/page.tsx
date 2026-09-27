@@ -15,6 +15,7 @@ import MapView from "@/components/MapView";
 import { pinsFrom, type Viewer } from "@/components/ParticipantPins";
 import ResultTable from "@/components/ResultTable";
 import { authHeaders, useAuth, type AuthState } from "@/lib/auth";
+import { addressAt, loadKakao } from "@/lib/kakao";
 import type {
   AgentRequest,
   AgentResponse,
@@ -193,7 +194,12 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
       text: "핀 위치 확인",
       image_base64: null,
       preset: null,
-      confirmed_participants: pins.map((p) => ({ name: p.name, lng: p.lng, lat: p.lat })),
+      confirmed_participants: pins.map((p) => ({
+        name: p.name,
+        lng: p.lng,
+        lat: p.lat,
+        origin: participants.find((x) => x.name === p.name)?.origin ?? null,
+      })),
     });
 
   // 핀 하나를 옮기거나 자기 이름을 고를 때. 여기서는 다시 계산하지 않는다
@@ -235,10 +241,14 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
   );
 
   const onMove = useCallback(
-    (name: string, lng: number, lat: number) => {
+    (name: string, lng: number, lat: number, origin?: string) => {
       if (!pins.some((p) => p.name === name)) return;
       setMoved((m) => ({ ...m, [name]: [lng, lat] }));
-      void patch({ name, lng, lat, claim: false });
+      void (async () => {
+        // 좌표만 바꾸면 계획서에 옛 출발지 이름이 남는다. 검색이 아니면 그 자리 주소를 이름으로 쓴다 (09-27)
+        const label = origin ?? (await loadKakao().then((k) => addressAt(k, lng, lat)).catch(() => null));
+        await patch({ name, lng, lat, origin: label, claim: false });
+      })();
     },
     [pins, patch],
   );
@@ -246,7 +256,7 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
   const claim = (name: string) => {
     const pin = pins.find((p) => p.name === name);
     if (!pin) return;
-    void patch({ name, lng: pin.lng, lat: pin.lat, claim: true });
+    void patch({ name, lng: pin.lng, lat: pin.lat, origin: null, claim: true });
   };
 
   if (notFound) {

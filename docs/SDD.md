@@ -199,7 +199,11 @@ class ParticipantInput(BaseModel):   # PATCH 요청에서 claim 만 뺀 모양
     name: str
     lng: float
     lat: float
+    origin: str | None = None   # 새 출발지 이름. 장소 검색이면 장소 이름, 지도 클릭·드래그면 그 자리 주소 (09-27)
 ```
+
+origin 이 오면 저장된 출발지 이름(participants_enc 의 origin_text)도 바꾼다. 좌표만 바꾸면 계획서와
+참석자 목록에 옛 출발지 이름이 남는다 (09-27 결정). 비어 있으면 이름은 그대로 둔다.
 
 좌표는 Slots 에 넣지 않는다 (슬롯 계약과 파인튜닝 데이터를 지키기 위해). 지오코딩 결과는 geocoded 로만 나간다. need_confirm 과 done 양쪽에 담는다. done 에서도 집결 후보 외에 참석자 출발 핀을 찍어야 하기 때문이다.
 
@@ -221,9 +225,10 @@ class ParticipantInput(BaseModel):   # PATCH 요청에서 claim 만 뺀 모양
 
 **로그인 필수.** 참석자가 자기 핀을 고르거나(claim) 위치를 고칠 때 쓴다.
 
-요청: `{ "name": "민수", "lng": 128.98, "lat": 35.16, "claim": false }`
+요청: `{ "name": "민수", "lng": 128.98, "lat": 35.16, "origin": "서면역", "claim": false }`
 - `claim` 이 true 면 "내가 이 사람이다"를 등록하는 요청이다. owner_user_id 가 비어 있을 때만 성공한다
 - `claim` 이 false 면 위치만 고친다. 로그인한 사람이면 누구나 할 수 있다 (7절 핀 소유권)
+- `origin` 은 claim 이 false 일 때만 쓴다. 오면 출발지 이름도 함께 바꾼다
 
 응답: 갱신된 Slots, 재계산이 끝났으면 새 Result, 그리고 핀별 수정 기록(edits)
 

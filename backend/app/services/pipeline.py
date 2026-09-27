@@ -260,6 +260,7 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
         if req.confirmed_participants:
             # 누구 핀이든 고칠 수 있다 (SDD 7절, 09-18 결정). 소유권은 표시용이다
             pins = _apply_confirmed(pins, req.confirmed_participants)
+            slots = _apply_confirmed_origins(slots, req.confirmed_participants)
 
         # 3. 집결 후보
         with tr.span("candidates") as span:
@@ -495,6 +496,20 @@ def _apply_confirmed(pins: list[GeocodedPin], confirmed: list[Any]) -> list[Geoc
             GeocodedPin(name=pin.name, lng=hit.lng, lat=hit.lat, confidence=1.0, kind=pin.kind) if hit else pin
         )
     return out
+
+
+def _apply_confirmed_origins(slots: Slots, confirmed: list[Any]) -> Slots:
+    """고친 핀에 출발지 이름이 같이 왔으면 슬롯의 출발지도 바꾼다 (SDD 2절 ParticipantInput.origin, 09-27).
+
+    좌표만 바꾸면 계획서·참석자 목록에 옛 출발지 이름이 남는다. 이름이 없으면 그대로 둔다.
+    """
+    names = {c.name: c.origin for c in confirmed if getattr(c, "origin", None)}
+    if not names:
+        return slots
+    people = [
+        p.model_copy(update={"origin": names[p.name]}) if p.name in names else p for p in slots.participants
+    ]
+    return slots.model_copy(update={"participants": people})
 
 
 async def _log_llm(

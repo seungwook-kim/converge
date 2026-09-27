@@ -18,10 +18,16 @@ class ParticipantInput(BaseModel):
     name: str
     lng: float = Field(ge=124.0, le=132.0)
     lat: float = Field(ge=33.0, le=39.0)
+    origin: str | None = Field(
+        default=None,
+        max_length=100,
+        description="새 출발지 이름. 장소 검색이면 장소 이름, 지도 클릭·드래그면 그 자리 주소. 없으면 이름은 그대로",
+    )
 
     @model_validator(mode="after")
     def _check(self) -> ParticipantInput:
         check_text(self.name, "참석자 이름")
+        check_text(self.origin, "출발지")
         return self
 
 

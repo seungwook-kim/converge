@@ -36,7 +36,7 @@ interface Props {
   viewer: Viewer;
   selectedRank: number | null;
   onSelectRank: (rank: number) => void;
-  onMove: (name: string, lng: number, lat: number) => void;
+  onMove: (name: string, lng: number, lat: number, origin?: string) => void; // origin: 장소 검색이면 그 장소 이름
 }
 
 export default function MapView({ response, participantPins, viewer, selectedRank, onSelectRank, onMove }: Props) {

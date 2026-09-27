@@ -97,6 +97,25 @@ def test_확인한_좌표가_오면_그_좌표로_바꾸고_확신도를_올린�
     assert (pin.lng, pin.lat, pin.confidence) == (128.7, 35.25, 1.0)
 
 
+def test_확인한_좌표에_출발지_이름이_있으면_슬롯의_출발지도_바꾼다():
+    """09-27: 좌표만 바뀌고 계획서에는 옛 출발지 이름이 남았다."""
+    req = AgentRequest(
+        text="점검",
+        confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25, origin="창원중앙역")],
+    )
+    out = run(req, deps(slots(), pins(confidence=0.5)))
+    person = next(p for p in out.slots.participants if p.name == "김현장")
+    assert person.origin == "창원중앙역"
+
+
+def test_확인한_좌표에_출발지_이름이_없으면_슬롯은_그대로다():
+    s = slots()
+    before = next(p for p in s.participants if p.name == "김현장").origin
+    req = AgentRequest(text="점검", confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25)])
+    out = run(req, deps(s, pins(confidence=0.5)))
+    assert next(p for p in out.slots.participants if p.name == "김현장").origin == before
+
+
 def test_남의_핀도_고칠_수_있다():
     """09-18 결정: 소유권은 표시용이고 수정은 막지 않는다 (SDD 7절)."""
     s = slots(

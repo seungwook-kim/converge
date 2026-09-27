@@ -118,6 +118,9 @@ async def update_participant(
     else:
         target["lng"] = body.lng
         target["lat"] = body.lat
+        if body.origin:
+            # 좌표만 바꾸면 계획서·참석자 목록에 옛 출발지 이름이 남는다 (09-27)
+            target["origin_text"] = body.origin
         target["confirmed"] = True
         # 본인이 고쳤는지 남이 고쳤는지 구분해 둔다 (테이블정의서 1절)
         target["origin_set_by"] = "self" if owner == user_id else "other"

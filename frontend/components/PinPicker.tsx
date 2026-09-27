@@ -20,7 +20,7 @@ interface Props {
   kakao: Kakao;
   map: Kakao;
   pins: ParticipantPin[];
-  onMove: (name: string, lng: number, lat: number) => void;
+  onMove: (name: string, lng: number, lat: number, origin?: string) => void; // origin: 장소 검색이면 그 장소 이름
   onArmedChange: (armed: boolean) => void; // 지도 커서를 바꾸는 건 지도를 가진 MapView 몫이다
 }
 
@@ -41,9 +41,9 @@ export default function PinPicker({ kakao, map, pins, onMove, onArmedChange }: P
   useEffect(() => onArmedChange(armed), [armed, onArmedChange]);
 
   const place = useCallback(
-    (lng: number, lat: number) => {
+    (lng: number, lat: number, origin?: string) => {
       if (!target) return;
-      onMove(target, lng, lat);
+      onMove(target, lng, lat, origin);
     },
     [target, onMove],
   );
@@ -76,7 +76,7 @@ export default function PinPicker({ kakao, map, pins, onMove, onArmedChange }: P
 
   const pickHit = useCallback(
     (hit: PlaceHit) => {
-      place(hit.lng, hit.lat);
+      place(hit.lng, hit.lat, hit.name); // 출발지 이름도 검색한 장소 이름으로 바꾼다 (09-27)
       // 검색한 곳은 지금 보이는 범위 밖일 수 있다. 옮긴 자리를 눈으로 확인하게 지도를 그쪽으로 옮긴다
       map.setCenter(new kakao.maps.LatLng(hit.lat, hit.lng));
       setSearch({ kind: "idle" });

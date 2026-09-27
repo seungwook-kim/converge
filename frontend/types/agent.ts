@@ -113,6 +113,7 @@ export interface ParticipantInput {
   name: string;
   lng: number;
   lat: number;
+  origin?: string | null; // 새 출발지 이름. 없으면 이름은 그대로 (SDD 2절, 09-27)
 }
 
 export interface AgentRequest {

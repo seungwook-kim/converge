@@ -61,6 +61,7 @@ export interface ParticipantInput {
   name: string;
   lng: number;
   lat: number;
+  origin: string | null;
 }
 
 export interface ParticipantPatchRequest extends ParticipantInput {
