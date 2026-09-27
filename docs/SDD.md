@@ -65,6 +65,7 @@ converge/
       data/                   busan_stations.csv (역외부코드 108개. 역 목록 API가 폐기돼 레포에 둔다)
     db/
       001_init.sql          테이블정의서.md의 표 5개. 로컬(compose initdb)과 Supabase(SQL Editor)에 같은 파일을 실행
+      002_datetime_text.sql sessions.datetime_text 추가. 001 로 이미 만든 DB 에만 필요 (09-27)
     tests/
       TEST_GUIDE.md
       fixtures/               spike 샘플 응답 (실제 API 응답 원문)
@@ -562,7 +563,10 @@ Langfuse Prompt 이름과 역할. 코드에 문자열로 두지 않는다.
 | converge/slot-extract | 소형 (MODEL_SMALL) 또는 대형 폴백 | 텍스트 → Slots JSON. GBNF 문법 강제. 출입 절차·집결지·픽업·참석자 역할 추출. 범위 밖이면 out_of_scope true 에 preset null |
 | converge/vision-transcribe | MODEL_VISION (없으면 MODEL_LARGE) | 캡처 → 대화 텍스트 (이름·시각·말풍선 유지). 약속과 무관한 이미지면 빈 문자열 |
 | converge/judge | Sonnet 5 | 후보 표 + 규칙 문서 → rankings JSON (rank·reason·switched_from) |
-| converge/eval-judge | GPT-5.6 Luna | reason이 규칙과 계산값에 부합하는지 0~2점 |
+
+converge/eval-judge(판정 이유를 LLM 이 0~2점으로 채점)는 두지 않는다 (09-27 결정). evals/run_eval.py 는
+단계·슬롯·계약을 코드로 채점하고, 이유가 현장에 맞는지는 사람이 본다 (EVAL_GUIDE). 채점용 LLM 을 따로 두면
+비용과 흔들림만 늘고 사람 판단을 대신하지 못한다. 그래서 MODEL_EVAL_JUDGE 도 없앴다.
 
 ### 슬롯 추출 모델 (2026-09-21 결정)
 
@@ -586,7 +590,7 @@ KAKAO_REST_KEY=          # 카카오 개발자 콘솔
 TMAP_APP_KEY=            # SK오픈API
 DATA_GO_KR_KEY=          # 첫차·막차
 TYPESAFE_API_KEY=        # 출입 절차 판단 모델(Jev). 없으면 부르지 않는다
-JEV_ACCESS=0             # 1 이면 access.md 5순위에서 Jev 를 부른다. 골든셋 확인 전에는 0
+JEV_ACCESS=0             # 1 이면 access.md 5순위에서 Jev 를 부른다. 09-27 결정: 끈다 (TypeSafe 신규 가입 막힘, Cloudflare 는 선불 잔액 필요). 꺼 두면 그 문장은 되묻는다
 JEV_PROVIDER=typesafe    # typesafe 또는 cloudflare(Workers AI typesafe/jev, TypeSafe 가입이 막혀 09-23 추가)
 TYPESAFE_BASE_URL=       # Vercel AI Gateway 의 TypeSafe 호환 API 면 https://ai-gateway.vercel.sh/typesafe (09-23 실측 성공)
 TYPESAFE_DEFAULT_MODEL=  # Vercel 이면 typesafe-ai/jev
@@ -608,7 +612,6 @@ MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 슬롯 추출 소형 모델. 이
 GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다
 MODEL_LARGE=anthropic/claude-sonnet-5
 MODEL_VISION=google/gemini-3.8-flash   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다 (그 모델이 이미지를 받아야 한다)
-MODEL_EVAL_JUDGE=openai/gpt-5.6-luna
 LLM_TIMEOUT_SEC=30           # LLM 호출 하나의 상한(초). 기본 30. 넘으면 다음 차례(재시도·대형)로 넘긴다
 COST_LIMIT_USD_PER_REQUEST=0.05
 DAILY_COST_LIMIT_USD=1.0       # 하루 합계 상한. 비우면 제한 없음 (41번)

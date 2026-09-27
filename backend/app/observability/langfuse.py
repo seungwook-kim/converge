@@ -148,7 +148,7 @@ def get_prompt(name: str, label: str = "production") -> tuple[str, str]:
     """Langfuse Prompt 에서 프롬프트 본문과 버전을 가져온다 (SDD 8절).
 
     이름은 SDD 8절 표에 있는 것만 쓴다: converge/slot-extract, converge/vision-transcribe,
-    converge/judge-ship, converge/judge-si, converge/eval-judge.
+    converge/judge.
     """
     client = _get_client()
     if client is None:
