@@ -484,6 +484,22 @@ def _parse(raw: str) -> Slots:
             path = f"participants[{index}].pickup"
             if path not in missing:
                 missing.append(path)
+    # 이동수단을 비워 놓고 missing 에 안 적는 경우가 있다 (09-28 gpt-4o-mini, 회귀셋 5·7번). 스키마가 막아
+    # 재시도·대형까지 모두 실패했다. 검증 전에 정리한다.
+    #   태워지는 사람  운전자의 차를 탄다. 운전자 이동수단(없으면 car)으로 채운다 (fill_pickup_transport 와 같은 규칙)
+    #   그 밖         모르는 것이므로 missing 에 적어 되묻는다. 지어 넣지 않는다
+    people = [p for p in (data.get("participants") or []) if isinstance(p, dict)]
+    by_name = {p.get("name"): p for p in people}
+    for index, person in enumerate(people):
+        if person.get("transport") is not None:
+            continue
+        if person.get("pickup") and person.get("pickup_at"):
+            driver = by_name.get(person.get("pickup")) or {}
+            person["transport"] = driver.get("transport") or "car"
+            missing = [m for m in missing if m != f"participants[{index}].transport"]
+        elif f"participants[{index}].transport" not in missing:
+            missing.append(f"participants[{index}].transport")
+
     # 집결지의 모인 뒤 이동수단·시각·모이는 사람은 비어도 계산된다(없으면 차, 역산, 한 단계 계산. SDD 3절).
     # 모델이 missing 에 적으면 "정보가 더 필요합니다" 같은 두루뭉술한 질문만 나간다 (09-27)
     missing = [m for m in missing if not m.startswith("rendezvous.")]

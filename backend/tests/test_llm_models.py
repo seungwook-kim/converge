@@ -482,3 +482,32 @@ def test_하루_상한에_닿은_요청은_gemini_로_돈다():
     finally:
         llm.end_request_fallback(token)
     assert llm.effective_model(llm.PRIMARY_MODEL) == llm.PRIMARY_MODEL
+
+
+def test_이동수단을_비우고_missing_에_안_적어도_되묻기로_받는다():
+    """09-28 gpt-4o-mini: "한지훈씨는 인천에서 옵니다" 의 이동수단을 비우고 missing 에 안 적어 세 번 다 실패했다."""
+    import json
+
+    data = _slot_json()
+    data["participants"].append({"name": "한지훈씨", "origin": "인천", "transport": None, "pickup": None,
+                                 "pickup_at": None, "unfamiliar": False, "role": "colleague"})
+    data["missing"] = []
+    slots = llm._parse(json.dumps(data, ensure_ascii=False))
+    assert "participants[1].transport" in slots.missing
+
+
+def test_태워지는_사람의_빈_이동수단은_운전자_것으로_채운다():
+    """09-28 gpt-4o-mini: 태워지는 "나" 의 이동수단을 비워 검증에 걸렸다. 운전자 차를 탄다."""
+    import json
+
+    data = _slot_json()
+    data["participants"] = [
+        {"name": "이대리님", "origin": "노원구", "transport": "car", "pickup": None, "pickup_at": None,
+         "unfamiliar": False, "role": "colleague"},
+        {"name": "나", "origin": None, "transport": None, "pickup": "이대리님", "pickup_at": "광진구 역 앞",
+         "unfamiliar": False, "role": "site"},
+    ]
+    data["missing"] = []
+    slots = llm._parse(json.dumps(data, ensure_ascii=False))
+    assert slots.participants[1].transport == "car"
+    assert not any(m.startswith("participants[1]") for m in slots.missing)
