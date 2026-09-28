@@ -26,8 +26,9 @@ def test_판정_호출의_토큰과_비용을_재시도까지_합쳐_남긴다(m
     good = json.dumps({"rankings": [
         {"candidate_idx": 0, "rank": 1, "reason": "가깝다", "rejected_reason": None, "switched_from": None},
     ]})
-    monkeypatch.setenv("MODEL_LARGE", "google-ai/gemini-3.1-flash-lite")
-    monkeypatch.setattr(judge, "_client", lambda _model: _fake_client(["형식 위반", good]))
+    monkeypatch.setenv("MODEL_LARGE", llm.FALLBACK_MODEL)
+    fake = _fake_client(["형식 위반", good])  # 재시도 때도 같은 가짜를 써야 응답이 차례로 나온다
+    monkeypatch.setattr(judge.llm, "_client", lambda _model: fake)
     monkeypatch.setattr(judge.langfuse, "get_prompt", lambda _name: ("{{situation}}{{candidates}}{{participants}}{{rules}}", "1"))
     llm._last_meta.clear()
 
@@ -37,6 +38,6 @@ def test_판정_호출의_토큰과_비용을_재시도까지_합쳐_남긴다(m
 
     assert out[0]["rank"] == 1
     meta = llm.last_meta()
-    assert meta["judge_model"] == "google-ai/gemini-3.1-flash-lite"
+    assert meta["judge_model"] == llm.FALLBACK_MODEL
     assert (meta["judge_tokens_in"], meta["judge_tokens_out"], meta["judge_attempts"]) == (2000, 200, 2)
     assert meta["judge_cost_usd"] is not None and meta["judge_cost_usd"] > 0

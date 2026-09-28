@@ -15,6 +15,7 @@ SDD 8절이 "소형 (GGUF) 또는 대형 폴백"을 허용하므로 그때까지
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import os
 import time
@@ -32,7 +33,20 @@ SLOT_PROMPT = "converge/slot-extract"
 VISION_PROMPT = "converge/vision-transcribe"
 
 # SDD 9절 MODEL_LARGE 와 같은 값을 본다
-DEFAULT_LARGE = "anthropic/claude-sonnet-5"
+# 쓸 수 있는 모델은 이 둘뿐이다 (09-28 결정). 평소에는 PRIMARY, 돈이 다 되면 FALLBACK.
+#   PRIMARY   OpenRouter 유료. 슬롯 추출·판정·캡처 읽기 모두
+#   FALLBACK  구글 AI Studio 무료 할당. OpenRouter 크레딧이 떨어지거나(402) 하루 비용 상한에 닿았을 때만
+# env(MODEL_SMALL·MODEL_LARGE·MODEL_VISION)에 다른 이름을 적어도 _client 가 거절한다. 로컬 GGUF·Jev 도 못 쓴다
+PRIMARY_MODEL = "openai/gpt-4o-mini"
+FALLBACK_MODEL = "google-ai/gemini-3.5-flash-lite"
+ALLOWED_MODELS = frozenset({PRIMARY_MODEL, FALLBACK_MODEL})
+DEFAULT_LARGE = PRIMARY_MODEL
+
+# 크레딧이 떨어진 것을 한 번 보면 이 시간(초) 동안은 처음부터 FALLBACK 으로 간다. 매번 402 를 맞고 돌아오지 않게
+CREDITS_OUT_RETRY_SEC = 3600
+_credits_out_until = 0.0
+# 하루 비용 상한에 닿은 요청이면 True. 요청 단위라 contextvar 로 둔다 (routers/agent.py 가 켠다)
+_request_fallback: contextvars.ContextVar[bool] = contextvars.ContextVar("llm_request_fallback", default=False)
 
 
 # 마지막 호출에 쓴 모델·프롬프트 버전. Result 를 만들 때(6·8단계) 쓴다
@@ -45,6 +59,59 @@ def last_meta() -> dict[str, Any]:
 
 class LlmUnavailable(RuntimeError):
     """키가 없어 LLM 을 부를 수 없다. 파이프라인이 failed 로 답하게 한다."""
+
+
+class ModelNotAllowed(LlmUnavailable):
+    """허용하지 않은 모델이다 (ALLOWED_MODELS). 설정이 틀렸다는 뜻이라 조용히 넘어가지 않는다."""
+
+
+def effective_model(model: str) -> str:
+    """이번 호출에 실제로 쓸 모델. 돈이 다 된 상태면 FALLBACK 으로 바꾼다."""
+    if _request_fallback.get() or time.monotonic() < _credits_out_until:
+        return FALLBACK_MODEL
+    return model
+
+
+def use_fallback_for_request() -> contextvars.Token:
+    """이 요청은 처음부터 FALLBACK 으로 돈다. 하루 비용 상한에 닿았을 때 routers/agent.py 가 부른다."""
+    return _request_fallback.set(True)
+
+
+def end_request_fallback(token: contextvars.Token) -> None:
+    _request_fallback.reset(token)
+
+
+def reset_fallback() -> None:
+    """크레딧 소진 표시를 지운다. 테스트와, 충전 뒤 바로 PRIMARY 로 돌리고 싶을 때."""
+    global _credits_out_until
+    _credits_out_until = 0.0
+
+
+def _is_out_of_credits(error: Exception) -> bool:
+    """OpenRouter 가 크레딧이 없다고 답했는가 (HTTP 402 Payment Required)."""
+    return getattr(error, "status_code", None) == 402
+
+
+async def _create(model: str, **kwargs: Any) -> tuple[Any, str]:
+    """chat.completions.create 를 감싼다. (응답, 실제로 답한 모델) 을 돌려준다.
+
+    슬롯 추출·판정·캡처 읽기가 모두 이 함수로 부른다. PRIMARY 가 크레딧 없음(402)이면 표시를 남기고
+    같은 요청을 FALLBACK 으로 한 번 더 보낸다. 실제로 답한 모델을 돌려주는 이유는 비용 계산과
+    request_logs 가 그 이름을 봐야 하기 때문이다.
+    """
+    global _credits_out_until
+    model = effective_model(model)
+    try:
+        res = await _client(model).chat.completions.create(model=_api_model(model), **kwargs, **_extra_body(model))
+        return res, model
+    except Exception as e:  # noqa: BLE001
+        if model == FALLBACK_MODEL or not _is_out_of_credits(e):
+            raise
+    _credits_out_until = time.monotonic() + CREDITS_OUT_RETRY_SEC
+    res = await _client(FALLBACK_MODEL).chat.completions.create(
+        model=_api_model(FALLBACK_MODEL), **kwargs, **_extra_body(FALLBACK_MODEL)
+    )
+    return res, FALLBACK_MODEL
 
 
 GOOGLE_PREFIX = "google-ai/"
@@ -72,6 +139,9 @@ def _client(model: str = "") -> Any:
     구글로 직접 부르는 길을 둔 이유: 무료 할당이 있어서 사이드 프로젝트에서 크레딧 없이 돌릴 수 있다.
     """
     from openai import AsyncOpenAI  # 지연 import: 키 없는 테스트가 이 파일을 건드리지 않게
+
+    if model not in ALLOWED_MODELS:
+        raise ModelNotAllowed(f"허용하지 않은 모델입니다: {model} (쓸 수 있는 것: {', '.join(sorted(ALLOWED_MODELS))})")
 
     if model.startswith(GOOGLE_PREFIX):
         key = os.environ.get("GEMINI_API_KEY")
@@ -176,18 +246,9 @@ def model_large() -> str:
 def model_small() -> str | None:
     """소형 모델 이름. 없으면 None (그때는 대형이 처음부터 맡는다).
 
-    1순위는 MODEL_SMALL 환경변수다. 값을 적어 둔 사람이 그걸 쓰겠다고 정한 것이므로,
-    로컬에 모델 파일이 있어도 그쪽을 따른다 (2026-09-21 변경).
-    2순위는 로컬 GGUF. backend/app/models/ 에 모델·프롬프트 설정·문법이 다 있으면 쓴다 (SDD 8절).
+    MODEL_SMALL 환경변수만 본다. 로컬 GGUF 는 파일이 있어도 쓰지 않는다 (09-28 결정: 허용한 두 모델만).
     """
-    from backend.app.services import slot_model
-
-    configured = os.environ.get("MODEL_SMALL")
-    if configured:
-        return configured
-    if slot_model.available():
-        return slot_model.model_name()
-    return None
+    return os.environ.get("MODEL_SMALL") or None
 
 
 def _transient_errors() -> tuple[type[Exception], ...]:
@@ -454,16 +515,8 @@ async def extract_slots(
         # 로컬 GGUF 차례면 학습 때와 같은 프롬프트로 부른다 (services/slot_model.py).
         # Langfuse 프롬프트는 대형 모델용이라 여기서는 쓰지 않는다. 형식을 바꾸면 학습 효과가 사라진다
         if model.startswith("local/"):
-            from backend.app.services import slot_model
-
-            try:
-                slots = _parse(await _run_local(text))
-                # 소형은 호칭을 줄이는 버릇이 있다. 잘렸으면 대형으로 넘긴다 (09-20 측정)
-                slot_model.check_names(text, [p.name for p in slots.participants])
-            except (ValidationError, ValueError, json.JSONDecodeError) as e:
-                last_error = e
-                continue
-            return _finish(await settle_access(drop_unstated_cook(drop_unstated_transports(slots, text), text, previous), text, previous), preset, model, version, attempt, models)
+            # 허용 목록에 없다 (09-28). model_small() 이 더는 로컬을 내지 않지만, 누가 env 에 적어도 막는다
+            raise ModelNotAllowed(f"허용하지 않은 모델입니다: {model}")
 
         messages = [{"role": "user", "content": filled}]
         if attempt > 1 and last_error is not None:
@@ -475,12 +528,11 @@ async def extract_slots(
             )
         # 클라이언트는 모델마다 고른다. 소형은 구글, 대형은 OpenRouter 처럼 섞일 수 있다
         try:
-            res = await _client(model).chat.completions.create(
-                model=_api_model(model),
+            res, model = await _create(
+                model,
                 messages=messages,
                 temperature=0,
                 response_format={"type": "json_object"},
-                **_extra_body(model),
             )
         except _TRANSIENT as e:
             # 시간 초과·연결 끊김·5xx·429 는 다음 차례(재시도 → 대형)로 넘긴다. 형식 위반과 같은 길이다
@@ -542,9 +594,7 @@ async def transcribe_image(image_base64: str, mime: str) -> str:
     last_error: Exception | None = None
     for attempt in (1, 2):
         try:
-            res = await _client(model).chat.completions.create(
-                model=_api_model(model), messages=messages, temperature=0, **_extra_body(model)
-            )
+            res, model = await _create(model, messages=messages, temperature=0)
         except LlmUnavailable:
             raise
         except Exception as e:  # noqa: BLE001  네트워크·429 는 한 번 더 해 본다

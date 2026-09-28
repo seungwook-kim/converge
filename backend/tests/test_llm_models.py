@@ -87,14 +87,15 @@ def test_보통_이름은_건드리지_않는다():
     assert llm.normalize_names(slots).participants[0].name == "한동료"
 
 
-def test_로컬_GGUF_가_있으면_그것을_먼저_쓴다(monkeypatch):
-    """SDD 8절: 소형은 로컬 GGUF 가 1순위다. 실패하면 대형으로 승격한다."""
+def test_로컬_GGUF_가_있어도_쓰지_않는다(monkeypatch):
+    """09-28 결정: 허용한 두 모델 말고는 쓰지 않는다. 로컬 GGUF 파일이 있어도 소형 자리에 넣지 않는다."""
     from backend.app.services import slot_model
 
+    monkeypatch.delenv("MODEL_SMALL", raising=False)
     monkeypatch.setattr(slot_model, "available", lambda: True)
     monkeypatch.setattr(slot_model, "model_name", lambda: "local/kanana")
-    # 로컬은 temperature 0 이라 다시 시도해도 같은 답이 나온다. 한 번만 하고 대형으로 넘긴다
-    assert llm.attempt_models() == ["local/kanana", "vendor/large"]
+    assert llm.model_small() is None
+    assert all(not m.startswith("local/") for m in llm.attempt_models())
 
 
 # --- 소형 모델 이름 점검 (09-20 측정에서 호칭이 잘리는 것을 확인하고 붙였다) ---
@@ -365,12 +366,12 @@ def test_소형이_시간_초과면_다음_차례로_넘어간다(monkeypatch):
 def test_클라이언트는_시간_제한을_걸고_SDK_재시도를_끈다(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test")
     monkeypatch.delenv("LLM_TIMEOUT_SEC", raising=False)
-    client = llm._client("google-ai/small")
+    client = llm._client(llm.FALLBACK_MODEL)
     assert client.timeout == llm.LLM_TIMEOUT_SEC
     assert client.max_retries == 0
 
     monkeypatch.setenv("LLM_TIMEOUT_SEC", "12")
-    assert llm._client("google-ai/small").timeout == 12.0
+    assert llm._client(llm.FALLBACK_MODEL).timeout == 12.0
 
 
 def test_해_먹는다는_말이_없으면_모델이_붙인_cook_을_지운다(monkeypatch):
@@ -417,3 +418,67 @@ def test_집결지의_선택_칸은_되묻지_않는다():
     data["missing"] = ["access.required", "rendezvous.transport_after", "rendezvous.time", "rendezvous.members"]
     slots = llm._parse(json.dumps(data, ensure_ascii=False))
     assert not any(m.startswith("rendezvous.") for m in slots.missing)
+
+
+
+# --- 모델 고정 (09-28 결정: 평소 gpt-4o-mini, 돈이 다 되면 gemini-3.5-flash-lite, 그 밖은 금지) ---
+
+
+def test_허용한_두_모델_말고는_클라이언트를_만들지_않는다(monkeypatch):
+    import pytest
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    assert llm._client("openai/gpt-4o-mini") is not None
+    assert llm._client("google-ai/gemini-3.5-flash-lite") is not None
+    for other in ["anthropic/claude-sonnet-5", "qwen/qwen3.7-flash", "google-ai/gemini-3.1-flash-lite", "local/kanana"]:
+        with pytest.raises(llm.ModelNotAllowed):
+            llm._client(other)
+
+
+def test_크레딧이_떨어지면_gemini_로_바꿔_다시_부른다(monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    import httpx
+    import openai
+
+    calls: list[str] = []
+    llm.reset_fallback()
+
+    def client_for(model):
+        async def create(**kwargs):
+            calls.append(model)
+            if model == llm.PRIMARY_MODEL:
+                resp = httpx.Response(402, request=httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions"))
+                raise openai.APIStatusError("Insufficient credits", response=resp, body=None)
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(_slot_json(), ensure_ascii=False)))],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=10),
+            )
+
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    monkeypatch.setattr(llm, "_client", client_for)
+    monkeypatch.setattr(llm.langfuse, "get_prompt", lambda _name: ("{{text}}{{previous_slots}}{{preset_hint}}", "1"))
+    monkeypatch.setenv("MODEL_SMALL", llm.PRIMARY_MODEL)
+    monkeypatch.setenv("MODEL_LARGE", llm.PRIMARY_MODEL)
+
+    asyncio.run(llm.extract_slots("금요일 오후 6시 잠실역 앞에서 저녁 약속. 저는 강동구에서 지하철로"))
+    assert calls[:2] == [llm.PRIMARY_MODEL, llm.FALLBACK_MODEL]
+    assert llm.last_meta()["model"] == llm.FALLBACK_MODEL
+    # 한 번 떨어진 걸 알면 다음 호출은 바로 gemini 로 간다
+    calls.clear()
+    asyncio.run(llm.extract_slots("금요일 오후 6시 잠실역 앞에서 저녁 약속. 저는 강동구에서 지하철로"))
+    assert calls[0] == llm.FALLBACK_MODEL
+    llm.reset_fallback()
+
+
+def test_하루_상한에_닿은_요청은_gemini_로_돈다():
+    llm.reset_fallback()
+    token = llm.use_fallback_for_request()
+    try:
+        assert llm.effective_model(llm.PRIMARY_MODEL) == llm.FALLBACK_MODEL
+    finally:
+        llm.end_request_fallback(token)
+    assert llm.effective_model(llm.PRIMARY_MODEL) == llm.PRIMARY_MODEL

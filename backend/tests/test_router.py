@@ -56,3 +56,28 @@ def test_출입조치가_없으면_소형():
     applied 만 보면 절차가 없는 약속(applied=None)까지 전부 대형으로 갔다.
     """
     assert route(slots(access=Access(required=False, applied=None, lead_min=None).model_dump())) == "small"
+
+
+def test_하루_상한에_닿으면_막지_않고_무료_모델로_돈다(monkeypatch):
+    """09-28 결정: 429 로 막던 것을 gemini-3.5-flash-lite 로 계속 돌린다."""
+    import asyncio
+
+    from backend.app.routers import agent as agent_router
+    from backend.app.schemas.request import AgentRequest
+    from backend.app.services import llm
+
+    seen = {}
+
+    async def over():
+        return True
+
+    async def fake_run(req, user_id):
+        seen["model"] = llm.effective_model(llm.PRIMARY_MODEL)
+        return "ok"
+
+    monkeypatch.setattr(agent_router, "_over_daily_limit", over)
+    monkeypatch.setattr(agent_router.pipeline, "run", fake_run)
+    llm.reset_fallback()
+    assert asyncio.run(agent_router.agent(AgentRequest(text="점검"), user_id="u1")) == "ok"
+    assert seen["model"] == llm.FALLBACK_MODEL
+    assert llm.effective_model(llm.PRIMARY_MODEL) == llm.PRIMARY_MODEL  # 요청이 끝나면 되돌아온다

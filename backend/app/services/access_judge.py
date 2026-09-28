@@ -107,7 +107,14 @@ def _missing_keys() -> list[str]:
 
 
 def enabled() -> bool:
-    """키가 있고 스위치를 켰을 때만 쓴다. 기본은 꺼져 있다 (골든셋으로 확인하기 전까지)."""
+    """쓰지 않는다. 09-28 결정으로 허용한 LLM 은 gpt-4o-mini 와 gemini-3.5-flash-lite 둘뿐이다 (llm.ALLOWED_MODELS).
+
+    Jev 는 그 밖의 모델이라 JEV_ACCESS=1 과 키가 있어도 부르지 않는다. 쓰려면 먼저 허용 목록을 고쳐야 한다.
+    """
+    from backend.app.services import llm
+
+    if CLOUDFLARE_MODEL not in llm.ALLOWED_MODELS and "typesafe-ai/jev" not in llm.ALLOWED_MODELS:
+        return False
     return os.environ.get("JEV_ACCESS") == "1" and not _missing_keys()
 
 

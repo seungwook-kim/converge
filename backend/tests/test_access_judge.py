@@ -40,7 +40,8 @@ def test_키가_없거나_스위치가_꺼져_있으면_쓰지_않는다(monkeyp
     monkeypatch.setenv("JEV_ACCESS", "0")
     assert access_judge.enabled() is False
     monkeypatch.setenv("JEV_ACCESS", "1")
-    assert access_judge.enabled() is True
+    # 09-28 결정: 허용한 LLM 은 두 개뿐이라 키와 스위치가 있어도 쓰지 않는다
+    assert access_judge.enabled() is False
 
 
 def _typesafe_env(monkeypatch):
@@ -104,7 +105,7 @@ JEV_BODY = {
 
 def test_클라우드플레어_경로는_계정과_토큰이_있을_때만_켠다(monkeypatch):
     _cf(monkeypatch, _cf_ok(JEV_BODY))
-    assert access_judge.enabled() is True
+    assert access_judge.enabled() is False  # 09-28: 허용 목록 밖이라 계정·토큰이 있어도 끈다
     _cf(monkeypatch, _cf_ok(JEV_BODY), CLOUDFLARE_API_TOKEN=None)
     assert access_judge.enabled() is False
     _cf(monkeypatch, _cf_ok(JEV_BODY), JEV_ACCESS="0")

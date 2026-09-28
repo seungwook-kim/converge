@@ -586,6 +586,19 @@ converge/eval-judge(판정 이유를 LLM 이 0~2점으로 채점)는 두지 않�
 단계·슬롯·계약을 코드로 채점하고, 이유가 현장에 맞는지는 사람이 본다 (EVAL_GUIDE). 채점용 LLM 을 따로 두면
 비용과 흔들림만 늘고 사람 판단을 대신하지 못한다. 그래서 MODEL_EVAL_JUDGE 도 없앴다.
 
+### 쓰는 모델 (2026-09-28 결정, 아래 09-21 결정을 대신한다)
+
+LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 막아, env 에 다른 이름을 적어도 부르지 않는다.
+로컬 GGUF(파인튜닝 결과물)와 Jev 도 쓰지 않는다.
+
+| 역할 | 모델 | 언제 |
+|---|---|---|
+| 평소 (슬롯 추출·판정·캡처 읽기) | openai/gpt-4o-mini (OpenRouter, 유료) | 항상 |
+| 대체 | google-ai/gemini-3.5-flash-lite (구글 AI Studio 무료 할당) | OpenRouter 가 크레딧 없음(402)을 주면 1시간 동안, 하루 비용 상한에 닿은 요청은 그 요청 동안 |
+
+09-28 회귀셋 10건 측정: gpt-4o-mini 단계 0.6·슬롯 0.889·계약 1.0·p50 4.0초, gemini-3.5-flash-lite 단계·슬롯·계약 1.0.
+정확도가 낮은 것을 알고 고른 결정이다 (비용·통일). 하루 상한에 닿으면 전에는 429 로 막았지만 이제 대체 모델로 돈다.
+
 ### 슬롯 추출 모델 (2026-09-21 결정)
 
 `google-ai/gemini-3.5-flash-lite` 를 쓴다. 회귀셋 10건에서 슬롯 정확도 0.778, 지연 p50 3.1초였고
@@ -624,15 +637,15 @@ LANGFUSE_HOST=           # https://cloud.langfuse.com
 MCP_TOKEN=               # /mcp Bearer 토큰
 INTERNAL_TOKEN=          # /internal/cleanup
 MODEL_SMALL_PATH=backend/app/models/kanana_2.1b-Q4_K_M.gguf   # HF kimseunguk/converge-slot-extractor (공개). 빌드 시 받는다
-MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 슬롯 추출 소형 모델. 이 값이 로컬 GGUF 보다 우선한다
+MODEL_SMALL=openai/gpt-4o-mini   # 09-28: 허용 모델은 이것과 대체용 google-ai/gemini-3.5-flash-lite 둘뿐 (llm.ALLOWED_MODELS)
                         # google-ai/ 로 시작하면 구글 AI Studio 직접 호출(무료 할당), 아니면 OpenRouter
                         # 비우고 주석 처리하면 로컬 GGUF, 그것도 없으면 처음부터 대형
 GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다
-MODEL_LARGE=anthropic/claude-sonnet-5
-MODEL_VISION=google/gemini-3.8-flash   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다 (그 모델이 이미지를 받아야 한다)
+MODEL_LARGE=openai/gpt-4o-mini
+MODEL_VISION=openai/gpt-4o-mini   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다
 LLM_TIMEOUT_SEC=30           # LLM 호출 하나의 상한(초). 기본 30. 넘으면 다음 차례(재시도·대형)로 넘긴다
 COST_LIMIT_USD_PER_REQUEST=0.05
-DAILY_COST_LIMIT_USD=1.0       # 하루 합계 상한. 비우면 제한 없음 (41번)
+DAILY_COST_LIMIT_USD=1.0       # 하루 합계 상한. 닿으면 막지 않고 대체 모델(gemini-3.5-flash-lite)로 돈다 (09-28). 비우면 제한 없음 (41번)
 ```
 
 `frontend/.env.example` (브라우저에 노출되는 값만)

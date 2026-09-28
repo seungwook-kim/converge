@@ -16,7 +16,7 @@ from backend.app.observability import langfuse
 from backend.app.schemas.slots import Slots
 from backend.app.services import costs as cost_guards
 from backend.app.services import llm
-from backend.app.services.llm import _api_model, _client, _parse_json_block, model_large
+from backend.app.services.llm import _parse_json_block, model_large
 
 # 프리셋이 둘로 갈려 프롬프트도 둘이었는데, 범용으로 바꾸면서 하나로 합쳤다 (2026-09-21).
 JUDGE_PROMPT = "converge/judge"
@@ -95,7 +95,6 @@ async def rank(
     )
 
     model = model_large()
-    client = _client(model)
     last_error: Exception | None = None
     # request_logs 에 남길 판정 호출 값. 재시도까지 합쳐 센다 (pipeline._judge_meta 가 읽는다)
     tokens_in = tokens_out = 0
@@ -110,12 +109,16 @@ async def rank(
                     "content": f"방금 출력이 형식을 어겼습니다: {last_error}. rankings 배열만 다시 JSON 으로 출력하세요.",
                 }
             )
-        res = await client.chat.completions.create(
-            model=_api_model(model),
+        # 크레딧이 떨어지면 FALLBACK 으로 바뀐다 (llm._create). 실제로 답한 모델을 기록에 남긴다
+        res, used = await llm._create(
+            model,
             messages=messages,
             temperature=0,
             response_format={"type": "json_object"},
         )
+        if used != model:
+            model = used
+            llm._last_meta["judge_model"] = used
         usage = getattr(res, "usage", None)
         tokens_in += int(getattr(usage, "prompt_tokens", 0) or 0)
         tokens_out += int(getattr(usage, "completion_tokens", 0) or 0)
