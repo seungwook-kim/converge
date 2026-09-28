@@ -218,9 +218,11 @@ td:last-child { white-space: normal; min-width: 125px; }
 .demo-input { padding: 18px 20px; border-bottom: 1px solid var(--line); }
 .demo-input-cap { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--soft); margin-bottom: 8px; }
 .demo-input p { margin: 0; color: var(--ink); line-height: 1.7; }
-.demo-map { margin: 0; border-bottom: 1px solid var(--line); }
-.demo-map img { display: block; width: 100%; height: auto; }
-.demo-map figcaption { padding: 8px 20px 10px; font-size: 11px; line-height: 1.5; }
+.intro-map { margin: 18px 0 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel); }
+.intro-map img { display: block; width: 100%; height: auto; }
+.intro-map figcaption { padding: 8px 14px 10px; font-size: 11px; line-height: 1.5; }
+.intro-demo { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel); }
+.intro-demo .demo-input { border-bottom: 0; }
 .demo-output { padding: 4px 20px 20px; }
 .demo-output .result { margin: 0; }
 

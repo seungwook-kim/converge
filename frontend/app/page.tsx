@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthGate, { UserBar } from "@/components/AuthGate";
 import DemoPreview from "@/components/DemoPreview";
+import { DEMO_SENTENCE } from "@/lib/demo-preview";
 import { authHeaders, useAuth, type AuthState } from "@/lib/auth";
 import type { AgentResponse, Preset } from "@/types/agent";
 
@@ -37,7 +38,7 @@ export default function Home() {
         <UserBar auth={auth} />
       </header>
       <div className="landing-body">
-        <Intro />
+        <Intro signedIn={auth.status === "signed_in"} />
         <AuthGate
           auth={auth}
           reason="여기까지가 예시입니다. 내 상황으로 만들려면 로그인하세요."
@@ -52,7 +53,7 @@ export default function Home() {
 
 // 로그인 전에도 보인다 (SDD 2절 09-21 예외). 무엇을 해주는 도구인지 모른 채
 // 로그인부터 요구받으면 그 자리에서 나간다.
-function Intro() {
+function Intro({ signedIn }: { signedIn: boolean }) {
   return (
     <section className="intro">
       <h1>모이는 자리와 시각을 문장 하나로 정합니다</h1>
@@ -74,6 +75,34 @@ function Intro() {
       <p className="muted">
         더 자세한 설명은 <Link href="/about">무엇을 해주는 도구인지</Link> 에 있습니다.
       </p>
+      {/* 로그인 전에만. 결과 지도가 어떻게 생겼는지 보여 준다. 오른쪽 예시 표와 같은 실행에서 찍었다 (09-28) */}
+      {!signedIn && (
+        <figure className="intro-map">
+          <img
+            src="/demo-map.webp"
+            width={740}
+            height={570}
+            alt="예시 지도: 수원·인천·의정부에서 출발하는 세 사람의 핀과 이동수단별 경로선, 1순위 집결지 여의나루역"
+            loading="lazy"
+          />
+          <figcaption className="muted">
+            결과 화면에는 이렇게 참석자 핀과 이동수단별 경로선(빨강 자동차, 초록 대중교통), 1순위 집결지가 찍힙니다.
+            지도 © Kakao
+          </figcaption>
+        </figure>
+      )}
+      {!signedIn && (
+        <div className="intro-demo">
+          <p className="demo-label">
+            <span className="badge">예시</span>
+            위 이미지는 실제 화면입니다.
+          </p>
+          <div className="demo-input">
+            <span className="demo-input-cap">넣은 문장</span>
+            <p>{DEMO_SENTENCE}</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
