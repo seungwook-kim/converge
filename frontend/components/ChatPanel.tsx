@@ -93,8 +93,8 @@ export default function ChatPanel({ messages, busy, stage, onSend, children }: P
             </p>
             <ul>
               <li>누가, 어디서 출발하고, 무엇을 타고 오는지</li>
-              <li>가는 곳(예: 창원 사무소, 여의도 사무실)과 시각</li>
-              <li>출입증·방문자 등록이 필요한지, 태워 줄 사람이 있으면 그 지점</li>
+              <li>가는 곳(예: 강남역 근처 고깃집, 한강공원, 친구 집)과 시각</li>
+              <li>있으면 적어도 됩니다: 먼저 모였다가 같이 가는 곳, 태워 줄 사람과 그 지점, 출입증·방문자 등록</li>
             </ul>
             <p className="muted">카톡 대화 캡처를 올려도 됩니다.</p>
           </div>
@@ -158,7 +158,7 @@ export default function ChatPanel({ messages, busy, stage, onSend, children }: P
                 void submit();
               }
             }}
-            placeholder="예: 목요일 08:00 창원 사무소에서 점검 미팅. 업체 두 분은 부산에서 차로 오세요"
+            placeholder="예: 민수는 잠실역에서 차로 와. 지호는 태워 갈게"
             rows={3}
           />
           <button type="submit" disabled={busy || (!text.trim() && !image)}>

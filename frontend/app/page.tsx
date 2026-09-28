@@ -204,7 +204,7 @@ function Compose({ auth }: { auth: AuthState }) {
             }
           }}
           rows={5}
-          placeholder="예: 목요일 08:00 창원 사무소에서 점검 미팅. 업체 두 분은 부산에서 차로 오세요"
+          placeholder="예: 토요일 저녁 7시 강남역에서 고기. 나는 수원역에서 지하철, 민수는 잠실역에서 차로 와"
         />
 
         <div className="compose-row">
