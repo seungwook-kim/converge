@@ -80,14 +80,13 @@ function Intro({ signedIn }: { signedIn: boolean }) {
         <figure className="intro-map">
           <img
             src="/demo-map.webp"
-            width={740}
-            height={570}
-            alt="예시 지도: 수원·인천·의정부에서 출발하는 세 사람의 핀과 이동수단별 경로선, 1순위 집결지 여의나루역"
+            width={800}
+            height={564}
+            alt="예시 지도: 수원·인천·의정부에서 출발하는 세 사람의 핀과 사람별 색 경로선, 1순위 집결지 여의나루역"
             loading="lazy"
           />
           <figcaption className="muted">
-            결과 화면에는 이렇게 참석자 핀과 이동수단별 경로선(빨강 자동차, 초록 대중교통), 1순위 집결지가 찍힙니다.
-            지도 © Kakao
+            결과 화면에는 이렇게 참석자 핀과 사람마다 다른 색의 경로선, 1순위 집결지가 찍힙니다. 지도 © Kakao
           </figcaption>
         </figure>
       )}

@@ -7,7 +7,7 @@
 import { useState } from "react";
 import type { Participant, Result } from "@/types/agent";
 import { CANDIDATE_STYLES } from "./MapView";
-import { ROUTE_STYLES } from "./RouteLines";
+import { ROUTE_STYLES, personColor } from "./RouteLines";
 
 interface Props {
   result: Result;
@@ -106,7 +106,7 @@ export default function ResultTable({
                     <tr key={r.name}>
                       <td>{r.name}</td>
                       <td>
-                        <span className="dot" style={{ background: ROUTE_STYLES[r.transport].color }} />
+                        <span className="dot" style={{ background: personColor(participants.map((x) => x.name), r.name) }} />
                         {ROUTE_STYLES[r.transport].label}
                         {r.transfer_count !== null && r.transport === "transit" && ` · 환승 ${r.transfer_count}`}
                       </td>

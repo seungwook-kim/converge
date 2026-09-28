@@ -7,7 +7,7 @@ import { loadKakao, nameLabel, pinImage, type Kakao, type PinStyle } from "@/lib
 import type { AgentResponse, CandidateKind, ParticipantResult } from "@/types/agent";
 import ParticipantPins, { PIN_COLORS, type ParticipantPin, type Viewer } from "./ParticipantPins";
 import PinPicker from "./PinPicker";
-import RouteLines, { GROUP_LEG_STYLE, ROUTE_STYLES } from "./RouteLines";
+import RouteLines, { GROUP_LEG_STYLE, ROUTE_STYLES, personColor } from "./RouteLines";
 
 const DEFAULT_CENTER = { lat: 36.35, lng: 127.8 }; // 국토 중앙쯤. 핀이 생기면 bounds 로 옮긴다
 const ALL_ROUTES_MAX = 4;
@@ -101,6 +101,12 @@ export default function MapView({ response, participantPins, viewer, selectedRan
     if (showRoutes) return drawable;
     return selected ? drawable.filter((r) => r.name === selected) : [];
   }, [rankRows, selected, showRoutes]);
+
+  // 사람 색은 슬롯의 참석자 순서로 정한다. 지도·범례·결과 표가 같은 순서를 쓴다
+  const participantNames = useMemo(
+    () => (response?.slots?.participants ?? []).map((p) => p.name),
+    [response],
+  );
 
   // 두 단계 집결의 무리 구간. 선택한 후보 것만, 경로선을 켰을 때만 그린다
   const groupLegs = useMemo(() => {
@@ -259,7 +265,14 @@ export default function MapView({ response, participantPins, viewer, selectedRan
             onSelect={onSelectParticipant}
             onMove={onMove}
           />
-          <RouteLines kakao={kakao} map={map} rows={visibleRows} highlighted={selected} legs={groupLegs} />
+          <RouteLines
+            kakao={kakao}
+            map={map}
+            rows={visibleRows}
+            highlighted={selected}
+            legs={groupLegs}
+            names={participantNames}
+          />
           <PinPicker
             kakao={kakao}
             map={map}
@@ -284,15 +297,21 @@ export default function MapView({ response, participantPins, viewer, selectedRan
             경로선 보기
           </label>
           <ul className="legend">
-            {Object.values(ROUTE_STYLES).map((s) => (
-              <li key={s.label}>
-                <span
-                  className="legend-line"
-                  style={{ borderTopColor: s.color, borderTopStyle: s.style === "solid" ? "solid" : "dashed" }}
-                />
-                {s.label}
-              </li>
-            ))}
+            {/* 사람마다 색, 이동수단은 선 모양(도보만 점선) */}
+            {rankRows
+              .filter((r) => !r.via_pickup)
+              .map((r) => (
+                <li key={r.name}>
+                  <span
+                    className="legend-line"
+                    style={{
+                      borderTopColor: personColor(participantNames, r.name),
+                      borderTopStyle: ROUTE_STYLES[r.transport].style === "solid" ? "solid" : "dashed",
+                    }}
+                  />
+                  {r.name} · {ROUTE_STYLES[r.transport].label}
+                </li>
+              ))}
             {groupLegs.length > 0 && (
               <li>
                 <span className="legend-line legend-line-group" style={{ borderTopStyle: "dashed" }} />
