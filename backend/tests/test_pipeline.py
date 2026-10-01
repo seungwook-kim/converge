@@ -523,6 +523,31 @@ def test_공유_링크로_다시_열어도_준비물과_계획서가_나온다()
     assert again.summary_text
 
 
+def test_계산_뒤_되묻기_중이면_예전_결과를_완료로_보이지_않는다():
+    """10-01: 계산이 끝난 3명 약속에 "현우도 온대"를 더하면 세션은 draft 로 돌아가는데, 링크는 예전 3명 결과를
+    "완료"로 보여 줬다. 결과 행은 지난 계산의 것이라 지금 참석자와 맞지 않는다."""
+    from backend.app.services import session_store
+
+    out = run(AgentRequest(text="점검"), _done_deps(extract_slots=_fixed(slots(datetime="목요일 08:00"))))
+    stored = out.result.model_dump(exclude={"checklist", "summary_text"})
+    row = {
+        "preset": "visit",
+        "destination_name": "창원 사무소",
+        "access": {"required": True, "applied": True},
+        "status": "draft",
+        "participants": [
+            {"name": "김현장", "origin_text": "창원시청", "transport": "car", "role": "site"},
+            {"name": "현우", "origin_text": "사당", "transport": None, "role": "site"},
+        ],
+    }
+    again = session_store.to_agent_response("s1", row, stored)
+    assert again.stage == "need_info" and again.result is None
+    assert again.questions
+
+    row["status"] = "computed"
+    assert session_store.to_agent_response("s1", row, stored).stage == "done"
+
+
 def test_캡처_비용도_요청당_상한에_센다(monkeypatch):
     """이미지는 대형 모델이 읽는다. 슬롯 추출 비용만 보면 상한을 넘겨도 판정 모델을 부른다."""
     from backend.app.services import llm

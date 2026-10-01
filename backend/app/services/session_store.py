@@ -284,6 +284,10 @@ def to_agent_response(session_id: str, row: dict[str, Any], result_row: dict[str
     """공유 링크 응답. POST /api/agent 와 같은 모양이라 화면이 그대로 그린다 (SDD 2절)."""
     result = result_from_row(result_row)
     slots = slots_from_session(row)
+    # 계산 뒤 되묻기로 참석자가 바뀌면 세션은 draft 로 돌아가고, 결과 행은 지난 계산의 것으로 남는다.
+    # 그대로 보이면 지금 참석자와 맞지 않는 표를 "완료"로 낸다 (10-01). 다시 계산할 때까지 결과를 내지 않는다
+    if row.get("status") in ("draft", "pins_confirmed"):
+        result = None
     if result is not None:
         _rebuild_checklist(slots, result)
     # 결과가 있으면 done. 계산 전이면 빠진 정보가 있을 때 되묻기, 없으면 핀 확인 단계로 본다.
