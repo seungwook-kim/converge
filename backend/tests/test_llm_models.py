@@ -511,3 +511,76 @@ def test_태워지는_사람의_빈_이동수단은_운전자_것으로_채운�
     slots = llm._parse(json.dumps(data, ensure_ascii=False))
     assert slots.participants[1].transport == "car"
     assert not any(m.startswith("participants[1]") for m in slots.missing)
+
+
+# ── 되묻기의 답 (SDD 5절 재질문, 10-01) ─────────────────────────────
+
+
+def _capture_messages(monkeypatch, output: dict) -> list:
+    """_fake_model 과 같되 모델에 간 messages 를 모은다."""
+    import json
+    from types import SimpleNamespace
+
+    sent: list = []
+
+    async def create(**kw):
+        sent.append(kw["messages"])
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(output, ensure_ascii=False)))],
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=10),
+        )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(llm, "_client", lambda _model: client)
+    monkeypatch.setattr(llm.langfuse, "get_prompt", lambda _name: ("{{text}}|{{previous_slots}}|{{preset_hint}}", "1"))
+    monkeypatch.setenv("MODEL_SMALL", "google-ai/small")
+    monkeypatch.setenv("MODEL_LARGE", "google-ai/large")
+    return sent
+
+
+def _previous():
+    from backend.app.schemas.slots import Slots
+
+    return Slots(
+        preset="meeting", datetime="저녁 7시", destination="강남역 근처",
+        participants=[
+            dict(name="나", role="site"),
+            dict(name="민수", origin="잠실", transport="transit", role="site"),
+        ],
+        missing=["participants[0].origin", "participants[0].transport"],
+    )
+
+
+def test_되묻기의_답은_이전_슬롯을_앞_차례의_답으로_두고_묻는다(monkeypatch):
+    """10-01: 이전 슬롯을 한 메시지 안에 넣으면 gpt-4o-mini·gemini 모두 이번 답만 뽑고 시각·장소·다른 사람을 버렸다.
+    이전 슬롯을 모델 자신의 앞 차례 답(assistant)으로 두면 그 위에 덧붙인다."""
+    prev = _previous()
+    sent = _capture_messages(monkeypatch, _slot_json())
+    asyncio.run(llm.extract_slots("나는 신림역에서 지하철로 가", prev))
+    roles = [m["role"] for m in sent[0]]
+    assert roles == ["user", "assistant", "user"]
+    assert sent[0][1]["content"] == prev.model_dump_json()
+    assert "나는 신림역에서 지하철로 가" in sent[0][2]["content"] and "강남역 근처" in sent[0][2]["content"]
+    assert "나는 신림역" not in sent[0][0]["content"]
+
+
+def test_처음_문장은_메시지_하나로_묻는다(monkeypatch):
+    sent = _capture_messages(monkeypatch, _slot_json())
+    asyncio.run(llm.extract_slots("금요일 오후 6시 잠실역 앞에서 저녁 약속. 저는 강동구에서 지하철로"))
+    assert [m["role"] for m in sent[0]] == ["user"]
+
+
+def test_되묻기의_답으로_채운_칸은_missing_에서_뺀다(monkeypatch):
+    """이전 missing 을 그대로 옮겨 적으면 방금 답한 "지하철로 오시나요"를 또 묻는다."""
+    out = _slot_json(
+        datetime="저녁 7시", destination="강남역 근처",
+        participants=[
+            {"name": "나", "origin": "신림역", "transport": "transit", "pickup": None, "pickup_at": None, "unfamiliar": False, "role": "site"},
+            {"name": "민수", "origin": "잠실", "transport": "transit", "pickup": None, "pickup_at": None, "unfamiliar": False, "role": "site"},
+        ],
+        access={"required": False, "applied": None, "lead_min": None},
+        missing=["participants[0].transport"],
+    )
+    _capture_messages(monkeypatch, out)
+    slots = asyncio.run(llm.extract_slots("나는 신림역에서 지하철로 가", _previous()))
+    assert "participants[0].transport" not in slots.missing

@@ -18,6 +18,7 @@ import asyncio
 import contextvars
 import json
 import os
+import re
 import time
 from typing import Any
 
@@ -293,6 +294,40 @@ def _fill(prompt: str, text: str, previous: Slots | None, preset: Preset | None)
     )
 
 
+def _slot_messages(prompt: str, filled: str, previous: Slots | None, preset: Preset | None) -> list[dict[str, str]]:
+    """슬롯 추출에 보낼 messages. 되묻기의 답이면 이전 슬롯을 모델 자신의 앞 차례 답으로 둔다.
+
+    10-01: 이전 슬롯을 한 메시지 안의 "## 이전 슬롯" 절로만 주면 gpt-4o-mini·gemini 모두 이번 답만 뽑고
+    시각·장소·다른 참석자를 버렸다(3/3). 같은 프롬프트로 앞 차례를 만들고 그 답을 이전 슬롯으로 두면 그 위에
+    덧붙인다(4/4, 사람 추가·빼기 포함). 앞 차례의 입력 문장은 남아 있지 않아 자리 표시만 둔다.
+    """
+    if previous is None:
+        return [{"role": "user", "content": filled}]
+    return [
+        {"role": "user", "content": _fill(prompt, "(앞 대화)", None, preset)},
+        {"role": "assistant", "content": previous.model_dump_json()},
+        {"role": "user", "content": filled},
+    ]
+
+
+def drop_answered_missing(slots: Slots) -> Slots:
+    """되묻기의 답으로 채운 참석자 칸을 missing 에서 뺀다.
+
+    모델이 이전 missing 을 그대로 옮겨 적어, 방금 "지하철로" 라고 답했는데 "차로 오시나요" 를 또 물었다 (10-01).
+    출발지·이동수단만 본다. 출입 절차는 _parse 처럼 missing 을 믿는다 (모른다는 답이 더 안전하다).
+    """
+    keep: list[str] = []
+    for path in slots.missing:
+        m = re.fullmatch(r"participants\[(\d+)\]\.(origin|transport)", path)
+        if m and int(m.group(1)) < len(slots.participants):
+            if getattr(slots.participants[int(m.group(1))], m.group(2)) is not None:
+                continue
+        keep.append(path)
+    if keep == slots.missing:
+        return slots
+    return slots.model_copy(update={"missing": keep})
+
+
 def _parse_json_block(raw: str) -> dict[str, Any]:
     """모델 출력에서 JSON 객체를 꺼낸다. judge.py 도 같은 파서를 쓴다."""
     body = raw.strip()
@@ -534,7 +569,7 @@ async def extract_slots(
             # 허용 목록에 없다 (09-28). model_small() 이 더는 로컬을 내지 않지만, 누가 env 에 적어도 막는다
             raise ModelNotAllowed(f"허용하지 않은 모델입니다: {model}")
 
-        messages = [{"role": "user", "content": filled}]
+        messages = _slot_messages(prompt, filled, previous, preset)
         if attempt > 1 and last_error is not None:
             messages.append(
                 {
@@ -563,6 +598,8 @@ async def extract_slots(
         except (ValidationError, ValueError, json.JSONDecodeError) as e:
             last_error = e
             continue
+        if previous is not None:
+            slots = drop_answered_missing(slots)
         slots = await settle_access(drop_unstated_cook(drop_unstated_transports(normalize_names(slots), text), text, previous), text, previous)
         # 사용자가 프리셋을 골랐으면 그 값이 우선이다 (SDD 2절 AgentRequest.preset)
         if preset and not slots.out_of_scope and slots.preset != preset:

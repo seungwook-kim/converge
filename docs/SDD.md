@@ -455,6 +455,8 @@ large: 그 외 전부 → 6단계에서 대형 모델이 rank·reason 생성
 
 session_id가 있으면 먼저 잠금 검사: 세션의 user_id가 토큰과 다르면 403, meet_at 다음날 0시가 지났으면 409 (LLM 호출 전). meet_at이 없는 임시 세션은 잠기지 않고, 이번 재질문으로 시각이 들어오면 8단계에서 expires_at을 meet_at+30일로 다시 계산한다. 통과하면 이전 Slots를 1단계 프롬프트에 넣고 "바뀐 것만 갱신"을 지시. 결과는 새 results 행.
 
+이전 Slots는 프롬프트 안의 절로만 주지 않고 모델의 앞 차례 답(assistant)으로 둔다: [같은 프롬프트(입력 자리 표시) → 이전 Slots JSON → 이전 Slots와 이번 답을 채운 프롬프트]. 한 메시지로만 주면 gpt-4o-mini·gemini 모두 이번 답만 뽑고 시각·장소·다른 참석자를 버렸다 (10-01, llm._slot_messages). 답으로 채운 출발지·이동수단은 missing에서 뺀다 (llm.drop_answered_missing).
+
 ---
 
 ## 6. MCP 도구 시그니처
