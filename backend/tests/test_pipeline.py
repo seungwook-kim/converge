@@ -16,6 +16,27 @@ from backend.app.schemas.slots import Slots
 from backend.app.services import pipeline
 
 
+@pytest.fixture(autouse=True)
+def _이른_아침으로_고정(monkeypatch):
+    """지금을 오늘 0시 1분(rules/session.md 의 timezone)으로 둔다.
+
+    10-01: "목요일 08:00" 시나리오가 목요일 8시 뒤에 돌리면 "오늘 그 시각은 이미 지났다"로 빠져 15개가 깨졌다.
+    날짜는 그대로 두고 시각만 당겨, 요일이 오늘이어도 아직 지나지 않은 약속이 되게 한다.
+    """
+    from zoneinfo import ZoneInfo
+
+    real = pipeline.datetime
+    tz = ZoneInfo(pipeline.domain_rules.load_rule("session")["timezone"])
+    fixed = real.now(tz).replace(hour=0, minute=1, second=0, microsecond=0)
+
+    class _Fixed(real):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed.astimezone(tz) if tz else fixed.replace(tzinfo=None)
+
+    monkeypatch.setattr(pipeline, "datetime", _Fixed)
+
+
 def slots(**over) -> Slots:
     base = dict(
         preset="visit",
