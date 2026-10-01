@@ -581,7 +581,15 @@ def unstated_transports(text: str, people: list[dict[str, Any]]) -> list[int]:
     for index, person in enumerate(people):
         if person.get("transport") is None or person.get("pickup"):
             continue
-        mine = [c for c in clauses if _mentions(c, str(person.get("name") or ""))]
+        name = str(person.get("name") or "")
+        at = [i for i, c in enumerate(clauses) if _mentions(c, name)]
+        mine = [clauses[i] for i in at]
+        # 끊어 말한 답("현우도 온대. 사당에서 버스")은 바로 다음 조각까지 본다. 다른 사람 이름이 있으면 그 사람 것이다
+        others = [str(p.get("name") or "") for p in people if p is not person]
+        for i in at:
+            nxt = clauses[i + 1] if i + 1 < len(clauses) else None
+            if nxt and not any(_mentions(nxt, o) for o in others if o):
+                mine.append(nxt)
         if mine and not any(_has_any(c, words) for c in mine):
             out.append(index)
     return out

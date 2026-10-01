@@ -464,3 +464,22 @@ def test_무리_항목은_이름의_인원수로_센다():
     assert rules.headcount(people) == 6
     assert rules.headcount([{"name": "김3명수"}, {"name": None}]) == 2  # 끝이 "N명" 이 아니면 한 사람
     assert rules.headcount([]) == 0
+
+
+def test_끊어_말한_다음_조각의_이동수단은_그_사람_것으로_본다():
+    """10-01: "현우도 온대. 사당에서 버스" 에서 현우의 버스를 지우고 다시 물었다 (transport.md)."""
+    people = [{"name": "현우", "transport": "transit", "pickup": None}]
+    assert rules.unstated_transports("현우도 온대. 사당에서 버스", people) == []
+
+
+def test_다음_조각에_다른_사람이_있으면_그_사람_것이다():
+    people = [
+        {"name": "현우", "transport": "transit", "pickup": None},
+        {"name": "민수", "transport": "transit", "pickup": None},
+    ]
+    assert rules.unstated_transports("현우는 인천에서 와. 민수는 지하철", people) == [0]
+
+
+def test_두_조각_넘어서는_보지_않는다():
+    people = [{"name": "현우", "transport": "car", "pickup": None}]
+    assert rules.unstated_transports("현우는 인천에서 와. 저녁 7시. 차 막히겠다", people) == [0]
