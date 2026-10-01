@@ -356,7 +356,9 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 # 누가 뭘 맡을지는 출발 시각이 나온 뒤라야 정해진다. 그래서 7단계 다음이다
                 carriers=domain_checklist.pick_carriers(slots, result),
             )
-            result.summary_text = domain_checklist.build_summary(slots, result)
+            # 첫 줄 시각은 공유 링크와 같게 meet_at 기준. 날짜를 못 읽으면 원문 그대로 (10-01)
+            when = domain_rules.meet_text(_meet_at(slots)) or slots.datetime
+            result.summary_text = domain_checklist.build_summary(slots.model_copy(update={"datetime": when}), result)
             span.output = {
                 "사전 신청": len(result.checklist.before) if result.checklist else 0,
                 "당일 지참": len(result.checklist.onsite) if result.checklist else 0,

@@ -211,7 +211,7 @@ async def create_session(
         RETURNING id
         """,
         preset, meet_at, purpose, destination_name, destination_lng, destination_lat,
-        encrypt(participants), len(participants),
+        encrypt(participants), rules.headcount(participants),
         encrypt(rendezvous) if rendezvous is not None else None,
         json.dumps(access) if access is not None else None,          # jsonb 컬럼은 문자열로 넘긴다
         schedule_confirmed,
@@ -275,7 +275,7 @@ async def update_session(
 
     if participants is not None:
         add("participants_enc", encrypt(participants))
-        add("participant_count", len(participants))
+        add("participant_count", rules.headcount(participants))
     if status is not None:
         add("status", status)
     if rendezvous is not None:

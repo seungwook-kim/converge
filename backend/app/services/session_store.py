@@ -8,7 +8,6 @@ store.py 는 DB 접근만 한다. 여기서 부르기만 하고 모양 변환은
 from __future__ import annotations
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from typing import Any
 
 from backend.app.domain import checklist as domain_checklist
@@ -177,13 +176,8 @@ def _rendezvous(stored: dict[str, Any] | None) -> Rendezvous | None:
 
 
 def _datetime_text(meet_at: datetime | None) -> str | None:
-    """meet_at → "2026-09-23 19:00". 0시는 시각을 몰라 넣은 값이라 날짜만 (domain/rules.meet_at_local)."""
-    if meet_at is None:
-        return None
-    local = meet_at.astimezone(ZoneInfo(rules.load_rule("session")["timezone"]))
-    if (local.hour, local.minute) == (0, 0):
-        return local.strftime("%Y-%m-%d")
-    return local.strftime("%Y-%m-%d %H:%M")
+    """meet_at → "2026-09-23 19:00". 계획서 첫 줄과 같은 함수를 쓴다 (domain/rules.meet_text)."""
+    return rules.meet_text(meet_at)
 
 
 def _participant_fields(stored: dict[str, Any]) -> dict[str, Any]:

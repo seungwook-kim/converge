@@ -255,6 +255,34 @@ def meet_at_local(meet: date, hhmm: str | None) -> datetime:
     return datetime(meet.year, meet.month, meet.day, hour, minute, tzinfo=tz)
 
 
+def meet_text(meet_at: datetime | None) -> str | None:
+    """meet_at → "2026-09-23 19:00". 0시는 시각을 몰라 넣은 값이라 날짜만 (meet_at_local).
+
+    계획서 첫 줄과 공유 링크의 슬롯이 같이 쓴다. 처음 응답과 다시 열었을 때가 같아야 한다 (10-01).
+    """
+    if meet_at is None:
+        return None
+    local = meet_at.astimezone(ZoneInfo(load_rule("session")["timezone"]))
+    if (local.hour, local.minute) == (0, 0):
+        return local.strftime("%Y-%m-%d")
+    return local.strftime("%Y-%m-%d %H:%M")
+
+
+_GROUP_SIZE = re.compile(r"(\d+)\s*명$")
+
+
+def headcount(participants: list[dict]) -> int:
+    """사람 수. 이름 없이 인원으로 말한 무리는 "<출발지> N명" 한 항목이라 N 을 센다 (SDD 3절, 09-27).
+
+    항목 수로 세면 "사상역 3명·창원역 2명" 다섯 명이 2명이 된다 (10-01 내 계획 화면).
+    """
+    total = 0
+    for p in participants:
+        m = _GROUP_SIZE.search((p.get("name") or "").strip())
+        total += int(m.group(1)) if m else 1
+    return total
+
+
 def lead_min(preset: str | None, access_required: bool | None = None) -> int:
     """출입 절차 소요(분). 방문자 확인·출입증 수령에 걸리는 시간 (access.md).
 

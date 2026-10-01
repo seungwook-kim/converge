@@ -447,3 +447,20 @@ def test_오전_오후_없이_1시에서_6시면_오후로_읽는다():
     # 7시부터는 전처럼 둔다 (저녁인지 아침인지 문장만으로 갈리지 않는다)
     assert rules.parse_meet_time("7시") == "07:00"
     assert rules.parse_meet_time("10시") == "10:00"
+
+
+def test_약속_시각을_계획서용_글자로_바꾼다():
+    """처음 응답과 공유 링크의 계획서 첫 줄이 같아야 한다 (10-01)."""
+    seoul = rules.meet_at_local(date(2026, 10, 3), "19:00")
+    assert rules.meet_text(seoul) == "2026-10-03 19:00"
+    assert rules.meet_text(seoul.astimezone(timezone.utc)) == "2026-10-03 19:00"
+    assert rules.meet_text(rules.meet_at_local(date(2026, 10, 3), None)) == "2026-10-03"  # 시각을 모르면 날짜만
+    assert rules.meet_text(None) is None
+
+
+def test_무리_항목은_이름의_인원수로_센다():
+    """이름 없이 인원으로 말하면 "<출발지> N명" 한 항목이다 (SDD 3절). 항목 수가 아니라 사람 수를 센다."""
+    people = [{"name": "사상역 3명"}, {"name": "창원역 2명"}, {"name": "민수"}]
+    assert rules.headcount(people) == 6
+    assert rules.headcount([{"name": "김3명수"}, {"name": None}]) == 2  # 끝이 "N명" 이 아니면 한 사람
+    assert rules.headcount([]) == 0

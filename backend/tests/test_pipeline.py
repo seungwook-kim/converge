@@ -387,6 +387,21 @@ def test_계산이_끝나면_준비물과_계획서가_채워진다():
     assert "미리 해둘 것" in out.result.summary_text
 
 
+def test_계획서_첫_줄은_다시_열_때와_같은_날짜로_쓴다():
+    """10-01: 처음 응답은 "목요일 08:00", 공유 링크는 "2026-10-08 08:00" 으로 첫 줄이 달랐다.
+    링크는 나중에 받는 사람이 보므로 요일보다 날짜가 분명하다. 둘 다 meet_at 기준으로 쓴다."""
+    import re
+
+    out = run(AgentRequest(text="점검"), _done_deps(extract_slots=_fixed(slots(datetime="목요일 08:00"))))
+    head = out.result.summary_text.splitlines()[0]
+    assert re.match(r"\d{4}-\d{2}-\d{2} 08:00 창원 사무소", head), head
+
+
+def test_날짜를_못_읽으면_계획서에_원문을_쓴다():
+    out = run(AgentRequest(text="점검"), _done_deps(extract_slots=_fixed(slots(datetime="저녁 7시"))))
+    assert out.result.summary_text.startswith("저녁 7시 창원 사무소")
+
+
 def test_절차를_모르면_출입_절차를_되묻는다():
     """access 가 통째로 없으면 슬롯 스키마를 건드리지 않고 코드가 되묻는다 (SDD 5절 1-2)."""
     out = run(AgentRequest(text="점검"), deps(slots(access=None)))

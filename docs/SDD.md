@@ -401,7 +401,7 @@ class Result(BaseModel):
     rendezvous_legs: list[RendezvousLeg] = []   # 두 단계 집결의 집결지 → 후보 구간 (후보 순위별). 지도에 경로선으로 그린다 (09-27)
     confidence: float
     checklist: Checklist | None     # 꺼낼 항목이 하나도 없으면 None (7-1단계)
-    summary_text: str               # 카톡·메일에 붙여넣을 집결 계획서. 코드가 조립. LLM 호출 없음
+    summary_text: str               # 카톡·메일에 붙여넣을 집결 계획서. 코드가 조립. LLM 호출 없음. 첫 줄 시각은 meet_at 기준 "2026-10-03 19:00" (못 읽으면 원문). 공유 링크와 같게 (10-01)
     model_small: str
     model_large: str | None
     prompt_version: str
