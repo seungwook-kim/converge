@@ -584,3 +584,51 @@ def test_되묻기의_답으로_채운_칸은_missing_에서_뺀다(monkeypatch)
     _capture_messages(monkeypatch, out)
     slots = asyncio.run(llm.extract_slots("나는 신림역에서 지하철로 가", _previous()))
     assert "participants[0].transport" not in slots.missing
+
+
+# ── 태우는 방향을 거꾸로 적은 출력 (회귀셋 5번, 10-01) ─────────────────
+
+
+def _pickup_json(driver: dict, me: dict) -> str:
+    import json
+
+    base = {"origin": None, "transport": None, "pickup": None, "pickup_at": None, "unfamiliar": False, "role": "colleague"}
+    return json.dumps(_slot_json(
+        datetime="내일 19:00", destination="성수동", access={"required": False, "applied": None, "lead_min": None},
+        participants=[{**base, "name": "나", "role": "site", **me}, {**base, "name": "이대리님", **driver}],
+        missing=["participants[0].transport"],
+    ), ensure_ascii=False)
+
+
+def test_운전자가_자기_자신을_태운다고_적으면_태워지는_사람에게_옮긴다():
+    raw = _pickup_json(
+        driver={"origin": "노원구", "transport": "car", "pickup": "이대리님", "pickup_at": "광진구 역 앞"}, me={},
+    )
+    slots = llm._parse(raw)
+    me, driver = slots.participants
+    assert (me.pickup, me.pickup_at, me.transport) == ("이대리님", "광진구 역 앞", "car")
+    assert driver.pickup is None and driver.pickup_at is None
+    assert "participants[0].transport" not in slots.missing
+
+
+def test_운전자_항목에_태워지는_사람_이름을_적으면_방향을_바로잡는다():
+    raw = _pickup_json(
+        driver={"origin": "노원구", "transport": "car", "pickup": "나", "pickup_at": "광진구 역 앞"}, me={},
+    )
+    me, driver = llm._parse(raw).participants
+    assert (me.pickup, me.pickup_at) == ("이대리님", "광진구 역 앞")
+    assert driver.pickup is None
+
+
+def test_태워지는_사람이_여럿이라_누군지_모르면_건드리지_않는다():
+    import json
+
+    data = json.loads(_pickup_json(
+        driver={"origin": "노원구", "transport": "car", "pickup": "이대리님", "pickup_at": "광진구 역 앞"}, me={},
+    ))
+    data["participants"].append({**data["participants"][0], "name": "민수"})
+    data["missing"].append("participants[2].transport")
+    slots = llm._parse(json.dumps(data, ensure_ascii=False))
+    # 반쪽짜리 태우기 정보는 믿지 않는다. 자기 자신을 태우는 항목은 비우고 되묻는다
+    assert slots.participants[1].pickup is None
+    assert all(p.pickup is None for p in slots.participants)

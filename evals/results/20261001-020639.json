@@ -1,0 +1,263 @@
+{
+  "summary": {
+    "문항": 10,
+    "실행 실패": 0,
+    "단계 정확도": 0.9,
+    "단계 채점 문항": 10,
+    "슬롯 정확도": 1.0,
+    "슬롯 채점 문항": 9,
+    "계약 준수율": 1.0,
+    "지연 p50": 3.85,
+    "지연 p95": 8.22,
+    "비용 합계": 0.006727
+  },
+  "results": [
+    {
+      "id": 1,
+      "input": "토요일 오후 2시 강남역 근처에서 봅시다. 저는 수원시청에서 차로, 박민수씨는 마포구에서 지하철로 옵니다.",
+      "note": "일반 약속",
+      "seconds": 13.28,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.000684,
+      "trace_id": "b9d1fea9a17dd97a1c7ee26313b57e3a",
+      "stage": "done",
+      "stage_expected": "done",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "preset",
+          "expected": "meeting",
+          "got": "meeting",
+          "ok": true
+        },
+        {
+          "key": "access.required",
+          "expected": false,
+          "got": false,
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 2,
+      "input": "금요일 오전 10시 창원 사무소 방문. 저는 창원시청에서 차로, 김과장님은 마산역에서 대중교통으로 옵니다. 방문자 등록은 해 뒀습니다.",
+      "note": "절차 있는 방문",
+      "seconds": 6.04,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0006844500000000001,
+      "trace_id": "566799ccb2963dace44940cfb32cda79",
+      "stage": "done",
+      "stage_expected": "done",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "preset",
+          "expected": "visit",
+          "got": "visit",
+          "ok": true
+        },
+        {
+          "key": "access.required",
+          "expected": true,
+          "got": true,
+          "ok": true
+        },
+        {
+          "key": "access.applied",
+          "expected": true,
+          "got": true,
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 3,
+      "input": "수요일 오후 3시 여의도 사무실에서 미팅. 저는 강남역에서 지하철로, 이대리님은 구로구에서 차로 옵니다.",
+      "note": "절차 단서 없음",
+      "seconds": 3.31,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0006722999999999999,
+      "trace_id": "8083a0478140da08cbce1e1fafb44c40",
+      "stage": "need_info",
+      "stage_expected": "need_info",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "access",
+          "expected": null,
+          "got": null,
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 4,
+      "input": "목요일 오전 11시 구청 민원 상담. 저는 송파구에서 지하철로 갑니다. 1층에서 방문자 등록을 해야 합니다.",
+      "note": "신청 여부 모름",
+      "seconds": 2.9,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.00065175,
+      "trace_id": "9af35ac05b4573050a099ac1458a7dc3",
+      "stage": "need_info",
+      "stage_expected": "need_info",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "access.required",
+          "expected": true,
+          "got": true,
+          "ok": true
+        },
+        {
+          "key": "access.applied",
+          "expected": null,
+          "got": null,
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 5,
+      "input": "내일 저녁 7시 성수동에서 저녁 모임. 이대리님이 차 가지고 노원구에서 오면서 광진구 역 앞에서 저를 태우고 갑니다.",
+      "note": "픽업",
+      "seconds": 3.88,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0007081499999999998,
+      "trace_id": "ea9ab8e0ddb3683de340328e95659253",
+      "stage": "need_info",
+      "stage_expected": "done",
+      "stage_ok": false,
+      "slots": [
+        {
+          "key": "preset",
+          "expected": "meeting",
+          "got": "meeting",
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 6,
+      "input": "판교역 근처에서 스터디 하려는데 시간은 아직입니다. 저는 분당에서 지하철로 가고 최성호씨는 수원에서 차로 옵니다.",
+      "note": "시각 없음",
+      "seconds": 3.5,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0006807,
+      "trace_id": "e8a6a1555697dc9b141c7437ff22ac5f",
+      "stage": "need_info",
+      "stage_expected": "need_info",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "datetime",
+          "expected": null,
+          "got": null,
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 7,
+      "input": "금요일 오후 6시 잠실역 앞에서 저녁 약속. 저는 강동구에서 지하철로 가고 한지훈씨는 인천에서 옵니다.",
+      "note": "이동수단 없음",
+      "seconds": 3.85,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0006893999999999998,
+      "trace_id": "b3d583f6d05f8c88e49fd5043276fc5d",
+      "stage": "need_info",
+      "stage_expected": "need_info",
+      "stage_ok": true,
+      "slots": [],
+      "slot_ok": null,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 8,
+      "input": "화요일 오후 4시 강남 병원 상담. 박과장님이 서초구에서 차로 오고, 최대리님은 관악구에서 지하철로 옵니다. 출입증은 1층에서 받습니다.",
+      "note": "성과 직함이 붙은 이름",
+      "seconds": 3.5,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0006890999999999999,
+      "trace_id": "3dbc1fa7465dbadc3b061e6f1ff6cc62",
+      "stage": "need_info",
+      "stage_expected": "need_info",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "preset",
+          "expected": "visit",
+          "got": "visit",
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 9,
+      "input": "토요일 6시 홍대입구역 앞 저녁. 나 마포구 지하철, 지훈이 부천 차. 몇 시에 나가야 돼?",
+      "note": "짧은 반말",
+      "seconds": 8.22,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0006785999999999999,
+      "trace_id": "952c59b127f012657ccfe69beb713c95",
+      "stage": "done",
+      "stage_expected": "done",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "preset",
+          "expected": "meeting",
+          "got": "meeting",
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    },
+    {
+      "id": 10,
+      "input": "지금 강남역 쪽 많이 막히나요?",
+      "note": "범위 밖",
+      "seconds": 2.55,
+      "model": "openai/gpt-4o-mini",
+      "cost_usd": 0.0005889,
+      "trace_id": "c9b050ed8aecd8562edd1c9f670ca7dd",
+      "stage": "out_of_scope",
+      "stage_expected": "out_of_scope",
+      "stage_ok": true,
+      "slots": [
+        {
+          "key": "out_of_scope",
+          "expected": true,
+          "got": true,
+          "ok": true
+        }
+      ],
+      "slot_ok": true,
+      "contract_problems": [],
+      "contract_ok": true
+    }
+  ]
+}

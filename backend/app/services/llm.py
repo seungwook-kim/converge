@@ -510,6 +510,30 @@ def _parse(raw: str) -> Slots:
         if "access.required" in missing:
             data["access"] = None
 
+    # 태우는 방향을 거꾸로 적는 경우가 있다 (10-01 회귀셋 5번, gpt-4o-mini 5번 중 1번).
+    #   운전자 항목에 pickup=자기 이름   태워지는 사람(이동수단·태우기 둘 다 빈 사람)이 하나면 그쪽으로 옮긴다
+    #   운전자 항목에 pickup=태워지는 사람  같은 식으로 방향을 바꾼다. 대상이 이미 이동수단이 있으면 모르는 것이라 두지 않는다
+    # 누구인지 못 정하면 반쪽 정보로 보고 비운 뒤 되묻는다 (아래 반쪽 규칙과 같은 길)
+    pickers = [p for p in (data.get("participants") or []) if isinstance(p, dict)]
+    for index, person in enumerate(pickers):
+        if not (person.get("pickup") and person.get("pickup_at")):
+            continue
+        target_name = person["pickup"]
+        if target_name == person.get("name"):
+            riders = [q for q in pickers if q is not person and not q.get("transport") and not q.get("pickup")]
+            rider = riders[0] if len(riders) == 1 else None
+        else:
+            rider = next((q for q in pickers if q.get("name") == target_name), None)
+            if rider is None or rider.get("transport") or rider.get("pickup") or person.get("transport") != "car":
+                continue  # 정상 방향(태워지는 사람 항목에 운전자 이름)이거나 판단할 수 없다
+        if rider is not None:
+            rider["pickup"], rider["pickup_at"] = person.get("name"), person["pickup_at"]
+            person["pickup"] = person["pickup_at"] = None
+        else:
+            person["pickup"] = person["pickup_at"] = None
+            if f"participants[{index}].pickup" not in missing:
+                missing.append(f"participants[{index}].pickup")
+
     # 태우는 곳만 알고 누가 태우는지 모르면(또는 그 반대) pickup_at 만 채워 온다 (09-27 실제 캡처
     # "2명은 하단에 태워서"). 스키마는 둘을 짝으로만 받아 재시도·대형까지 모두 실패했다.
     # 반쪽은 믿지 않고 둘 다 비운 뒤 되묻는다("누가 어디서 태우나요?")
