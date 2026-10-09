@@ -15,9 +15,9 @@ converge/
   AGENTS.md                   CLAUDE.md를 따른다 (Codex·Cursor용)
   README.md                   소개, 실행법, 배포 URL
   Dockerfile                  루트. 빌드 컨텍스트가 skills/, mcp_server/를 포함해야 하므로
-                              빌드 시 HF에서 GGUF를 받아 이미지에 넣는다 (git, LFS 미사용).
-                              받는 파일: kimseunguk/converge-slot-extractor 의 kanana_2.1b-Q4_K_M.gguf
-                              (1.30 GiB, 검증 40건 Exact Match 85.0%. 공개 저장소라 토큰 없이 받는다)
+                              GGUF 는 기본 빌드에 넣지 않는다. WITH_LOCAL_MODEL=1 로 빌드할 때만 HF에서 받는다
+                              (kimseunguk/converge-slot-extractor 의 kanana_2.1b-Q4_K_M.gguf, 1.30 GiB).
+                              파인튜닝 모델은 쓰지 않아 참고용이다 (8절)
   docker-compose.yml          api + db(postgres:16). backend/db/를 initdb에 마운트, db healthcheck 후 api 기동
   .env.example                backend용 (9절)
   docs/
@@ -61,7 +61,7 @@ converge/
         masking.py            Langfuse 로 나가는 기록에서 참석자 이름·출발지·탑승지를 번호로 가림 (09-22)
       observability/
         langfuse.py           트레이스·span·프롬프트 조회
-      models/                 kanana_2.1b-Q4_K_M.gguf 자리. 빌드 시 채워짐. git에 없음
+      models/                 kanana_2.1b-Q4_K_M.gguf 자리. WITH_LOCAL_MODEL=1 빌드 때만 채워짐. git에 없음. 참고용
       data/                   busan_stations.csv (역외부코드 108개. 역 목록 API가 폐기돼 레포에 둔다)
     db/
       001_init.sql          테이블정의서.md의 표 5개. 로컬(compose initdb)과 Supabase(SQL Editor)에 같은 파일을 실행
@@ -612,8 +612,8 @@ LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 
 
 파인튜닝한 Kanana 2.1B GGUF 도 돌아간다. 검증 62건 exact match 85.5% 까지 갔지만 CPU 서빙이
 요청당 16~20초라 쓰지 못한다. GPU 서버를 띄우면 되는데 사이드 프로젝트에 그 고정비를 들이지 않기로 했다.
-코드(`services/slot_model.py`)와 학습 파이프라인(`finetune/`)은 후보로 남긴다.
-`MODEL_SMALL` 을 주석 처리하면 그쪽으로 돌아간다.
+파인튜닝은 쓰지 않기로 했다 (10-09). 코드(`services/slot_model.py`)·학습 파이프라인(`finetune/`)·측정 기록은
+참고용으로만 둔다. 09-28 부터 허용 목록이 로컬 GGUF 를 막아 `MODEL_SMALL` 을 비워도 그쪽으로 가지 않는다.
 
 ---
 
@@ -642,10 +642,10 @@ LANGFUSE_SECRET_KEY=     # Langfuse Cloud
 LANGFUSE_HOST=           # https://cloud.langfuse.com
 MCP_TOKEN=               # /mcp Bearer 토큰
 INTERNAL_TOKEN=          # /internal/cleanup
-MODEL_SMALL_PATH=backend/app/models/kanana_2.1b-Q4_K_M.gguf   # HF kimseunguk/converge-slot-extractor (공개). 빌드 시 받는다
+MODEL_SMALL_PATH=backend/app/models/kanana_2.1b-Q4_K_M.gguf   # 참고용. 허용 목록이 막아 쓰지 않는다 (8절)
 MODEL_SMALL=openai/gpt-4o-mini   # 09-28: 허용 모델은 이것과 대체용 google-ai/gemini-3.5-flash-lite 둘뿐 (llm.ALLOWED_MODELS)
                         # google-ai/ 로 시작하면 구글 AI Studio 직접 호출(무료 할당), 아니면 OpenRouter
-                        # 비우고 주석 처리하면 로컬 GGUF, 그것도 없으면 처음부터 대형
+                        # 비우면 처음부터 대형. 로컬 GGUF 로는 가지 않는다 (09-28 허용 목록)
 GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다
 MODEL_LARGE=openai/gpt-4o-mini
 MODEL_VISION=openai/gpt-4o-mini   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다
@@ -686,7 +686,7 @@ Cloud Run 서비스는 하나다 (backend에 MCP 마운트). 프론트는 Vercel
 | 지하철 첫차·막차 | 확인됨 | 서울교통공사 첫차·막차 API(1~9호선만, 민자 노선 제외), 부산교통공사 열차시각표 API. 공공데이터포털 키 하나. 부산 역외부코드 CSV를 레포에 둠 |
 | TMAP 대중교통 도착 시각 지정 | 확인됨, 없음 (10-09) | `searchDttm` 을 03:00·08:00 으로 줘도, 도착 기준으로 보이는 값을 줘도 결과가 같고 응답 `reqDttm` 은 호출 시각이다. 시각 지정이 안 되므로 현재 기준 소요시간으로 역산한다 (지금 routes._transit_once 그대로). 값은 docs/measurements.md |
 | 슬롯 추출 통과율 | 측정됨 (09-21) | 구글 AI Studio 로 옮긴 뒤 회귀셋 10건으로 잰다. 값은 docs/measurements.md. OpenRouter 는 크레딧이 없어 승격이 402 로 죽어 쓰지 않는다 |
-| 소형 모델 최종 선택 | 변경 (09-21) | 슬롯 추출은 google-ai/gemini-3.5-flash-lite (8절). kanana_2.1b-Q4_K_M.gguf(검증 Exact Match 85.0%)는 CPU 서빙이 느려 후보로 보류 |
+| 소형 모델 최종 선택 | 결정 (09-28, 10-09) | 슬롯 추출은 openai/gpt-4o-mini, 대체 google-ai/gemini-3.5-flash-lite (8절). 파인튜닝 모델(kanana_2.1b-Q4_K_M.gguf, 검증 Exact Match 85.0%)은 쓰지 않고 참고용으로만 둔다 |
 | compose db healthcheck | 적용됨 (09-17) | pg_isready healthcheck + depends_on condition: service_healthy. backend/db/를 initdb에 마운트 |
 | requirements.txt asyncpg | 적용됨 (09-17) | 주석 해제. SQLAlchemy 안 씀, asyncpg 직접. DATABASE_URL은 postgresql:// |
 | 다른 기기에서 로컬 재현 | 확인됨 (10-09) | 새 clone + `cp .env.example .env` 로 확인. DATABASE_URL 이 주석이라 api 가 기동에서 죽던 것을 .env.example 에 compose db 값으로 넣어 고쳤다. 키 없이 어디까지 도는지는 README 3절 |

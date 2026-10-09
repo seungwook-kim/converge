@@ -49,7 +49,7 @@ LLM은 0·1·6단계에만 있다. 나머지는 코드다. 이것이 이 프로�
 | `frontend/` | 화면, 백엔드 프록시, 소개 페이지, 공유 링크 | `frontend/FRONTEND_GUIDE.md` | 2절 |
 | `skills/converge/` | 규칙과 규칙값의 원본, 프리셋 2개(meeting·visit) | `skills/converge/SKILL.md` | 7절 |
 | `evals/` | 회귀셋 10건(사람이 쓴다), 실행 | `evals/EVAL_GUIDE.md` | |
-| `finetune/` | 소형 모델 학습. 배포 이미지에 안 들어감 | `finetune/FINETUNE_GUIDE.md` | |
+| `finetune/` | 소형 모델 학습. 쓰지 않음, 참고용 보관 (SDD 8절). 배포 이미지에 안 들어감 | `finetune/FINETUNE_GUIDE.md` | |
 | `docs/` | SDD·테이블정의서·측정 기록, 실행 기록(`evidence/`) | `docs/SDD.md` | |
 | `scripts/` | 손으로 돌리는 것. 타입 생성 등 | 파일 상단 주석 | |
 
@@ -102,7 +102,6 @@ SDD 1절이 가리키지만 아직 안 만든 파일. 만들면 여기서 지운
 2026-09-22 기준.
 
 - `backend/app/main.py`의 request_id 미들웨어 (SDD 1절 main.py 설명)
-- `finetune/`: `gen_dataset.py`, `data/finetune_dataset.jsonl` (Info/에 있음, 아직 안 옮김). 파인튜닝은 후보로 보류 중이라 급하지 않다 (SDD 8절)
 
 backend·mcp_server·frontend·skills·evals 는 SDD 1절 파일이 모두 있다.
 `frontend/lib/api-types.ts`는 생성물이고 화면은 `types/agent.ts`를 쓴다.
