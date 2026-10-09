@@ -915,7 +915,7 @@ def test_질문에_누구에게_묻는지_적는다():
     from backend.app.schemas.slots import Participant
 
     people = [
-        Participant.model_construct(name="완호 창고지 3명"),
+        Participant.model_construct(name="항구 창고 3명"),
         Participant.model_construct(name="하단 2명"),
         Participant.model_construct(name="나머지 2명"),
     ]
@@ -924,7 +924,7 @@ def test_질문에_누구에게_묻는지_적는다():
         people,
     )
     assert qs == [
-        "완호 창고지 3명은 차로 오시나요, 대중교통으로 오시나요?",
+        "항구 창고 3명은 차로 오시나요, 대중교통으로 오시나요?",
         "하단 2명은 누가 어디서 태우나요?",
         "나머지 2명은 어디서 출발하시나요?",
     ]
@@ -955,7 +955,7 @@ def _two_stage_slots(time: str | None = "10시"):
         datetime="목요일 13:00",
         destination="사천 대포항",
         participants=[
-            dict(name="창고 3명", origin="완호 창고지", transport="car", role="colleague"),
+            dict(name="창고 3명", origin="항구 창고", transport="car", role="colleague"),
             dict(name="나머지 2명", origin="부산역", transport="car", role="colleague"),
         ],
         rendezvous=dict(name="낚시벨리", transport_after="car", members=["창고 3명"], time=time),

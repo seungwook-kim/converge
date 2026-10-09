@@ -368,7 +368,7 @@ def test_출발지를_모르는_참석자도_되묻는다_태워지는_사람은
         "meet_at": None,
         "participants": [
             {"name": "나머지 2명", "origin_text": None, "transport": "car"},
-            {"name": "하단 2명", "origin_text": None, "transport": "car", "pickup": "완호 창고지 3명", "pickup_at": "하단"},
+            {"name": "하단 2명", "origin_text": None, "transport": "car", "pickup": "항구 창고 3명", "pickup_at": "하단"},
         ],
     }
     slots = session_store.slots_from_session(row)
