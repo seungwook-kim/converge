@@ -176,7 +176,11 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 # 스키마 위반 오류 문구에는 모델 출력 원문(이름·출발지)이 들어 있다. 종류만 남긴다
                 span.error = type(e).__name__
                 await _log_llm("extract", tr.id, session_id, started, "error", type(e).__name__)
-                return _answer(session_id, "failed", None, tr.id, "요청을 이해하지 못했습니다. 다시 입력해 주세요.")
+                # 형식 위반(pydantic·JSON 오류는 모두 ValueError)만 문장 탓이다. 키 없음·시간 초과·5xx 에
+                # "다시 입력" 을 내면 사용자는 같은 문장을 고쳐 쓰다 만다 (SDD 5절 1단계, 10-09)
+                if isinstance(e, ValueError):
+                    return _answer(session_id, "failed", None, tr.id, "요청을 이해하지 못했습니다. 다시 입력해 주세요.")
+                return _answer(session_id, "failed", None, tr.id, "지금 요청을 처리할 수 없습니다. 잠시 뒤 다시 시도해 주세요.")
         await _log_access_judge(tr, session_id)
 
         # 1-1. 범위 밖. 무엇을 하는 도구인지 알려준다 (output-contract.md).

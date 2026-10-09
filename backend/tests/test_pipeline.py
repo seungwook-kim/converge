@@ -163,6 +163,22 @@ def test_슬롯_추출이_실패하면_failed():
 
     out = run(AgentRequest(text="점검"), pipeline.Deps(extract_slots=boom))
     assert out.stage == "failed"
+    assert "다시 입력" in out.message
+
+
+def test_모델_호출이_안_되면_다시_입력하라고_하지_않는다():
+    # 키 없음·시간 초과는 사용자 문장 탓이 아니다 (SDD 5절 1단계, 10-09)
+    from backend.app.services.llm import LlmUnavailable
+
+    for error in (LlmUnavailable("OPENROUTER_API_KEY 가 없습니다"), TimeoutError("시간 초과")):
+        async def boom(*_, error=error):
+            raise error
+
+        out = run(AgentRequest(text="점검"), pipeline.Deps(extract_slots=boom))
+        assert out.stage == "failed"
+        assert "다시 입력" not in out.message
+        assert "잠시 뒤" in out.message
+        assert "KEY" not in out.message
 
 
 def test_캡처를_읽지_못하면_문장으로_다시_받는다():

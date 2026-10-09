@@ -423,7 +423,7 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 | 단계 | 함수 | 입력 → 출력 | 실패 시 |
 |---|---|---|---|
 | 0 | vision.extract_text | 이미지 → 텍스트. 모델은 MODEL_VISION, 비어 있으면 MODEL_LARGE | 같은 모델 1회 재시도 → 실패면 need_info("캡처를 읽지 못했습니다, 문장으로 입력") |
-| 1 | llm.extract_slots | 텍스트(+이전 슬롯) → Slots. 뽑은 뒤 access 를 문장 단서로 확정한다(domain/rules.settle_access, 단서 목록과 순서는 access.md "절차 판정"). 모델이 같은 문장에 절차 있음·없음·모름을 오가서다 (09-23) | 스키마 위반·시간 초과(LLM_TIMEOUT_SEC)·5xx·429 시 재시도 1회 → 대형 모델 승격 → 실패면 failed. 호출 하나는 LLM_TIMEOUT_SEC 초에서 끊고 SDK 자체 재시도는 끈다 (09-27) |
+| 1 | llm.extract_slots | 텍스트(+이전 슬롯) → Slots. 뽑은 뒤 access 를 문장 단서로 확정한다(domain/rules.settle_access, 단서 목록과 순서는 access.md "절차 판정"). 모델이 같은 문장에 절차 있음·없음·모름을 오가서다 (09-23) | 스키마 위반·시간 초과(LLM_TIMEOUT_SEC)·5xx·429 시 재시도 1회 → 대형 모델 승격 → 실패면 failed. 호출 하나는 LLM_TIMEOUT_SEC 초에서 끊고 SDK 자체 재시도는 끈다 (09-27). 안내 문장은 원인으로 나눈다: 마지막 실패가 형식 위반이면 "요청을 이해하지 못했습니다. 다시 입력해 주세요.", 호출 자체가 실패했으면(키 없음·시간 초과·5xx·429·인증) "지금 요청을 처리할 수 없습니다. 잠시 뒤 다시 시도해 주세요." 사용자 문장 탓이 아니므로 다시 입력하라고 하지 않고, 키·설정 이야기는 사용자에게 내지 않는다 (10-09) |
 | 1-1 | 범위 판정 | slots.out_of_scope → out_of_scope 응답 | |
 | 1-2 | 누락 판정 | slots.missing 비어 있지 않으면 need_info. 절차 단서가 없어 slots.access 가 통째로 None 이면 코드가 missing 에 "access.required" 를 넣고 되묻는다("이 장소에 출입 절차가 있나요? (출입증·방문자 등록)"). 없다고 답하면 required=false 로 두고 체크리스트를 만들지 않는다 | |
 | 1-3 | 기간 판정 | domain/rules.parse_meet_date 가 slots.datetime 에서 날짜를 읽는다. 오늘보다 앞이면 need_info("이미 지난 날짜입니다"), 오늘인데 그 시각이 지났으면 need_info("오늘 그 시각은 이미 지났습니다". 요일만 말하면 오늘을 포함해 읽으므로 다음 주를 뜻했는지 추측하지 않고 묻는다), 오늘+30일을 넘으면 need_info("30일 안의 약속만 잡을 수 있습니다"). 날짜를 못 읽으면 판정하지 않고 넘어가며 meet_at 은 None(임시 세션). 30과 기준 시간대는 session.md 의 값. 1-2 보다 먼저 본다: 받을 수 없는 날짜면 빠진 정보를 묻지 않고 날짜부터 되묻고, 임시 세션도 남기지 않는다 (09-23) | 코드라 실패 없음 |
