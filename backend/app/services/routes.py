@@ -2,10 +2,9 @@
 
 바깥 호출은 이 파일과 geo.py 에만 둔다 (BACKEND_GUIDE).
 
-MCP 로 가는 길:
-  SDD 1절은 이 파일이 MCP 클라이언트를 거치게 돼 있다. MCP 도구(route_car, route_transit)는 아직
-  없어서 지금은 같은 API 를 직접 부른다. 부르는 자리는 _car 와 _transit 둘뿐이라, 도구가 생기면
-  그 안만 MCP 호출로 바꾸면 된다. 키는 어느 쪽이든 서버 환경변수라 배포는 그대로다.
+MCP 와의 관계 (SDD 1절, 10-09):
+  파이프라인은 카카오모빌리티·TMAP 을 여기서 직접 부른다. MCP 를 거치지 않는다.
+  방향은 반대로, mcp_server/tools/route_car.py·route_transit.py 가 _car·_transit 을 감싸 바깥에 내놓는다.
 
 실패는 사람 단위로 삼킨다. 한 명 조회가 실패해도 나머지로 계산을 이어 간다 (SDD 5절 4단계 "실패 시").
 """

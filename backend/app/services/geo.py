@@ -2,10 +2,9 @@
 
 바깥 호출은 이 파일과 routes.py 에만 둔다 (BACKEND_GUIDE).
 
-MCP 로 가는 길:
-  SDD 1절은 이 파일이 MCP 클라이언트를 거치게 돼 있다. MCP 도구(mcp_server/tools/geocode.py)는 아직 없어서
-  지금은 같은 카카오 로컬 API 를 직접 부른다. 부르는 자리는 _kakao_keyword 하나뿐이라, 도구가 생기면
-  그 함수 속만 MCP 호출로 바꾸면 된다. 키(KAKAO_REST_KEY)는 어느 쪽이든 서버 환경변수라 배포는 그대로다.
+MCP 와의 관계 (SDD 1절, 10-09):
+  파이프라인은 카카오 로컬 API 를 여기서 직접 부른다. MCP 를 거치지 않는다.
+  방향은 반대로, mcp_server/tools/geocode.py·search_places.py 가 이 파일의 함수를 감싸 바깥에 내놓는다.
 """
 from __future__ import annotations
 

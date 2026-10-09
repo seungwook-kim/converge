@@ -2,6 +2,9 @@
 
 FastMCP 서버. `backend/app/main.py`에 ASGI로 마운트되어 같은 프로세스에서 `/mcp`로 제공된다. 별도 실행 없음.
 
+도구는 `backend/app/services/`의 geo·routes·transit_schedule 함수를 감싸 바깥 MCP 클라이언트에 내놓는다.
+백엔드 파이프라인은 이 도구를 거치지 않고 서비스 함수를 바로 부른다 (SDD 1절, 10-09).
+
 ## 도구 6개
 
 시그니처와 호출 API는 docs/SDD.md 6절이 기준이다.
