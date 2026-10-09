@@ -603,7 +603,7 @@ LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 
 같은 날 보완: 실패 4건은 ① 모이는 장소를 destination 으로 안 읽음(1·9번) ② 이동수단을 비우고 missing 에 안 적음(5·7번)이었다.
 ①은 slot-extract v14 로 규칙을 분명히 하고, ②는 llm._parse 가 검증 전에 정리한다(태워지는 사람은 운전자 이동수단, 나머지는 missing).
 보완 뒤 회귀셋 gpt-4o-mini 2회 모두 단계·슬롯·계약 1.0 (p50 3.4~3.5초), 대체 모델도 1.0.
-10-01 재측정에서 5번이 다시 실패(단계 0.9): 운전자 항목에 태우기를 거꾸로 적음. llm._parse 가 방향을 바로잡은 뒤 단계·슬롯·계약 1.0 (p50 3.66초). 5번 문장 직접 호출은 13번 중 12번.
+10-01 재측정에서 5번이 다시 실패(단계 0.9): 운전자 항목에 태우기를 거꾸로 적음. llm._parse 가 방향을 바로잡은 뒤 단계·슬롯·계약 1.0 (p50 3.66초). 5번 문장 직접 호출은 13번 중 12번. 10-09 같은 문장 직접 호출 29번 모두 done (실패 출력을 못 잡아 코드는 고치지 않음).
 
 ### 슬롯 추출 모델 (2026-09-21 결정)
 
@@ -684,12 +684,12 @@ Cloud Run 서비스는 하나다 (backend에 MCP 마운트). 프론트는 Vercel
 | 항목 | 상태 | 확인 방법 |
 |---|---|---|
 | 지하철 첫차·막차 | 확인됨 | 서울교통공사 첫차·막차 API(1~9호선만, 민자 노선 제외), 부산교통공사 열차시각표 API. 공공데이터포털 키 하나. 부산 역외부코드 CSV를 레포에 둠 |
-| TMAP 대중교통 도착 시각 지정 | 미확인 | 문서의 요청 파라미터 확인. 없으면 현재 기준 소요시간으로 역산 |
+| TMAP 대중교통 도착 시각 지정 | 확인됨, 없음 (10-09) | `searchDttm` 을 03:00·08:00 으로 줘도, 도착 기준으로 보이는 값을 줘도 결과가 같고 응답 `reqDttm` 은 호출 시각이다. 시각 지정이 안 되므로 현재 기준 소요시간으로 역산한다 (지금 routes._transit_once 그대로). 값은 docs/measurements.md |
 | 슬롯 추출 통과율 | 측정됨 (09-21) | 구글 AI Studio 로 옮긴 뒤 회귀셋 10건으로 잰다. 값은 docs/measurements.md. OpenRouter 는 크레딧이 없어 승격이 402 로 죽어 쓰지 않는다 |
 | 소형 모델 최종 선택 | 변경 (09-21) | 슬롯 추출은 google-ai/gemini-3.5-flash-lite (8절). kanana_2.1b-Q4_K_M.gguf(검증 Exact Match 85.0%)는 CPU 서빙이 느려 후보로 보류 |
 | compose db healthcheck | 적용됨 (09-17) | pg_isready healthcheck + depends_on condition: service_healthy. backend/db/를 initdb에 마운트 |
 | requirements.txt asyncpg | 적용됨 (09-17) | 주석 해제. SQLAlchemy 안 씀, asyncpg 직접. DATABASE_URL은 postgresql:// |
-| 다른 기기에서 로컬 재현 | 미확인 | .env.example 만으로는 못 돈다. LLM·카카오·TMAP 키가 있어야 하고, 없을 때 어디까지 도는지 README에 적는다 |
+| 다른 기기에서 로컬 재현 | 확인됨 (10-09) | 새 clone + `cp .env.example .env` 로 확인. DATABASE_URL 이 주석이라 api 가 기동에서 죽던 것을 .env.example 에 compose db 값으로 넣어 고쳤다. 키 없이 어디까지 도는지는 README 3절 |
 | Supabase 프로젝트 | 해결 (09-18) | `converge_agent` 생성. 표 5개·RLS 마이그레이션 완료 |
 | 구글 OAuth 동의 화면 | 설정됨, 테스트 모드 (09-18) | 테스트 사용자 등록, 리디렉트 localhost:3000/**. 브라우저 로그인 → 토큰 → 백엔드 검증 실측. 남은 것은 프로덕션 전환과 Vercel 주소 추가로, 배포할 때 한다 |
 | Langfuse 트레이스의 참석자 이름·출발지 | 결정 (09-22) | 번호로 가린다 (5절, domain/masking.py). 목적지는 DB 에도 평문인 공개 장소라 남긴다. 한 글자 이름과 외부 API 오류 문구 속 지명은 가리지 못한다 |

@@ -143,6 +143,17 @@ cd frontend && npm install && npm run dev   # :3000
 
 로컬은 `AUTH_REQUIRED=false` 로 인증 없이 돈다.
 
+키 없이 `cp .env.example .env` 만 한 상태에서 어디까지 도는지 (2026-10-09, 새 clone 에서 확인):
+
+| 무엇 | 키 없이 |
+|---|---|
+| `docker compose up` (api + db) | 뜬다. `DATABASE_URL` 은 `.env.example` 에 compose db 값으로 들어 있다 |
+| `GET /health` | `{"status":"ok"}` |
+| `POST /api/agent` | 200 으로 답하지만 `stage: "failed"`. 슬롯 추출에 LLM 키(`OPENROUTER_API_KEY` 또는 `GEMINI_API_KEY`)가 있어야 한다 |
+| 경로·장소 | 카카오(`KAKAO_REST_KEY`)·TMAP(`TMAP_APP_KEY`)이 있어야 한다 |
+| 로그인 | `AUTH_REQUIRED` 를 비우면 기본 true 라 Supabase·구글 설정이 있어야 한다. 로컬은 false 로 둔다 |
+| `pytest backend/tests` | 키 없이 전부 통과 |
+
 백엔드 없이 화면만 보려면 `frontend/.env.local` 에 `NEXT_PUBLIC_KAKAO_JS_KEY` 만 넣고 `npm run dev` 하면 된다.
 `NEXT_PUBLIC_API_BASE` 가 없으면 `frontend/lib/mock.ts` 의 고정 응답으로 지도·경로선·결과 표가 그려진다.
 
