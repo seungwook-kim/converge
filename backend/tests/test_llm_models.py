@@ -632,3 +632,42 @@ def test_태워지는_사람이_여럿이라_누군지_모르면_건드리지_�
     # 반쪽짜리 태우기 정보는 믿지 않는다. 자기 자신을 태우는 항목은 비우고 되묻는다
     assert slots.participants[1].pickup is None
     assert all(p.pickup is None for p in slots.participants)
+
+
+# --- 대화 캡처 재확인에서 나온 것 (10-09, docs/measurements.md) ---
+
+
+def test_출발지가_비었으면_되묻는다():
+    """비운 채 missing 에 없으면 4단계가 그 사람을 경로 계산에서 조용히 뺐다."""
+    import json
+
+    data = _slot_json()
+    data["participants"].append({"name": "민수", "origin": None, "transport": "transit", "pickup": None,
+                                 "pickup_at": None, "unfamiliar": False, "role": "colleague"})
+    slots = llm._parse(json.dumps(data, ensure_ascii=False))
+    assert "participants[1].origin" in slots.missing
+    assert "participants[0].origin" not in slots.missing
+
+
+def test_태워지는_사람은_출발지가_없어도_묻지_않는다():
+    raw = _pickup_json(
+        driver={"origin": "노원구", "transport": "car", "pickup": None, "pickup_at": None},
+        me={"pickup": "이대리님", "pickup_at": "광진구 역 앞"},
+    )
+    slots = llm._parse(raw)
+    assert not any(m.endswith(".origin") for m in slots.missing)
+
+
+def test_다른_말풍선의_요일을_시각_앞에_붙인다(monkeypatch):
+    # 모델이 "12시 반" 만 뽑았다 (10-09 3/3)
+    _fake_model(monkeypatch, _slot_json(datetime="12시 반", missing=[]))
+    text = "민수: 토요일 점심 다들 되지?\n민수: 12시 반에 잠실역 앞에서 보자\n나: 강동구에서 지하철 타고 감"
+    slots = asyncio.run(llm.extract_slots(text))
+    assert slots.datetime == "토요일 12시 반"
+
+
+def test_날짜_말이_둘이면_고르지_않는다(monkeypatch):
+    _fake_model(monkeypatch, _slot_json(datetime="12시 반", missing=[]))
+    text = "토요일 어때? 아니 일요일이 낫다. 12시 반에 잠실역 앞. 나는 강동구에서 지하철"
+    slots = asyncio.run(llm.extract_slots(text))
+    assert slots.datetime == "12시 반"

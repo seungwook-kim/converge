@@ -426,8 +426,8 @@ def test_가게_지점은_열린_장소다():
 
 def test_다_차로_가면_모두_이동수단을_말한_것으로_본다():
     """09-27: "다 차로 가. 나머지 2명은 부산역에서 출발해" 에서 나머지의 차를 지웠다."""
-    text = "다 차로 가. 하단 2명은 완호 창고지 3명이 태워 가고, 나머지 2명은 부산역에서 출발해"
-    people = [{"name": "완호 창고지 3명", "transport": "car", "pickup": None},
+    text = "다 차로 가. 하단 2명은 항구 창고 3명이 태워 가고, 나머지 2명은 부산역에서 출발해"
+    people = [{"name": "항구 창고 3명", "transport": "car", "pickup": None},
               {"name": "나머지 2명", "transport": "car", "pickup": None}]
     assert rules.unstated_transports(text, people) == []
     # "다"가 이동수단 단어와 같은 구절에 없으면 여전히 본다
@@ -483,3 +483,16 @@ def test_다음_조각에_다른_사람이_있으면_그_사람_것이다():
 def test_두_조각_넘어서는_보지_않는다():
     people = [{"name": "현우", "transport": "car", "pickup": None}]
     assert rules.unstated_transports("현우는 인천에서 와. 저녁 7시. 차 막히겠다", people) == [0]
+
+
+def test_문장의_날짜_말을_하나만_골라낸다():
+    # 10-09: 대화 캡처에서 "토요일" 과 "12시 반" 이 다른 말풍선에 있었다
+    assert rules.date_phrase("토요일 점심 다들 되지?\n12시 반에 보자") == "토요일"
+    assert rules.date_phrase("다음주 목요일 저녁") == "다음주 목요일"
+    assert rules.date_phrase("내일모레 7시") == "내일모레"
+    assert rules.date_phrase("10월 3일 12시") == "10월 3일"
+    assert rules.date_phrase("12시 반에 보자") is None
+    # 둘 이상이면 고르지 않는다
+    assert rules.date_phrase("토요일 어때? 아니 일요일") is None
+    # 같은 말이 되풀이되는 건 하나로 본다
+    assert rules.date_phrase("토요일 되지? 응 토요일 좋아") == "토요일"

@@ -220,6 +220,29 @@ def parse_meet_date(text: str | None, today: date) -> date | None:
     return None
 
 
+# 문장에서 날짜 말을 찾는 꼴. parse_meet_date 가 읽는 것 중 오해가 적은 것만 둔다.
+# "15일" 만 있는 꼴은 뺀다. "3일 동안" 같은 말도 걸린다
+_DATE_PHRASE = re.compile(
+    r"\d{4}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}\s*일?"
+    r"|\d{1,2}\s*월\s*\d{1,2}\s*일"
+    r"|(?:(?:다다음|다음|이번)\s*주|담주)\s*[" + _WEEKDAYS + r"]요일"
+    r"|[" + _WEEKDAYS + r"]요일"
+    r"|" + "|".join(_RELATIVE_DAYS)  # 긴 말부터라 "내일모레" 가 "내일" 보다 먼저 걸린다
+)
+
+
+def date_phrase(text: str | None) -> str | None:
+    """문장 속 날짜 말. 서로 다른 말이 둘 이상이면 None (SDD 5절 1단계, 10-09).
+
+    대화 캡처는 "토요일 점심 되지?" 와 "12시 반에 보자" 가 다른 말풍선이라 모델이 시각만 뽑았다.
+    둘 이상이면 어느 쪽으로 정했는지 대화 흐름을 봐야 해서 고르지 않는다.
+    """
+    if not text:
+        return None
+    found = {re.sub(r"\s+", " ", m.group(0)).strip() for m in _DATE_PHRASE.finditer(text)}
+    return found.pop() if len(found) == 1 else None
+
+
 def _safe_date(year: int, month: int, day: int) -> date | None:
     try:
         return date(year, month, day)

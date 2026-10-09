@@ -20,6 +20,7 @@ import json
 import os
 import re
 import time
+from datetime import date
 from typing import Any
 
 from pydantic import ValidationError
@@ -415,6 +416,22 @@ def drop_unstated_transports(slots: Slots, text: str) -> Slots:
     return slots.model_copy(update={"participants": participants, "missing": missing})
 
 
+def fill_unstated_date(slots: Slots, text: str) -> Slots:
+    """시각만 뽑고 날짜 말을 버렸으면 문장의 날짜 말을 앞에 붙인다 (SDD 5절 1단계, 10-09).
+
+    대화 캡처에서 "토요일 점심 되지?" 와 "12시 반에 보자" 가 다른 말풍선이라 "12시 반" 만 나왔다(3/3).
+    날짜가 없으면 임시 세션이 되어 기간 판정도 출발 시각 확정도 못 한다. 날짜 말이 둘 이상이면 고르지 않는다.
+    """
+    if slots.out_of_scope or not slots.datetime:
+        return slots
+    if domain_rules.parse_meet_date(slots.datetime, date.today()) is not None:
+        return slots
+    phrase = domain_rules.date_phrase(text)
+    if phrase is None:
+        return slots
+    return slots.model_copy(update={"datetime": f"{phrase} {slots.datetime}"})
+
+
 def drop_unstated_cook(slots: Slots, text: str, previous: Slots | None = None) -> Slots:
     """직접 해 먹는다는 단서가 없으면 cook 을 지운다 (checklist.md "사 먹는 자리와 해 먹는 자리", 09-27).
 
@@ -559,6 +576,13 @@ def _parse(raw: str) -> Slots:
         elif f"participants[{index}].transport" not in missing:
             missing.append(f"participants[{index}].transport")
 
+    # 출발지를 비워 놓고 missing 에 안 적는 경우가 있다 (10-09 대화 캡처, 3/3). 두면 4단계가 그 사람을
+    # 경로 계산에서 조용히 뺀다. 태워지는 사람은 탑승 지점부터 세므로 묻지 않는다 (pipeline._drop_needless 와 같은 기준)
+    for index, person in enumerate(people):
+        path = f"participants[{index}].origin"
+        if not person.get("origin") and not person.get("pickup_at") and path not in missing:
+            missing.append(path)
+
     # 집결지의 모인 뒤 이동수단·시각·모이는 사람은 비어도 계산된다(없으면 차, 역산, 한 단계 계산. SDD 3절).
     # 모델이 missing 에 적으면 "정보가 더 필요합니다" 같은 두루뭉술한 질문만 나간다 (09-27)
     missing = [m for m in missing if not m.startswith("rendezvous.")]
@@ -625,6 +649,7 @@ async def extract_slots(
         if previous is not None:
             slots = drop_answered_missing(slots)
         slots = await settle_access(drop_unstated_cook(drop_unstated_transports(normalize_names(slots), text), text, previous), text, previous)
+        slots = fill_unstated_date(slots, text)
         # 사용자가 프리셋을 골랐으면 그 값이 우선이다 (SDD 2절 AgentRequest.preset)
         if preset and not slots.out_of_scope and slots.preset != preset:
             slots = slots.model_copy(update={"preset": preset})
