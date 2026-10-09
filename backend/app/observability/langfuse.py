@@ -19,6 +19,7 @@ SDK 버전:
 """
 from __future__ import annotations
 
+import contextvars
 import os
 import uuid
 from contextlib import ExitStack, contextmanager
@@ -26,6 +27,16 @@ from typing import Any, Iterator
 
 _client: Any | None = None
 _checked = False
+
+
+# 요청 하나의 id. main.py 의 request_id 미들웨어가 넣는다 (SDD 1절, 10-09).
+# 트레이스 id 로 그대로 써서 X-Request-ID 헤더·AgentResponse.trace_id·request_logs.request_id 가 한 값이 된다.
+# HTTP 요청 밖(평가 스크립트)에서는 비어 있고, 그때는 새로 만든다
+request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
+
+
+def _new_trace_id() -> str:
+    return request_id.get() or uuid.uuid4().hex
 
 
 def _get_client() -> Any | None:
@@ -117,7 +128,7 @@ def trace(
     """요청 하나를 감싼다. Langfuse 가 꺼져 있어도 trace_id 는 항상 만든다."""
     client = _get_client()
     if client is None:
-        yield Trace(None, uuid.uuid4().hex)
+        yield Trace(None, _new_trace_id())
         return
 
     from langfuse import propagate_attributes
@@ -125,13 +136,16 @@ def trace(
     clean = {k: v for k, v in metadata.items() if v is not None}
     with ExitStack() as stack:
         try:
-            root = stack.enter_context(client.start_as_current_observation(name=name))
+            rid = request_id.get()
+            root = stack.enter_context(
+                client.start_as_current_observation(name=name, trace_context={"trace_id": rid} if rid else None)
+            )
             stack.enter_context(
                 propagate_attributes(user_id=user_id, session_id=session_id, metadata=clean or None)
             )
-            trace_id = client.get_current_trace_id() or uuid.uuid4().hex
+            trace_id = client.get_current_trace_id() or _new_trace_id()
         except Exception:  # noqa: BLE001
-            yield Trace(None, uuid.uuid4().hex)
+            yield Trace(None, _new_trace_id())
             return
         try:
             yield Trace(client, trace_id)

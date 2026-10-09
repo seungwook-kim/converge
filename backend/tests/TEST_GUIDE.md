@@ -11,6 +11,7 @@ pytest backend/tests
 - `app/domain/`: 규칙 적용, 출발 시각 역산, 전환 조건, 라우팅 판단. 순수 계산이라 바로 검사된다
 - `app/schemas/`: 스키마 위반이 실제로 잡히는지. 한자·가나, transport가 None인데 missing에 없는 경우 등 (docs/SDD.md 3절 검증 규칙)
 - `app/services/pipeline.py`: 단계 순서와 실패 경로. 외부 호출은 `fixtures/`로 대체
+- `app/main.py`: request_id 미들웨어. X-Request-ID 헤더와 트레이스 id 가 같은 값인지 (test_request_id.py)
 
 ## fixtures/
 

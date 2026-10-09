@@ -99,9 +99,7 @@ LLM은 0·1·6단계에만 있다. 나머지는 코드다. 이것이 이 프로�
 
 SDD 1절이 가리키지만 아직 안 만든 파일. 만들면 여기서 지운다.
 
-2026-09-22 기준.
-
-- `backend/app/main.py`의 request_id 미들웨어 (SDD 1절 main.py 설명)
+2026-10-09 기준 없음. request_id 미들웨어를 붙여 마지막 항목을 지웠다.
 
 backend·mcp_server·frontend·skills·evals 는 SDD 1절 파일이 모두 있다.
 `frontend/lib/api-types.ts`는 생성물이고 화면은 `types/agent.ts`를 쓴다.

@@ -31,6 +31,8 @@ converge/
     BACKEND_GUIDE.md          이 폴더의 경계와 지킬 것
     app/
       main.py                 앱 생성, 라우터 등록, 미들웨어(request_id), GET /health, /mcp 마운트
+                              request_id: 요청마다 uuid(32자 hex)를 만들어 X-Request-ID 응답 헤더로 낸다.
+                              같은 값이 Langfuse trace id·AgentResponse.trace_id·request_logs.request_id 가 된다 (10-09)
       routers/
         agent.py              POST /api/agent
         session.py            GET /api/sessions      (내 계획 목록, 로그인 필수)
@@ -45,8 +47,10 @@ converge/
       services/               바깥과 통신하는 것만 둔다
         llm.py                모든 LLM 호출은 여기만. 구글 AI Studio·OpenRouter·로컬 GGUF 를 모델 이름으로 가른다
         vision.py             캡처 → 텍스트. 이미지 검사와 결과 검사만 하고 호출은 llm.transcribe_image 에 맡긴다
-        geo.py                지오코딩·장소 검색 (MCP 클라이언트 경유)
-        routes.py             경로·소요시간 (MCP 클라이언트 경유), 캐시
+        geo.py                지오코딩·장소 검색. 카카오 로컬을 직접 부른다
+        routes.py             경로·소요시간, 캐시. 카카오모빌리티·TMAP 을 직접 부른다
+                              파이프라인은 MCP 를 거치지 않는다. 방향은 반대로, mcp_server/tools/ 가 이 함수들을 감싸
+                              바깥 MCP 클라이언트에 내놓는다. 같은 프로세스 안에서 MCP 를 한 번 더 타면 호출만 늘어난다 (10-09)
         judge.py              후보 판정 프롬프트 조립, 대형 모델 호출
         transit_schedule.py   첫차·막차 (서울 열린데이터광장, 부산교통공사. 부산 역코드는 data/)
         access_judge.py       출입 절차 판단 모델(TypeSafe Jev, TypeSafe SDK 또는 Cloudflare Workers AI). access.md 5순위에서만, 켰을 때만 (09-23)
