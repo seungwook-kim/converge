@@ -115,6 +115,7 @@ converge/
       auth.ts                 구글 로그인(Supabase Auth), 토큰 헤더
       proxy.ts                app/api/ 라우트 공용 백엔드 전달
       dev-user.ts             로컬 모드 사용자 id
+      useFoldable.ts          지도 위 패널 접기 상태. 휴대폰 폭이면 접힌 채 시작 (10-20)
       mock.ts                 NEXT_PUBLIC_API_BASE 가 없을 때 프록시가 돌려주는 고정 응답
       demo-preview.ts         로그인 전 예시 결과의 고정값. mock-data.json(150KB)을 첫 화면에 싣지 않으려고 따로 둔다
       mock-data.json          mock 시나리오와 실제 경로 좌표

@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadKakao, nameLabel, pinImage, type Kakao, type PinStyle } from "@/lib/kakao";
+import { useFoldable } from "@/lib/useFoldable";
 import type { AgentResponse, CandidateKind, ParticipantResult } from "@/types/agent";
 import ParticipantPins, { PIN_COLORS, type ParticipantPin, type Viewer } from "./ParticipantPins";
 import PinPicker from "./PinPicker";
@@ -85,6 +86,7 @@ export default function MapView({ response, participantPins, viewer, selectedRan
 
   // 경로선 토글: 4명 이하면 기본 켬, 5명 이상이면 기본 끔
   const [showRoutes, setShowRoutes] = useState(true);
+  const [panelOpen, setPanelOpen] = useFoldable(); // 경로선 패널만 접는다. 선 자체는 "경로선 보기" 가 정한다
   useEffect(() => {
     setShowRoutes(participantCount <= ALL_ROUTES_MAX);
     setSelected(null);
@@ -283,8 +285,22 @@ export default function MapView({ response, participantPins, viewer, selectedRan
         </>
       )}
 
-      {hasRoutes && (
+      {hasRoutes && !panelOpen && (
+        <button type="button" className="map-fold map-fold-bottom" aria-expanded={false} onClick={() => setPanelOpen(true)}>
+          경로선 ▴
+        </button>
+      )}
+      {hasRoutes && panelOpen && (
         <div className="map-panel">
+          <button
+            type="button"
+            className="map-fold-close"
+            aria-expanded
+            aria-label="경로선 패널 접기"
+            onClick={() => setPanelOpen(false)}
+          >
+            접기
+          </button>
           <label className="toggle">
             <input
               type="checkbox"

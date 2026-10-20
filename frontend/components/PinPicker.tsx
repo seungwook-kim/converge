@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { searchPlaces, type Kakao, type PlaceHit } from "@/lib/kakao";
+import { useFoldable } from "@/lib/useFoldable";
 import type { ParticipantPin } from "./ParticipantPins";
 
 type SearchState =
@@ -29,6 +30,7 @@ export default function PinPicker({ kakao, map, pins, onMove, onArmedChange }: P
   const [armed, setArmed] = useState(false); // 지도 클릭 한 번을 받을 준비가 됐는가
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
+  const [open, setOpen] = useFoldable();
 
   // 새 응답으로 핀 목록이 바뀌어 고른 사람이 사라지면 대상도 비운다. 없는 사람 좌표를 저장하면 안 된다
   useEffect(() => {
@@ -87,8 +89,29 @@ export default function PinPicker({ kakao, map, pins, onMove, onArmedChange }: P
 
   if (pins.length === 0) return null;
 
+  if (!open) {
+    return (
+      <button type="button" className="map-fold map-fold-top" aria-expanded={false} onClick={() => setOpen(true)}>
+        출발지 고치기 ▾
+      </button>
+    );
+  }
+
   return (
     <div className="pin-picker">
+      <button
+        type="button"
+        className="map-fold-close"
+        aria-expanded
+        aria-label="출발지 고치기 접기"
+        onClick={() => {
+          // 접으면 지도 클릭 대기도 끝낸다. 안 보이는 패널이 클릭을 가로채면 안 된다
+          setArmed(false);
+          setOpen(false);
+        }}
+      >
+        접기
+      </button>
       <label className="pin-picker-who">
         출발지를 고칠 사람
         <select
