@@ -5,7 +5,7 @@ register_within_days: 30       # 등록 가능 범위. 약속이 오늘 + 이 �
 retain_after_meet_days: 30     # 약속 뒤 보관 기간. 지나면 배치가 삭제한다 (expires_at 계산에 씀)
 draft_retain_days: 7           # 약속 시각이 없는 임시 세션의 보관 기간 (생성 시각 기준)
 lock_after_meet: next_day      # 약속 다음날 0시부터 수정 잠금. 열람·삭제는 계속 된다
-timezone: Asia/Seoul           # "오늘"과 약속 날짜를 읽는 기준. 서버(Cloud Run)는 UTC 로 돈다
+timezone: Asia/Seoul           # "오늘"과 약속 날짜를 읽는 기준. 서버(Modal)는 UTC 로 돈다
 ---
 # 세션 일생
 

@@ -1,5 +1,5 @@
 # 백엔드 이미지. FastAPI 에 /mcp 를 마운트해 한 프로세스로 띄운다.
-# Vercel 은 컨테이너를 돌리지 않는다. 이 이미지는 Cloud Run 같은 컨테이너 호스트로 간다 (docs/deploy.md).
+# Vercel 은 컨테이너를 돌리지 않는다. 배포는 modal_app.py 가 이 파일로 이미지를 만든다 (docs/deploy.md).
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -21,7 +21,7 @@ ARG HF_REPO=kimseunguk/converge-slot-extractor
 ARG GGUF_FILE=kanana_2.1b-Q4_K_M.gguf
 RUN if [ "$WITH_LOCAL_MODEL" = "1" ]; then         pip install --no-cache-dir huggingface_hub llama-cpp-python &&         python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='${HF_REPO}', filename='${GGUF_FILE}', local_dir='/app/backend/app/models'); hf_hub_download(repo_id='${HF_REPO}', filename='${GGUF_FILE%.gguf}.prompt.json', local_dir='/app/backend/app/models'); hf_hub_download(repo_id='${HF_REPO}', filename='grammar.gbnf', local_dir='/app/backend/app/models')" &&         pip uninstall -y huggingface_hub;     fi
 
-# Cloud Run 은 PORT 환경변수로 포트를 알려 준다. 로컬은 8000 을 쓴다.
+# 컨테이너 호스트가 PORT 로 포트를 알려 주면 그걸 쓴다. 로컬은 8000. Modal 은 CMD 를 쓰지 않는다.
 ENV PORT=8000
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT}"]

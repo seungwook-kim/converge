@@ -1,4 +1,4 @@
-// app/api/ 라우트 공용. 브라우저 요청을 백엔드(Cloud Run)로 넘긴다. 서버에서만 쓴다.
+// app/api/ 라우트 공용. 브라우저 요청을 백엔드(Modal)로 넘긴다. 서버에서만 쓴다.
 // NEXT_PUBLIC_API_BASE 가 없으면 null 을 돌려주고, 호출한 라우트가 lib/mock.ts 로 답한다.
 
 import { NextResponse } from "next/server";

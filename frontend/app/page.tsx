@@ -144,7 +144,7 @@ function Compose({ auth }: { auth: AuthState }) {
     setBusy(true);
     setSlow(false);
     setError(null);
-    // 서버가 요청이 없으면 잠든다(Cloud Run min-instances 0). 깨우는 데 10초 안팎 걸리는데
+    // 서버가 요청이 없으면 잠든다(Modal, 5분 쉬면 0대). 깨우는 데 10초 안팎 걸리는데
     // 아무 말이 없으면 고장으로 보인다. 12초를 넘기면 그렇다고 알려 준다
     const slowTimer = setTimeout(() => setSlow(true), 12000);
     try {

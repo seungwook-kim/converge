@@ -27,7 +27,7 @@ Next.js. Vercel에 배포. Root Directory = `frontend`.
 | `components/DemoPreview.tsx` | 로그인 전 예시 결과. 결과 화면과 같은 `ResultTable`을 쓴다. 따로 그리면 예시와 실물이 갈라진다 |
 | `components/ServiceWorker.tsx` | `public/sw.js` 등록. `NODE_ENV`가 production일 때만 |
 | `lib/kakao.ts` | 지도 SDK 로더(autoload=false, `libraries=services`, 한 번만), 장소 검색 `searchPlaces`, 핀 이미지 |
-| `lib/auth.ts` | 구글 로그인(Supabase Auth), 토큰 헤더 |
+| `lib/auth.ts` | 구글 로그인(Supabase Auth), 토큰 헤더. `NEXT_PUBLIC_GOOGLE_CLIENT_ID` 가 있으면 구글에서 이 사이트로 바로 돌아와 id_token 으로 로그인 (10-20) |
 | `lib/proxy.ts` | `app/api/` 라우트 공용. `NEXT_PUBLIC_API_BASE`로 전달, 없으면 mock |
 | `lib/mock.ts` | 백엔드 없이 화면을 확인할 고정 응답. 입력 문장으로 시나리오(`meeting`·`visit`)와 stage를 고른다(파일 상단 주석). 서버에서만 import |
 | `lib/mock-data.json` | mock 시나리오와 실제 경로 좌표. `routes`는 `scripts/fetch_mock_routes.py`가 채운다 |
@@ -88,6 +88,11 @@ Next.js. Vercel에 배포. Root Directory = `frontend`.
 
 테마색(`#2d6a4f`)과 아이콘은 `app/globals.css`의 `--accent`와 맞춘다. 색을 바꾸면
 `manifest.json`, `app/layout.tsx`의 `viewport.themeColor`, `offline.html` 세 곳을 같이 고친다.
+
+## 개인정보처리방침·약관 (10-20)
+
+`public/privacy.html`, `public/terms.html`. 구글 로그인 앱을 프로덕션으로 게시하려면 구글 브랜딩에 두 링크가 있어야 한다.
+수집 항목·처리 업체·보관 기간이 바뀌면(예: 새 외부 API, 테이블정의서 6절 변경) 같이 고친다.
 
 ## 설정 파일
 

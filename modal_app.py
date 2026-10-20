@@ -1,0 +1,34 @@
+"""배포 진입점. 루트 Dockerfile 로 만든 이미지를 Modal 에서 ASGI 앱으로 띄운다. (SDD 10절, docs/deploy.md)
+
+    python -m modal deploy modal_app.py
+
+- 요청이 없으면 5분 뒤 0대로 내려간다. 다음 첫 요청은 콜드 스타트로 느리다.
+- 키는 Modal 비밀값 `converge` 에 넣는다 (SDD 9절). 이 파일과 이미지에는 키가 없다.
+- Dockerfile 의 CMD(uvicorn)는 쓰지 않는다. Modal 이 아래 함수가 돌려주는 앱을 직접 띄운다.
+"""
+import modal
+
+app = modal.App("converge")
+
+# 빌드 컨텍스트가 루트여야 skills/, mcp_server/ 가 같이 들어간다 (Dockerfile 주석). .dockerignore 를 따른다.
+image = modal.Image.from_dockerfile("Dockerfile", context_dir=".").env({"PYTHONPATH": "/app"})
+
+
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_name("converge")],
+    cpu=1.0,
+    memory=1024,
+    scaledown_window=300,
+    timeout=120,
+    max_containers=2,
+)
+@modal.concurrent(max_inputs=20)
+@modal.asgi_app(label="converge-api")
+def api():
+    import os
+
+    os.chdir("/app")
+    from backend.app.main import app as fastapi_app
+
+    return fastapi_app

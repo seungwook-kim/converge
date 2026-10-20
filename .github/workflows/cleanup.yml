@@ -1,0 +1,30 @@
+# 하루 1회 만료 데이터 청소 (테이블정의서 6절, SDD 10절).
+# POST /internal/cleanup 이 DB 를 건드리므로 Supabase 무료 티어의 7일 미사용 정지도 막는다.
+# 저장소 비밀값: CONVERGE_API_URL(Modal 배포 주소, 끝 슬래시 없이), INTERNAL_TOKEN(Modal 비밀값과 같은 값)
+# 정기 실행은 기본 브랜치에 있는 워크플로만 돈다.
+name: cleanup
+
+on:
+  schedule:
+    - cron: "0 19 * * *"   # 매일 04:00 KST
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /internal/cleanup
+        env:
+          API: ${{ secrets.CONVERGE_API_URL }}
+          TOKEN: ${{ secrets.INTERNAL_TOKEN }}
+        run: |
+          # 콜드 스타트가 있어 한 번 실패하면 잠시 뒤 다시 부른다
+          for i in 1 2 3; do
+            code=$(curl -s -o out.json -w "%{http_code}" -X POST "$API/internal/cleanup" \
+              -H "Authorization: Bearer $TOKEN" --max-time 90) || code=000
+            echo "시도 $i: HTTP $code"
+            if [ "$code" = "200" ]; then cat out.json; exit 0; fi
+            sleep 20
+          done
+          exit 1

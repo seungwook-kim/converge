@@ -529,7 +529,7 @@ async def save_feedback(
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. 청소 (테이블정의서 6절 삭제·보관 정책)
 # ─────────────────────────────────────────────────────────────────────────────
-# Cloud Scheduler가 하루 1회 POST /internal/cleanup 을 부르고, 그 라우터가 이 함수를 부른다.
+# GitHub Actions(cleanup.yml)가 하루 1회 POST /internal/cleanup 을 부르고, 그 라우터가 이 함수를 부른다.
 # 이 호출이 Supabase 무료 티어의 7일 미사용 정지도 막는다.
 
 async def cleanup_expired() -> dict[str, int]:

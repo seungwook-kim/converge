@@ -1,6 +1,6 @@
 # BACKEND_GUIDE
 
-FastAPI 서버. Cloud Run 서비스 하나에 API와 MCP(/mcp)가 같이 뜬다.
+FastAPI 서버. Modal 앱 하나(루트 modal_app.py)에 API와 MCP(/mcp)가 같이 뜬다.
 
 ## 이 폴더의 경계
 

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Converge 개인정보처리방침</title>
+<style>
+  body { margin: 0; background: #f7f7f5; color: #1d1d1b; font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; line-height: 1.7; }
+  main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.1rem; margin-top: 2rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: #eeeeea; }
+  a { color: #2156c9; }
+</style>
+</head>
+<body>
+<main>
+<h1>Converge 개인정보처리방침</h1>
+<p>시행일: 2026-10-20</p>
+<p>Converge는 문장 하나로 약속 장소와 각자 나설 시각을 계산하는 비상업 개인 사이드 프로젝트입니다. 계산에 필요한 만큼만 정보를 다룹니다.</p>
+
+<h2>1. 처리하는 정보</h2>
+<table>
+<tr><th>정보</th><th>언제</th><th>용도</th><th>보관</th></tr>
+<tr><td>이메일 주소, 계정 식별자(구글 로그인 시 이름·프로필 사진 포함)</td><td>로그인할 때</td><td>로그인, 내 계획 구분</td><td>계정 삭제 요청 시까지</td></tr>
+<tr><td>입력한 문장, 대화 캡처 이미지</td><td>약속을 만들거나 고칠 때</td><td>약속 정보(시각, 장소, 참석자, 이동수단) 읽기</td><td>캡처 이미지는 저장하지 않음. 글자로 읽은 뒤 버림</td></tr>
+<tr><td>참석자 이름(입력한 호칭), 출발지, 좌표, 경로</td><td>계산할 때</td><td>집결 장소·출발 시각 계산, 공유 링크</td><td>암호화해 저장. 약속 뒤 30일(약속 시각이 없으면 생성 뒤 7일)에 삭제. 직접 삭제하면 즉시 삭제</td></tr>
+<tr><td>약속 시각, 목적지(공개 장소)</td><td>계산할 때</td><td>계산, 내 계획 목록</td><td>위와 같음</td></tr>
+<tr><td>요청 기록(단계, 소요 시간, 비용)</td><td>요청할 때마다</td><td>오류 확인, 비용 관리</td><td>식별 정보 없이 90일</td></tr>
+</table>
+<p>광고·판매 목적으로 쓰지 않으며 제3자에게 팔지 않습니다. 공유 링크를 받은 사람은 로그인한 뒤 그 계획을 보고 자기 핀을 고칠 수 있습니다.</p>
+
+<h2>2. 처리를 맡기는 곳</h2>
+<ul>
+<li>OpenRouter(OpenAI 모델), Google AI Studio(Gemini): 입력한 문장과 캡처를 읽어 약속 정보로 바꾸고 후보를 판정</li>
+<li>카카오(지도, 장소 검색, 자동차 경로), SK TMAP(대중교통 경로), 서울 열린데이터광장·공공데이터포털(첫차·막차): 출발지·목적지 좌표로 소요 시간 계산</li>
+<li>Langfuse: 처리 과정 기록. 참석자 이름·출발지는 번호로 가려 보냄(한 글자 이름 등 일부는 가려지지 않을 수 있음)</li>
+<li>Supabase: 로그인, 데이터베이스</li>
+<li>Modal: 서버 실행 / Vercel: 웹 화면 제공</li>
+<li>Google: 구글 로그인 계정 확인</li>
+</ul>
+<p>위 업체 중 일부는 해외에 서버가 있습니다.</p>
+
+<h2>3. 이용자의 권리</h2>
+<p>내 계획은 "내 계획" 화면에서 언제든 직접 삭제할 수 있습니다. 계정과 관련 정보 전체 삭제, 열람을 원하면 아래 이메일로 요청하면 처리합니다.</p>
+
+<h2>4. 문의</h2>
+<p>이메일: <a href="mailto:kswook30@gmail.com">kswook30@gmail.com</a></p>
+<p><a href="/">Converge로 돌아가기</a> · <a href="/terms.html">서비스 이용약관</a></p>
+</main>
+</body>
+</html>

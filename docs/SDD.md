@@ -18,6 +18,8 @@ converge/
                               GGUF 는 기본 빌드에 넣지 않는다. WITH_LOCAL_MODEL=1 로 빌드할 때만 HF에서 받는다
                               (kimseunguk/converge-slot-extractor 의 kanana_2.1b-Q4_K_M.gguf, 1.30 GiB).
                               파인튜닝 모델은 쓰지 않아 참고용이다 (8절)
+  modal_app.py                배포 진입점. Dockerfile 이미지를 Modal 에서 ASGI 로 띄운다. 요청이 없으면 5분 뒤 0대 (10절, 10-20 결정)
+  .github/workflows/cleanup.yml  하루 1회 POST /internal/cleanup. Supabase 7일 미사용 정지도 막는다 (10-20 결정)
   docker-compose.yml          api + db(postgres:16). backend/db/를 initdb에 마운트, db healthcheck 후 api 기동
   .env.example                backend용 (9절)
   docs/
@@ -27,7 +29,7 @@ converge/
     evidence/                 실행 기록
       langfuse/               대시보드·트레이스 화면
       mcp/                    연결 화면, tool 목록, 호출 결과
-  backend/                    FastAPI (Cloud Run)
+  backend/                    FastAPI (Modal)
     BACKEND_GUIDE.md          이 폴더의 경계와 지킬 것
     app/
       main.py                 앱 생성, 라우터 등록, 미들웨어(request_id), GET /health, /mcp 마운트
@@ -39,7 +41,7 @@ converge/
                               GET /api/session/{id}  (공유 링크용 읽기, 로그인 필수)
                               DELETE /api/session/{id}  (주선자 본인만, 즉시 삭제)
                               PATCH /api/session/{id}/participants  (핀 claim·위치 수정. 2절, 7절 핀 소유권)
-        internal.py           POST /internal/cleanup (Cloud Scheduler 전용, 토큰)
+        internal.py           POST /internal/cleanup (GitHub Actions 하루 1회 전용, 토큰)
       schemas/
         slots.py              슬롯 추출 결과 (LLM 출력 계약 1)
         result.py             최종 결과 (LLM 출력 계약 2, API 응답)
@@ -89,6 +91,7 @@ converge/
       manifest.json           PWA. 홈 화면 설치 이름·아이콘·테마색 (09-21 결정)
       sw.js                   서비스 워커. 설치 조건을 채우고 오프라인 안내만 한다. 캐시하지 않는다
       offline.html            연결이 끊겼을 때 보여 주는 정적 화면
+      privacy.html  terms.html  개인정보처리방침·약관. 구글 로그인 앱 게시에 필요 (10-20)
       icon-192.png  icon-512.png  apple-touch-icon.png
     app/
       layout.tsx              html/body, 전역 CSS 로드, manifest 연결, 서비스 워커 등록
@@ -99,7 +102,7 @@ converge/
       my/page.tsx             내 계획 목록. GET /api/sessions, 줄마다 삭제
       s/[id]/page.tsx         참석자들이 모이는 자리. 지도·되묻기·핀 확인·결과·claim·수정이 전부 여기서.
                               링크는 이 주소 그대로(별도 토큰·단축 없음), 로그인 필요
-      api/agent/route.ts      Cloud Run 프록시 (키 숨김)
+      api/agent/route.ts      백엔드(Modal) 프록시 (키 숨김)
       api/session/[id]/route.ts               GET 프록시 (공유 링크)
       api/session/[id]/participants/route.ts  PATCH 프록시 (핀 claim·위치 수정)
     components/
@@ -158,7 +161,7 @@ converge/
 | PATCH /api/session/{id}/participants | 로그인 필수 |
 | GET /health | 인증 없음 |
 | /mcp | Bearer 토큰 (MCP_TOKEN, 로그인과 별개) |
-| POST /internal/cleanup | Bearer 토큰 (INTERNAL_TOKEN). Cloud Scheduler 전용. 값이 비어 있으면 503 으로 닫는다 |
+| POST /internal/cleanup | Bearer 토큰 (INTERNAL_TOKEN). GitHub Actions 하루 1회 전용. 값이 비어 있으면 503 으로 닫는다 |
 
 로그인 필수 엔드포인트는 토큰이 없거나 검증에 실패하면 401. AUTH_REQUIRED=false(9절, 로컬 개발용)일 때만 검증을 건너뛴다.
 
@@ -666,7 +669,12 @@ NEXT_PUBLIC_SUPABASE_URL=       # Supabase 프로젝트 URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=  # sb_publishable_... (공개 가능, RLS 전제). 옛 anon 키는 2026년 말까지만
 NEXT_PUBLIC_API_BASE=http://localhost:8000
 NEXT_PUBLIC_KAKAO_JS_KEY=       # 카카오 지도 SDK (NEXT_PUBLIC_ 없으면 브라우저에 안 넘어감)
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=   # 구글 OAuth 클라이언트 ID(공개 값). 있으면 구글에서 이 사이트로 바로 돌아와 id_token 으로 로그인한다.
+                                # 계정 선택 화면에 supabase.co 대신 이 사이트 주소가 뜬다. 비우면 Supabase 콜백을 거친다 (10-20)
 ```
+
+배포(Modal)에서는 루트 `.env` 대신 Modal 비밀값 `converge` 에 같은 이름으로 넣는다. 추가로 `AUTH_REQUIRED=true`,
+`FRONTEND_ORIGIN`(Vercel 주소), `MCP_PUBLIC_URL`(배포 주소 + /mcp). GitHub Actions 비밀값은 `CONVERGE_API_URL`, `INTERNAL_TOKEN`.
 
 supabase-py는 쓰지 않는다. 백엔드는 DATABASE_URL로 Postgres에 직접 붙고, Supabase는 운영 DB와 로그인(Auth)으로만 쓴다.
 
@@ -680,7 +688,13 @@ docker compose up          # backend:8000 (/api/agent, /health, /mcp 모두 여�
 cd frontend && npm run dev # :3000, NEXT_PUBLIC_API_BASE=http://localhost:8000
 ```
 
-Cloud Run 서비스는 하나다 (backend에 MCP 마운트). 프론트는 Vercel. 카카오 콘솔에 Vercel 도메인과 localhost:3000을 등록한다.
+배포는 Modal 앱 하나다 (`modal_app.py`, backend에 MCP 마운트, 같은 Dockerfile 이미지). 요청이 없으면 5분 뒤 0대로 내려가고
+첫 요청은 콜드 스타트로 느리다. 프론트는 Vercel. 카카오 콘솔에 Vercel 도메인과 localhost:3000을 등록한다.
+만료 데이터 청소는 GitHub Actions(`.github/workflows/cleanup.yml`)가 하루 1회 부른다. 절차는 docs/deploy.md.
+
+10-20 결정: Cloud Run 대신 Modal. Cloud Run 은 결제 계정을 새로 열어야 했고(카드 등록) 초과 청구를 막는 하드 한도가 없다.
+Modal 은 이미 쓰는 계정(월 무료 크레딧, 지출 한도 $0)이라 카드 청구가 생기지 않는다. 버린 대안: Cloud Run(문서 원안), 상시 서버.
+Cloud Scheduler 도 같은 이유로 GitHub Actions 로 바꿨다.
 
 ---
 
@@ -696,7 +710,7 @@ Cloud Run 서비스는 하나다 (backend에 MCP 마운트). 프론트는 Vercel
 | requirements.txt asyncpg | 적용됨 (09-17) | 주석 해제. SQLAlchemy 안 씀, asyncpg 직접. DATABASE_URL은 postgresql:// |
 | 다른 기기에서 로컬 재현 | 확인됨 (10-09) | 새 clone + `cp .env.example .env` 로 확인. DATABASE_URL 이 주석이라 api 가 기동에서 죽던 것을 .env.example 에 compose db 값으로 넣어 고쳤다. 키 없이 어디까지 도는지는 README 3절 |
 | Supabase 프로젝트 | 해결 (09-18) | `converge_agent` 생성. 표 5개·RLS 마이그레이션 완료 |
-| 구글 OAuth 동의 화면 | 설정됨, 테스트 모드 (09-18) | 테스트 사용자 등록, 리디렉트 localhost:3000/**. 브라우저 로그인 → 토큰 → 백엔드 검증 실측. 남은 것은 프로덕션 전환과 Vercel 주소 추가로, 배포할 때 한다 |
+| 구글 OAuth 동의 화면 | 프로덕션 게시 (10-20) | Converge 전용 구글 클라우드 프로젝트 `converge-512207`(kswook30 계정)로 옮겨 앱 이름 Converge, 프로덕션 게시. 클라이언트 `converge-web`, 리디렉션 URI 는 Supabase 콜백과 배포 주소 `/`. 다른 서비스 프로젝트의 클라이언트를 쓰면 동의 화면에 그 앱 이름이 뜬다. 절차는 docs/deploy.md |
 | Langfuse 트레이스의 참석자 이름·출발지 | 결정 (09-22) | 번호로 가린다 (5절, domain/masking.py). 목적지는 DB 에도 평문인 공개 장소라 남긴다. 한 글자 이름과 외부 API 오류 문구 속 지명은 가리지 못한다 |
 | 로컬 확인용 서버 | 해결 | DB 설정이 들어와 backend/app/main.py 로 뜬다. 임시 서버는 지웠다 |
 | 캡처 읽기 실제 카톡 캡처 | 미확인 (09-22), 가짜 재확인 (10-09) | 코드로 그린 가짜 캡처만 돌렸다. 10-09 단톡방 모양 캡처로 말한 사람·내 말풍선 구분은 3/3, 마지막 말풍선 누락 2/3 (docs/measurements.md). 실제 캡처로 다시 확인한다. 원본은 커밋하지 않는다 |

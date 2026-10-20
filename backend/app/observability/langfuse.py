@@ -152,7 +152,7 @@ def trace(
         finally:
             del root
             try:
-                # Cloud Run 은 요청이 끝나면 CPU 를 멈춘다. 여기서 보내지 않으면 유실된다
+                # 서버가 요청 뒤 곧 내려갈 수 있다(Modal 0대 축소). 여기서 보내지 않으면 유실된다
                 client.flush()
             except Exception:  # noqa: BLE001
                 pass

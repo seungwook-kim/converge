@@ -1,6 +1,6 @@
 """내부 배치 엔드포인트. (SDD 1절·2절, 테이블정의서 6절)
 
-  POST /internal/cleanup   Cloud Scheduler 가 하루 1회. 만료된 세션·캐시·로그를 지운다
+  POST /internal/cleanup   GitHub Actions(cleanup.yml)가 하루 1회. 만료된 세션·캐시·로그를 지운다
 
 로그인이 아니라 INTERNAL_TOKEN 으로 막는다. 부르는 쪽이 사람이 아니라 스케줄러라서다.
 토큰이 비어 있으면 아무도 못 부르게 503 으로 닫는다. 빈 값끼리 같다고 통과시키면 누구나 지울 수 있다.

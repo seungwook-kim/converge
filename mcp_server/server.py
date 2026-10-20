@@ -45,7 +45,7 @@ class StaticTokenVerifier(TokenVerifier):
 
 def _public_url() -> str:
     """이 MCP 엔드포인트의 공개 주소. AuthSettings.resource_server_url 에 들어간다.
-    로컬은 http://localhost:8000/mcp, 배포는 Cloud Run 주소 + /mcp (.env MCP_PUBLIC_URL)."""
+    로컬은 http://localhost:8000/mcp, 배포는 Modal 주소 + /mcp (.env MCP_PUBLIC_URL)."""
     return os.environ.get("MCP_PUBLIC_URL", "http://localhost:8000/mcp")
 
 
