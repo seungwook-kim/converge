@@ -636,6 +636,13 @@ LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 
 10-01 재측정에서 5번이 다시 실패(단계 0.9): 운전자 항목에 태우기를 거꾸로 적음. llm._parse 가 방향을 바로잡은 뒤 단계·슬롯·계약 1.0 (p50 3.66초). 5번 문장 직접 호출은 13번 중 12번. 10-09 같은 문장 직접 호출 29번 모두 done (실패 출력을 못 잡아 코드는 고치지 않음).
 10-09 프롬프트: converge/vision-transcribe v2 (오른쪽 말풍선을 빼먹지 않게. v1 은 같은 캡처에서 내 말풍선 0/5, v2 5/5), converge/slot-extract v16 (예시의 실제 장소명을 가상의 이름으로). staging 에서 회귀셋을 잰 뒤 production 으로 옮겼다 (docs/measurements.md).
 
+### Claude API 를 붙일 때 (2026-10-20 결정, 아직 연결 전)
+
+OpenRouter 한도를 넘으면 Claude API 로 넘어갈 수 있게 키 자리(`ANTHROPIC_API_KEY`, 로컬 `.env`)만 만들었다. 코드는 아직 읽지 않는다.
+붙일 때 모델은 **`claude-haiku-5-5`(Haiku 5.5) 하나만** 쓴다. Sonnet·Opus 등 상위 모델은 금지한다 (사용자 결정, 비용).
+허용 목록(`llm.ALLOWED_MODELS`)에 넣는 이름도 이것 하나다.
+10-20 기준 OpenRouter 키 한도 $9 중 $0.26 사용.
+
 ### 슬롯 추출 모델 (2026-09-21 결정, 09-28 결정으로 대체됨. 기록용)
 
 `google-ai/gemini-3.5-flash-lite` 를 쓴다. 회귀셋 10건에서 슬롯 정확도 0.778, 지연 p50 3.1초였고
