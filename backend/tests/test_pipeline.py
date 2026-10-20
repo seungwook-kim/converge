@@ -211,8 +211,8 @@ def test_세션_id_를_첫_요청에서_만든다():
 
 
 def test_세션_id_가_오면_그대로_쓴다():
-    out = run(AgentRequest(session_id="keep-me", text="점검"), deps(slots()))
-    assert out.session_id == "keep-me"
+    out = run(AgentRequest(session_id="22222222-2222-4222-8222-222222222222", text="점검"), deps(slots()))
+    assert out.session_id == "22222222-2222-4222-8222-222222222222"
 
 
 def _done_deps(**over) -> pipeline.Deps:
@@ -269,7 +269,7 @@ def test_남의_세션으로_재질문하면_막는다():
         return {"user_id": "other", "locked": False, "participants": []}
 
     with pytest.raises(pipeline.NotYourSession):
-        run(AgentRequest(session_id="s1", text="점검"), _done_deps(load_session=load_session))
+        run(AgentRequest(session_id="11111111-1111-4111-8111-111111111111", text="점검"), _done_deps(load_session=load_session))
 
 
 def test_잠긴_세션이면_막는다():
@@ -277,7 +277,7 @@ def test_잠긴_세션이면_막는다():
         return {"user_id": "u1", "locked": True, "participants": []}
 
     with pytest.raises(pipeline.SessionLocked):
-        run(AgentRequest(session_id="s1", text="점검"), _done_deps(load_session=load_session), user_id="u1")
+        run(AgentRequest(session_id="11111111-1111-4111-8111-111111111111", text="점검"), _done_deps(load_session=load_session), user_id="u1")
 
 
 def test_재질문이면_이전_슬롯을_추출에_넘긴다():
@@ -299,7 +299,7 @@ def test_재질문이면_이전_슬롯을_추출에_넘긴다():
         return slots(datetime="목요일 08:00")
 
     d = _done_deps(load_session=load_session, extract_slots=extract_slots)
-    run(AgentRequest(session_id="s1", text="출입조치 했어요"), d, user_id="u1")
+    run(AgentRequest(session_id="11111111-1111-4111-8111-111111111111", text="출입조치 했어요"), d, user_id="u1")
     assert seen["previous"] is not None
     assert seen["previous"].destination == "창원 사무소"
 
@@ -334,10 +334,10 @@ def test_다시_계산해도_누가_핀을_고쳤는지는_남는다():
 
     async def save(**kwargs):
         saved.update(kwargs)
-        return "s1"
+        return "11111111-1111-4111-8111-111111111111"
 
     req = AgentRequest(
-        session_id="s1", text="핀 위치 확인", confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25)]
+        session_id="11111111-1111-4111-8111-111111111111", text="핀 위치 확인", confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25)]
     )
     run(req, _done_deps(load_session=load_session, save=save), user_id="u1")
     person = next(p for p in saved["participants"] if p["name"] == "김현장")
@@ -351,7 +351,7 @@ def test_처음_저장하면_수정_기록은_비어_있다():
 
     async def save(**kwargs):
         saved.update(kwargs)
-        return "s1"
+        return "11111111-1111-4111-8111-111111111111"
 
     run(AgentRequest(text="점검"), _done_deps(save=save))
     person = saved["participants"][0]
@@ -534,7 +534,7 @@ def test_공유_링크로_다시_열어도_준비물과_계획서가_나온다()
         "constraints": ["cook"],
         "participants": [{"name": "김현장", "origin_text": "창원시청", "transport": "car", "role": "site"}],
     }
-    again = session_store.to_agent_response("s1", row, stored).result
+    again = session_store.to_agent_response("11111111-1111-4111-8111-111111111111", row, stored).result
     assert again.checklist == out.result.checklist
     assert again.summary_text
 
@@ -556,12 +556,12 @@ def test_계산_뒤_되묻기_중이면_예전_결과를_완료로_보이지_않
             {"name": "현우", "origin_text": "사당", "transport": None, "role": "site"},
         ],
     }
-    again = session_store.to_agent_response("s1", row, stored)
+    again = session_store.to_agent_response("11111111-1111-4111-8111-111111111111", row, stored)
     assert again.stage == "need_info" and again.result is None
     assert again.questions
 
     row["status"] = "computed"
-    assert session_store.to_agent_response("s1", row, stored).stage == "done"
+    assert session_store.to_agent_response("11111111-1111-4111-8111-111111111111", row, stored).stage == "done"
 
 
 def test_캡처_비용도_요청당_상한에_센다(monkeypatch):
@@ -1057,7 +1057,7 @@ def test_핀_확인_요청이면_슬롯_추출을_건너뛰고_이전_슬롯으�
     d = deps(prev, pins(confidence=0.5), extract_slots=extract_slots)
     d.previous_slots = prev
     req = AgentRequest(
-        session_id="s1", text="핀 위치 확인", confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25)]
+        session_id="11111111-1111-4111-8111-111111111111", text="핀 위치 확인", confirmed_participants=[ParticipantInput(name="김현장", lng=128.7, lat=35.25)]
     )
     out = run(req, d)
     assert called == []

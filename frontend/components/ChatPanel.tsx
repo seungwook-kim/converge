@@ -151,6 +151,7 @@ export default function ChatPanel({ messages, busy, stage, onSend, children }: P
         <div className="chat-form-row">
           <textarea
             value={text}
+            maxLength={1000}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

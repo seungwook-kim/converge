@@ -7,15 +7,18 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
 
+from backend.app.domain.guard import MAX_TEXT_CHARS
 from backend.app.schemas.slots import Preset, check_text
 
 MAX_IMAGE_BASE64 = 8_000_000  # 약 6MB 이미지. 이보다 크면 비전 모델 호출 전에 막는다 (비용 방어)
+MAX_PARTICIPANTS = 30  # 핀 확인으로 한 번에 보내는 참석자 수 상한 (10-20 입력 방어)
+UUID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 
 
 class ParticipantInput(BaseModel):
     """핀 확인 단계에서 사용자가 확정한 좌표 하나. PATCH 본문에서 claim 만 뺀 모양이다 (SDD 2절)."""
 
-    name: str
+    name: str = Field(max_length=40)
     lng: float = Field(ge=124.0, le=132.0)
     lat: float = Field(ge=33.0, le=39.0)
     origin: str | None = Field(
@@ -38,12 +41,12 @@ class AgentRequest(BaseModel):
     그때도 text 를 함께 받는 이유는 재질문·재계산이 같은 세션에서 이어지기 때문이다.
     """
 
-    session_id: str | None = Field(default=None, description="재질문이면 기존 세션")
-    text: str | None = None
+    session_id: str | None = Field(default=None, pattern=UUID_PATTERN, description="재질문이면 기존 세션")
+    text: str | None = Field(default=None, max_length=MAX_TEXT_CHARS, description="약속 문장. 1000자까지 (10-20 입력 방어)")
     image_base64: str | None = Field(default=None, max_length=MAX_IMAGE_BASE64, description="카톡 캡처(jpeg/png)")
     preset: Preset | None = Field(default=None, description="사용자가 고른 경우")
     confirmed_participants: list[ParticipantInput] | None = Field(
-        default=None, description="핀 확인 단계에서 수정한 좌표"
+        default=None, max_length=MAX_PARTICIPANTS, description="핀 확인 단계에서 수정한 좌표"
     )
 
     @model_validator(mode="after")
@@ -57,7 +60,7 @@ class ParticipantPatchRequest(ParticipantInput):
     """PATCH /api/session/{id}/participants 본문. 핀 소유권 (SDD 7절).
 
     claim=True   "이 사람이 나다" 등록. owner_user_id 가 비어 있을 때만 성공, 아니면 409
-    claim=False  위치만 수정. 토큰의 user_id 와 owner_user_id 가 같아야 하고, 아니면 403
+    claim=False  위치만 수정. 링크를 아는 로그인 사용자 누구나 (09-18 결정: 핀 소유권은 표시용, SDD 7절)
     """
 
     claim: bool = False

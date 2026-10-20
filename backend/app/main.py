@@ -56,13 +56,33 @@ class RequestIdMiddleware:
 
         async def send_with_id(message: dict) -> None:
             if message["type"] == "http.response.start":
-                message = {**message, "headers": [*message.get("headers", []), (b"x-request-id", rid.encode())]}
+                message = {
+                    **message,
+                    "headers": [*message.get("headers", []), (b"x-request-id", rid.encode()), *SECURITY_HEADERS],
+                }
             await send(message)
 
         try:
+            # 본문 크기 상한. 캡처(base64 8MB)보다 조금 크게. 넘으면 읽기 전에 413 (10-20 입력 방어)
+            length = dict(scope.get("headers") or []).get(b"content-length")
+            if length is not None and length.isdigit() and int(length) > MAX_BODY_BYTES:
+                await send_with_id(
+                    {"type": "http.response.start", "status": 413, "headers": [(b"content-type", b"application/json")]}
+                )
+                await send({"type": "http.response.body", "body": '{"detail":"요청이 너무 큽니다"}'.encode()})
+                return
             await self.app(scope, receive, send_with_id)
         finally:
             langfuse.request_id.reset(token)
+
+
+MAX_BODY_BYTES = 10_000_000
+# 응답 보안 헤더. API 는 JSON 만 내지만 브라우저가 다르게 해석하거나 다른 페이지 안에 넣지 못하게 한다
+SECURITY_HEADERS = [
+    (b"x-content-type-options", b"nosniff"),
+    (b"x-frame-options", b"DENY"),
+    (b"referrer-policy", b"no-referrer"),
+]
 
 
 # CORS: 브라우저는 다른 주소(프론트 :3000)에서 이 API(:8000)를 부를 때 서버가 "그 주소 허용"이라고

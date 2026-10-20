@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from backend.app.domain import guard
 from backend.app.domain import rules as domain_rules
 from backend.app.observability import langfuse
 from backend.app.schemas.slots import Slots
@@ -166,9 +167,10 @@ def _validate(data: dict[str, Any], count: int) -> list[dict[str, Any]]:
             {
                 "candidate_idx": idx,
                 "rank": rank_value,
-                "reason": str(row.get("reason") or "").strip() or "판정 이유가 비어 있습니다",
-                "rejected_reason": row.get("rejected_reason") or None,
-                "switched_from": row.get("switched_from") or None,
+                # 모델이 쓴 자유 글은 화면에 그대로 나간다. 안 보이는 문자를 지우고 길이를 자른다 (domain/guard.py)
+                "reason": guard.clip(str(row.get("reason") or "")) or "판정 이유가 비어 있습니다",
+                "rejected_reason": guard.clip(str(row.get("rejected_reason") or "")),
+                "switched_from": guard.clip(str(row.get("switched_from") or "")),
             }
         )
     return out

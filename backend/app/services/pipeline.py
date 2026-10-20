@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from backend.app.domain import checklist as domain_checklist
+from backend.app.domain import guard
 from backend.app.domain import masking
 from backend.app.domain import router as model_router
 from backend.app.domain import rules as domain_rules
@@ -31,6 +32,9 @@ from backend.app.services import costs as cost_guards
 
 # 확신도가 이보다 낮은 핀이 하나라도 있으면 사용자에게 확인을 받는다 (SDD 5절 2단계)
 GEOCODE_CONFIRM_BELOW = 0.8
+
+# 공격 문구로 보이는 입력에 돌려주는 안내. 어떤 규칙에 걸렸는지는 알려 주지 않는다 (우회 연습을 돕지 않게)
+BLOCKED_MESSAGE = "약속 정보로 읽을 수 없는 문장입니다. 언제, 어디서, 누가 어디서 출발하는지만 적어 주세요."
 
 
 class NotYourSession(Exception):
@@ -109,7 +113,13 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
     is_new_session = req.session_id is None
 
     with langfuse.trace("agent", user_id=user_id, session_id=session_id, preset=req.preset) as tr:
-        text = req.text or ""
+        # 입력 방어 (domain/guard.py). 안 보이는 문자를 지우고, 명백한 공격 문구면 LLM 을 부르기 전에 돌려보낸다.
+        # 세션을 만들지 않고 비용도 쓰지 않는다
+        text = guard.clean(req.text)
+        if blocked := guard.attack_reason(text):
+            with tr.span("guard") as span:
+                span.output = {"blocked": blocked}
+            return _answer(session_id, "out_of_scope", Slots(out_of_scope=True), tr.id, BLOCKED_MESSAGE)
 
         # 재질문이면 이전 슬롯을 읽어 1단계 프롬프트에 넣는다 (SDD 5절 재질문)
         if not is_new_session and deps.previous_slots is None:
@@ -134,7 +144,8 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
             with tr.span("vision") as span:
                 started = time.monotonic()
                 try:
-                    transcript = await _call(deps.extract_text, req.image_base64)
+                    # 캡처 속 글자도 사용자 입력이다. 캡처에 지시문을 적어 넣는 주입 경로라 문장과 같이 거른다
+                    transcript = guard.clean(await _call(deps.extract_text, req.image_base64), guard.MAX_TRANSCRIPT_CHARS)
                     # 캡처와 함께 적은 문장이 있으면 뒤에 붙인다. 캡처에 없는 사정을 덧붙이는 경우다
                     text = f"{transcript}\n{text}" if text.strip() else transcript
                     span.output = {"chars": len(transcript)}
@@ -152,6 +163,11 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                         "캡처를 읽지 못했습니다. 문장으로 입력해 주세요.",
                         questions=["언제, 어디서, 누가 어디서 출발해 모이나요?"],
                     )
+
+        if req.image_base64 and (blocked := guard.attack_reason(text)):
+            with tr.span("guard") as span:
+                span.output = {"blocked": blocked, "source": "vision"}
+            return _answer(session_id, "out_of_scope", Slots(out_of_scope=True), tr.id, BLOCKED_MESSAGE)
 
         # 1. 텍스트 → 슬롯
         # 입력 문장은 추출이 끝난 뒤 이름·출발지를 가려서 남긴다 (domain/masking.py).
@@ -245,7 +261,8 @@ async def run(req: AgentRequest, user_id: str, deps: Deps | None = None) -> Agen
                 pins = await _call(deps.geocode_all, slots)
                 span.output = {"pins": len(pins)}
             except Exception as e:  # noqa: BLE001
-                span.error = str(e)
+                # 오류 문구에 지명(출발지)이 들어 있다. 가림말 없이 Langfuse 로 나가므로 종류만 남긴다 (10-20)
+                span.error = type(e).__name__
                 return _answer(session_id, "failed", slots, tr.id, "위치를 찾지 못했습니다. 지명을 다시 알려 주세요.")
 
         # 2-1. 확신도가 낮으면 핀 확인. 사용자가 고친 좌표는 confirmed_participants 로 다시 온다

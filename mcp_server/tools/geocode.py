@@ -12,6 +12,7 @@ from __future__ import annotations
 import httpx
 from pydantic import BaseModel, Field
 
+from backend.app.domain import guard
 from backend.app.services.geo import TIMEOUT_SEC, geocode_one
 from mcp_server.server import mcp
 
@@ -45,6 +46,10 @@ async def geocode(
     """
     # 형 함수는 bias 를 (lng, lat) 한 묶음으로 받는다. MCP 입력은 숫자 둘로 받는 게 모델이 채우기 쉽다.
     bias = (bias_lng, bias_lat) if bias_lng is not None and bias_lat is not None else None
+    # 지명은 짧다. 긴 글을 카카오로 흘려보내지 않는다 (10-20 입력 방어, domain/guard.py)
+    query = guard.clean(query, 100)
+    if not query:
+        raise ValueError("지명이 비어 있습니다")
     # geocode_one 은 인터넷을 타는 async 함수라 httpx 클라이언트를 열어 넘겨야 한다.
     # 여는 방식·타임아웃은 geo.geocode_all 과 같다.
     async with httpx.AsyncClient(timeout=TIMEOUT_SEC) as client:

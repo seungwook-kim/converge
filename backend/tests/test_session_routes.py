@@ -79,7 +79,7 @@ def client(monkeypatch):
 
 def test_공유_링크는_에이전트_응답과_같은_모양이다(client):
     api, _ = client
-    body = api.get("/api/session/s1").json()
+    body = api.get("/api/session/11111111-1111-4111-8111-111111111111").json()
     assert body["stage"] == "done"
     assert body["slots"]["participants"][0]["name"] == "김현장"
     assert body["result"]["candidates"][0]["name"] == "창원 사무소 정문"
@@ -89,7 +89,7 @@ def test_공유_링크는_에이전트_응답과_같은_모양이다(client):
 
 def test_주인이_없는_핀은_claim_할_수_있다(client):
     api, state = client
-    res = api.patch("/api/session/s1/participants", json={"name": "김현장", "lng": 128.68, "lat": 35.22, "claim": True})
+    res = api.patch("/api/session/11111111-1111-4111-8111-111111111111/participants", json={"name": "김현장", "lng": 128.68, "lat": 35.22, "claim": True})
     assert res.status_code == 200
     assert state["saved"][0]["owner_user_id"] == ME
 
@@ -97,7 +97,7 @@ def test_주인이_없는_핀은_claim_할_수_있다(client):
 def test_이미_주인이_있으면_claim_은_409(client):
     api, state = client
     state["session"] = make_session(owner=OTHER)
-    res = api.patch("/api/session/s1/participants", json={"name": "김현장", "lng": 128.68, "lat": 35.22, "claim": True})
+    res = api.patch("/api/session/11111111-1111-4111-8111-111111111111/participants", json={"name": "김현장", "lng": 128.68, "lat": 35.22, "claim": True})
     assert res.status_code == 409
 
 
@@ -105,7 +105,7 @@ def test_남의_핀도_고칠_수_있고_누가_고쳤는지_남는다(client):
     """09-18 결정: 소유권은 표시용이고 수정은 막지 않는다 (SDD 7절)."""
     api, state = client
     state["session"] = make_session(owner=OTHER)
-    res = api.patch("/api/session/s1/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": False})
+    res = api.patch("/api/session/11111111-1111-4111-8111-111111111111/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": False})
     assert res.status_code == 200
 
     saved = state["saved"][0]
@@ -122,7 +122,7 @@ def test_남의_핀도_고칠_수_있고_누가_고쳤는지_남는다(client):
 def test_내_핀이면_위치를_고치고_기록을_남긴다(client):
     api, state = client
     state["session"] = make_session(owner=ME)
-    res = api.patch("/api/session/s1/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": False})
+    res = api.patch("/api/session/11111111-1111-4111-8111-111111111111/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": False})
     assert res.status_code == 200
     saved = state["saved"][0]
     assert (saved["lng"], saved["lat"]) == (128.7, 35.25)
@@ -140,7 +140,7 @@ def test_출발지_이름을_같이_보내면_이름도_바뀐다(client):
     api, state = client
     state["session"] = make_session(owner=ME)
     res = api.patch(
-        "/api/session/s1/participants",
+        "/api/session/11111111-1111-4111-8111-111111111111/participants",
         json={"name": "김현장", "lng": 128.7, "lat": 35.25, "origin": "창원중앙역", "claim": False},
     )
     assert res.status_code == 200
@@ -153,7 +153,7 @@ def test_출발지_이름이_없으면_이름은_그대로다(client):
     api, state = client
     state["session"] = make_session(owner=ME)
     before = state["session"]["participants"][0].get("origin_text")
-    res = api.patch("/api/session/s1/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": False})
+    res = api.patch("/api/session/11111111-1111-4111-8111-111111111111/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": False})
     assert res.status_code == 200
     assert state["saved"][0].get("origin_text") == before
 
@@ -162,7 +162,7 @@ def test_claim_은_출발지_이름을_바꾸지_않는다(client):
     api, state = client
     before = state["session"]["participants"][0].get("origin_text")
     res = api.patch(
-        "/api/session/s1/participants",
+        "/api/session/11111111-1111-4111-8111-111111111111/participants",
         json={"name": "김현장", "lng": 128.68, "lat": 35.22, "origin": "다른곳", "claim": True},
     )
     assert res.status_code == 200
@@ -172,13 +172,13 @@ def test_claim_은_출발지_이름을_바꾸지_않는다(client):
 def test_잠긴_세션은_409(client):
     api, state = client
     state["locked"] = True
-    res = api.patch("/api/session/s1/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": True})
+    res = api.patch("/api/session/11111111-1111-4111-8111-111111111111/participants", json={"name": "김현장", "lng": 128.7, "lat": 35.25, "claim": True})
     assert res.status_code == 409
 
 
 def test_없는_참석자면_404(client):
     api, _ = client
-    res = api.patch("/api/session/s1/participants", json={"name": "없는사람", "lng": 128.7, "lat": 35.25, "claim": True})
+    res = api.patch("/api/session/11111111-1111-4111-8111-111111111111/participants", json={"name": "없는사람", "lng": 128.7, "lat": 35.25, "claim": True})
     assert res.status_code == 404
 
 
@@ -308,7 +308,7 @@ def test_저장할_때_시각_원문을_넘긴다(monkeypatch):
 
     async def create_session(**kwargs):
         seen["create"] = kwargs
-        return "s1"
+        return "11111111-1111-4111-8111-111111111111"
 
     async def update_session(session_id, **kwargs):
         seen["update"] = kwargs
@@ -338,7 +338,7 @@ def test_이동수단을_되묻는_중인_세션도_공유_링크가_열린다()
             {"name": "민수", "origin_text": None, "transport": None},
         ],
     }
-    res = session_store.to_agent_response("s1", row, None)
+    res = session_store.to_agent_response("11111111-1111-4111-8111-111111111111", row, None)
     assert res.stage == "need_info"  # 빠진 정보가 있으면 되묻기로 연다
     assert "participants[1].transport" in res.slots.missing
 
@@ -352,7 +352,7 @@ def test_빠진_정보가_있는_세션은_되묻기_단계로_연다():
         "meet_at": None,
         "participants": [{"name": "나머지 2명", "origin_text": None, "transport": None}],
     }
-    res = session_store.to_agent_response("s1", row, None)
+    res = session_store.to_agent_response("11111111-1111-4111-8111-111111111111", row, None)
     assert res.stage == "need_info"
     assert res.questions == [
         "나머지 2명은 어디서 출발하시나요?",
@@ -405,7 +405,7 @@ def test_재질문으로_알게_된_집결지도_저장한다(monkeypatch):
         rendezvous=Rendezvous(name="낚시벨리", members=["창고 3명"], time="10시"),
         access=None, schedule_confirmed=None, constraints=[], missing=[], out_of_scope=False,
     )
-    asyncio.run(session_store.save(session_id="s1", user_id="u1", slots=slots, participants=[], result=None,
+    asyncio.run(session_store.save(session_id="11111111-1111-4111-8111-111111111111", user_id="u1", slots=slots, participants=[], result=None,
                                    trace_id="t", status="draft"))
     assert seen["rendezvous"]["members"] == ["창고 3명"]
 

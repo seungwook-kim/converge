@@ -94,6 +94,9 @@ def _is_out_of_credits(error: Exception) -> bool:
     return getattr(error, "status_code", None) == 402
 
 
+MAX_OUTPUT_TOKENS = 2000
+
+
 async def _create(model: str, **kwargs: Any) -> tuple[Any, str]:
     """chat.completions.create 를 감싼다. (응답, 실제로 답한 모델) 을 돌려준다.
 
@@ -103,6 +106,9 @@ async def _create(model: str, **kwargs: Any) -> tuple[Any, str]:
     """
     global _credits_out_until
     model = effective_model(model)
+    # 출력 길이 상한. 주입된 지시로 모델이 긴 글을 쓰게 해 비용을 키우는 것을 막는다 (10-20 입력 방어).
+    # 슬롯 JSON 은 참석자가 많아도 수백 토큰이다
+    kwargs.setdefault("max_tokens", MAX_OUTPUT_TOKENS)
     try:
         res = await _client(model).chat.completions.create(model=_api_model(model), **kwargs, **_extra_body(model))
         return res, model

@@ -65,6 +65,7 @@ converge/
         checklist.py          준비물 조립(checklist.md에서 꺼냄), 집결 계획서 텍스트 조립
         router.py             소형/대형 선택 규칙
         masking.py            Langfuse 로 나가는 기록에서 참석자 이름·출발지·탑승지를 번호로 가림 (09-22)
+        guard.py              입력 방어. 문장·캡처 글자 정리, 명백한 공격 문구 판정, 판정 자유 글 자르기 (2절 입력 방어, 10-20)
       observability/
         langfuse.py           트레이스·span·프롬프트 조회
       models/                 kanana_2.1b-Q4_K_M.gguf 자리. WITH_LOCAL_MODEL=1 빌드 때만 채워짐. git에 없음. 참고용
@@ -287,6 +288,27 @@ class SessionBrief(BaseModel):
 ### /mcp
 
 FastMCP Streamable HTTP. 헤더 `Authorization: Bearer {MCP_TOKEN}`. 브라우저에서 직접 호출하지 않는다.
+
+### 입력 방어 (2026-10-20 결정)
+
+사용자 문장과 캡처 글자는 그대로 LLM 프롬프트에 들어간다. 그 앞에 `backend/app/domain/guard.py` 를 둔다.
+
+| 무엇 | 어디서 | 값 |
+|---|---|---|
+| 문장 길이 | `AgentRequest.text` max_length | 1000자 |
+| 정리 | `guard.clean` (파이프라인 첫 줄, 캡처 글자에도) | NFC, 제어문자·폭 없는 문자·양방향 제어문자 제거, 빈 줄 줄이기. 캡처 글자는 2000자에서 자른다 |
+| 공격 문구 | `guard.attack_reason` | 프롬프트 주입("이전 지시 무시", "system prompt" 등), 역할 표지(`system:`, `<\|im_start\|>`), 스크립트 태그, SQL, 템플릿(`{{ }}`, `${ }`). 걸리면 LLM 을 부르지 않고 `out_of_scope` 와 안내 문구. 어느 규칙인지는 알려 주지 않는다 |
+| 요청 모양 | `schemas/request.py`, 세션 경로 | `session_id` 는 uuid 모양만, `confirmed_participants` 30명, 참석자 이름 40자 |
+| 출력 길이 | `llm._create` | `max_tokens` 2000 (주입으로 긴 출력을 내게 해 비용을 키우는 것을 막는다) |
+| 판정 자유 글 | `judge._validate` | 이유·버린 이유를 정리하고 200자에서 자른다 (화면에 그대로 나간다) |
+| 호출 횟수 | `routers/agent.py` | 사용자당 10분에 20번. 넘으면 429. 서버 메모리라 컨테이너마다 따로 센다 |
+| 본문 크기·헤더 | `main.py` RequestIdMiddleware | 10MB 넘으면 413. `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` |
+| MCP 지명 | `mcp_server/tools/geocode.py` | 정리 후 100자 |
+| 기록 | 파이프라인 geocode span | 오류 문구에 지명이 들어 있어 종류만 남긴다 |
+
+명백한 문구만 막는다. 애매한 문장을 막으면 정상 약속이 같이 막힌다("이전 약속 시간은 무시하고 7시로" 는 통과).
+그 뒤의 구조적 방어는 그대로다: 출력 스키마 검증(`slots._ALLOWED_TEXT`), 파라미터 쿼리와 암호화, React 이스케이프, 로그인 필수.
+테스트: `backend/tests/test_guard.py`.
 
 ---
 

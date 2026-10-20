@@ -13,15 +13,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from typing import Annotated
 
-from backend.app.schemas.request import ParticipantPatchRequest
+from fastapi import APIRouter, Depends, HTTPException, Path, Response
+
+from backend.app.schemas.request import UUID_PATTERN, ParticipantPatchRequest
 from backend.app.schemas.session import SessionBrief
 from backend.app.schemas.result import AgentResponse, ParticipantPatchResponse
 from backend.app.services import session_store, store
 from backend.app.services.auth import current_user
 
 router = APIRouter(prefix="/api/session", tags=["session"])
+# 세션 id 는 uuid 모양만 받는다. 아니면 DB 에 가기 전에 422 (10-20 입력 방어)
+SessionId = Annotated[str, Path(pattern=UUID_PATTERN)]
 # 목록은 /api/sessions 라 접두사가 다르다. main.py 가 둘 다 등록한다
 list_router = APIRouter(prefix="/api", tags=["session"])
 
@@ -52,7 +56,7 @@ async def list_sessions(limit: int = 20, user_id: str = Depends(current_user)) -
 
 
 @router.get("/{session_id}", response_model=AgentResponse)
-async def read_session(session_id: str, user_id: str = Depends(current_user)) -> AgentResponse:
+async def read_session(session_id: SessionId, user_id: str = Depends(current_user)) -> AgentResponse:
     """공유 링크로 들어온 사람에게 세션과 가장 최근 결과를 돌려준다.
 
     응답 모양이 POST /api/agent 와 같다 (SDD 2절). 화면 두 개(주선자·공유 링크)가 같은 렌더링
@@ -70,7 +74,7 @@ async def read_session(session_id: str, user_id: str = Depends(current_user)) ->
 
 
 @router.delete("/{session_id}", status_code=204)
-async def delete_session(session_id: str, user_id: str = Depends(current_user)) -> Response:
+async def delete_session(session_id: SessionId, user_id: str = Depends(current_user)) -> Response:
     """주선자가 세션을 지운다 (결정 7). 즉시 삭제, results는 DB가 같이 지운다(CASCADE).
 
     "본인만"은 store.delete_session이 SQL WHERE로 보장한다. False면 남의 세션이거나 없는 것 → 403.
@@ -85,7 +89,7 @@ async def delete_session(session_id: str, user_id: str = Depends(current_user)) 
 
 @router.patch("/{session_id}/participants", response_model=ParticipantPatchResponse)
 async def update_participant(
-    session_id: str,
+    session_id: SessionId,
     body: ParticipantPatchRequest,
     user_id: str = Depends(current_user),
 ) -> ParticipantPatchResponse:

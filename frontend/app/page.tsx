@@ -196,6 +196,7 @@ function Compose({ auth }: { auth: AuthState }) {
         <textarea
           id="text"
           value={text}
+          maxLength={1000}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

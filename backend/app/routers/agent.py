@@ -7,6 +7,9 @@
 """
 from __future__ import annotations
 
+import time
+from collections import deque
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.schemas.request import AgentRequest
@@ -18,6 +21,26 @@ from backend.app.services.auth import current_user
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
+# 사용자 한 명이 RATE_WINDOW_SEC 동안 부를 수 있는 /api/agent 횟수. 약속 하나에 되묻기·핀 확인까지 해도
+# 대여섯 번이다. 서버 메모리에 두므로 컨테이너마다 따로 센다(최대 2대). 정확한 집계가 아니라 폭주를 막는 용도
+RATE_LIMIT = 20
+RATE_WINDOW_SEC = 600
+_calls: dict[str, deque[float]] = {}
+
+
+def _allow(user_id: str, now: float | None = None) -> bool:
+    now = time.monotonic() if now is None else now
+    q = _calls.setdefault(user_id, deque())
+    while q and now - q[0] > RATE_WINDOW_SEC:
+        q.popleft()
+    if len(q) >= RATE_LIMIT:
+        return False
+    q.append(now)
+    if len(_calls) > 5000:  # 오래 쉰 사용자 기록이 쌓이지 않게
+        for uid in [u for u, d in _calls.items() if not d or now - d[-1] > RATE_WINDOW_SEC]:
+            _calls.pop(uid, None)
+    return True
+
 
 @router.post("/agent", response_model=AgentResponse)
 async def agent(req: AgentRequest, user_id: str = Depends(current_user)) -> AgentResponse:
@@ -27,6 +50,9 @@ async def agent(req: AgentRequest, user_id: str = Depends(current_user)) -> Agen
     화면이 stage 하나로 갈리기 때문이다 (frontend/FRONTEND_GUIDE.md 표).
     HTTP 오류는 권한 문제일 때만 낸다.
     """
+    # 사용자별 호출 횟수 상한. LLM 을 부르기 전에 막는다 (10-20 입력 방어)
+    if not _allow(user_id):
+        raise HTTPException(status_code=429, detail="요청이 너무 잦습니다. 잠시 뒤에 다시 시도해 주세요")
     # 하루 비용 상한에 닿았으면 막지 않고 무료 FALLBACK 모델로 돈다 (09-28 결정, services/llm.py)
     token = llm.use_fallback_for_request() if await _over_daily_limit() else None
     try:
