@@ -22,6 +22,8 @@ image = modal.Image.from_dockerfile("Dockerfile", context_dir=".").env({"PYTHONP
     scaledown_window=300,
     timeout=120,
     max_containers=2,
+    # 리전은 기본(us-east). 10-20 에 ap-northeast 로 옮겨 봤으나 같은 요청이 14.3초 그대로였다.
+    # 느린 곳은 LLM 호출과 경로 계산이지 DB·API 왕복이 아니었다. 기본 외 리전은 단가가 높아 되돌렸다
 )
 @modal.concurrent(max_inputs=20)
 @modal.asgi_app(label="converge-api")

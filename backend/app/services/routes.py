@@ -280,6 +280,9 @@ async def compute_all(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
             cached = await _cached(plan)
             if cached is not None:
                 return {"key": plan["key"], **cached, "cached": True}
+            return await fetch(plan)
+
+        async def fetch(plan: dict[str, Any]) -> dict[str, Any]:
             try:
                 out = await route_one(
                     client, plan["transport"], plan["origin"], plan["dest"], plan.get("waypoint")
@@ -294,8 +297,16 @@ async def compute_all(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
         car_plans = [p for p in plans if p["transport"] == "car"]
 
         results = list(await asyncio.gather(*(run(p) for p in car_plans)))
-        for i, plan in enumerate(transit_plans):
-            if i:
+        # 간격은 실제 TMAP 호출 사이에만 둔다. 캐시 적중까지 1.2초씩 기다리면
+        # 같은 약속을 다시 계산할 때도 후보 수만큼 느려진다 (10-20 실측: 캐시 4건에 3.6초)
+        called = False
+        for plan in transit_plans:
+            cached = await _cached(plan)
+            if cached is not None:
+                results.append({"key": plan["key"], **cached, "cached": True})
+                continue
+            if called:
                 await asyncio.sleep(TRANSIT_GAP_SEC)
-            results.append(await run(plan))
+            results.append(await fetch(plan))
+            called = True
         return results
