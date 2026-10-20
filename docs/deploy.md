@@ -10,7 +10,7 @@ Modal 로 바꿨다. Modal 은 월 무료 크레딧과 지출 한도 $0 으로 �
 
 | 무엇 | 주소 |
 |---|---|
-| 화면 | https://converge-ruby.vercel.app (converge.vercel.app 은 이미 다른 사람이 쓴다) |
+| 화면 | https://converge-meet.vercel.app (converge.vercel.app 은 이미 다른 사람이 쓴다. 처음 주소 converge-ruby 에서 10-20 에 바꿨다) |
 | 백엔드 | https://kswook30--converge-api.us-east.modal.run (`/health`, `/mcp`) |
 | Supabase | 프로젝트 `converge-seoul` (`ntobehbbxiaurzfyhwgy`) |
 | 구글 클라우드 | 프로젝트 `converge-512207` (kswook30 계정), 클라이언트 `converge-web` |

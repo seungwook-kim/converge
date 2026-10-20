@@ -9,7 +9,7 @@
 
 | | |
 |---|---|
-| 서비스 | [converge-ruby.vercel.app](https://converge-ruby.vercel.app) (구글 로그인 필요. 쉬다가 첫 요청은 서버가 깨어나느라 느리다) |
+| 서비스 | [converge-meet.vercel.app](https://converge-meet.vercel.app) (구글 로그인 필요. 쉬다가 첫 요청은 서버가 깨어나느라 느리다) |
 | Agent API | `GET /health` · `POST /api/agent` |
 | 설계 | [docs/SDD.md](./docs/SDD.md) · [docs/테이블정의서.md](./docs/테이블정의서.md) |
 | 구조 지도 | [CONVERGE.md](./CONVERGE.md) |
