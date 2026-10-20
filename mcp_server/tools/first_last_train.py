@@ -1,4 +1,4 @@
-"""MCP 도구: first_last_train — 역의 첫차·막차. (SDD 6절, MCP_GUIDE)
+"""MCP 도구: first_last_train: 역의 첫차·막차. (SDD 6절, MCP_GUIDE)
 
 실제 서울 열린데이터광장 호출은 backend/app/services/transit_schedule.py 의 first_last_seoul 이 한다.
 이 파일은 그 함수를 감싸기만 한다. 형 함수가 없어서 주방(services/)까지 새로 만든 첫 도구다 (09-21).

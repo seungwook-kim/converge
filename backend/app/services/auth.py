@@ -53,7 +53,7 @@ def auth_required() -> bool:
 
 
 if not auth_required():
-    _log.warning("AUTH_REQUIRED=false — 로그인 검사를 건너뜁니다. 로컬 채점 전용. 배포 환경에서는 true여야 합니다.")
+    _log.warning("AUTH_REQUIRED=false. 로그인 검사를 건너뜁니다. 로컬 채점 전용. 배포 환경에서는 true여야 합니다.")
 
 
 @lru_cache(maxsize=1)
@@ -75,10 +75,10 @@ def verify_token(token: str) -> str:
 
     검사하는 것 (PyJWT가 한 번에):
       - 서명이 Supabase 공개키와 맞는가 (위조 여부)
-      - exp(만료 시각)가 지나지 않았는가 — Supabase 기본 1시간. 프론트 라이브러리가 만료 전에 자동 갱신한다
-      - aud가 "authenticated"인가 — Supabase가 로그인 사용자 토큰에 넣는 값. 다른 용도 토큰 차단
+      - exp(만료 시각)가 지나지 않았는가. Supabase 기본 1시간. 프론트 라이브러리가 만료 전에 자동 갱신한다
+      - aud가 "authenticated"인가. Supabase가 로그인 사용자 토큰에 넣는 값. 다른 용도 토큰 차단
     알고리즘을 ES256으로 고정하는 이유는 "alg: none" 같은 우회를 막기 위해서다.
-    옛 HS256 토큰(anon 키 등)은 여기서 거부된다 — 로그인 사용자 토큰만 받는 것이 맞다.
+    옛 HS256 토큰(anon 키 등)은 여기서 거부된다. 로그인 사용자 토큰만 받는 것이 맞다.
 
     user_id는 토큰의 sub 필드. auth.users.id 와 같은 uuid. sessions.user_id 에 들어가는 값 (테이블정의서 1절).
     """

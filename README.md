@@ -120,7 +120,7 @@ AgentResponse (need_confirm | need_info | done | out_of_scope | failed)
 ├── frontend/             Next.js. 지도·채팅, 공유 링크
 ├── skills/converge/      규칙 문서 (rules/)
 ├── evals/                평가셋과 실행 스크립트
-├── finetune/             소형 모델 학습 파이프라인. 지금은 쓰지 않고 후보로 남겨 둔다
+├── finetune/             소형 모델 학습 파이프라인. 쓰지 않고 참고용으로 둔다
 ├── scripts/              타입 생성 등 수동 실행 스크립트
 └── docs/                 SDD, 테이블정의서, 측정 기록
 ```
@@ -169,7 +169,7 @@ pytest backend/tests     # API 키 없이 실행
 |---|---|
 | Backend | FastAPI, Docker |
 | Frontend | Next.js, Kakao Map SDK |
-| LLM | 구글 AI Studio (소형), OpenRouter (대형). 로컬 GGUF 서빙 경로도 남아 있다 |
+| LLM | OpenRouter `openai/gpt-4o-mini`, 대체 구글 AI Studio `gemini-3.5-flash-lite` |
 | 도구 | FastMCP, Kakao Local/Mobility, TMAP, 서울·부산 지하철 공공데이터 |
 | 데이터 | PostgreSQL (Supabase), Supabase Auth |
 | 관측 | Langfuse (트레이스, Prompt) |
@@ -178,22 +178,29 @@ pytest backend/tests     # API 키 없이 실행
 
 ## 4. 슬롯 추출 모델
 
-문장에서 슬롯을 뽑는 일은 소형 모델이 먼저 맡고, 형식을 어기거나 결과가 미심쩍으면 대형 모델로 넘긴다.
-소형 모델은 `.env` 의 `MODEL_SMALL` 한 줄로 갈아끼운다.
+슬롯 추출·판정·캡처 읽기는 모두 `openai/gpt-4o-mini` (OpenRouter) 하나로 한다.
+크레딧이 떨어지거나(402) 하루 비용 상한에 닿으면 `google-ai/gemini-3.5-flash-lite` (구글 AI Studio 무료 할당)로 넘긴다.
+코드가 이 두 모델만 허용한다 (`llm.ALLOWED_MODELS`). env 에 다른 이름을 적어도 부르지 않는다.
 
 ```
-MODEL_SMALL=google-ai/gemini-3.5-flash-lite   # 슬롯 추출. 구글 직접 호출 (무료 할당, 하루 500회 안팎)
-MODEL_LARGE=google-ai/gemini-3.1-flash-lite   # 승격·판정 (무료 할당, 하루 1000회 안팎)
-GEMINI_API_KEY=AQ...                          # aistudio.google.com/apikey
+MODEL_SMALL=openai/gpt-4o-mini
+MODEL_LARGE=openai/gpt-4o-mini
+MODEL_VISION=openai/gpt-4o-mini
+OPENROUTER_API_KEY=...
+GEMINI_API_KEY=...        # 대체 모델용
 ```
 
-무료 할당을 넘기면 OpenRouter 로 바꾼다. `google/gemini-3.1-flash-lite` 가 요청당 약 $0.0005 다.
-`MODEL_SMALL` 을 주석 처리하면 로컬 GGUF 로 돌아간다.
+회귀셋 10건 최근 측정 (2026-10-09, [docs/measurements.md](./docs/measurements.md)): 단계 0.9, 슬롯 1.0, 계약 1.0, p50 6.72초.
+틀린 1건은 요일에 묶인 문항이라 돌리는 시각에 따라 갈린다.
 
-지금은 제미나이를 쓴다. 회귀셋 10건으로 잰 값은 이렇다 ([docs/measurements.md](./docs/measurements.md)).
+### 파인튜닝은 해봤고, 쓰지 않는다
 
-| 모델 | 슬롯 정확도 | 지연 p50 | 비용 | 준비물 |
-|---|---|---|---|---|
+Kanana-1.5-2.1B 에 QLoRA 를 붙여 학습했고 검증 62건에서 exact match 85.5% 까지 갔다
+([docs/compare.md](./docs/compare.md)). 그런데 CPU 서빙은 요청당 16~20초라 쓸 수 없고,
+제대로 쓰려면 GPU 서버를 띄워야 한다. 사이드 프로젝트에 그 고정비를 들일 이유가 없어 접었다 (2026-10-09).
+코드와 학습 파이프라인(`finetune/`)은 참고용으로만 남겨 둔다.
+
+---|---|---|---|---|
 | gemini-3.5-flash-lite | 0.778 | 3.1초 | $0 (무료 할당) | 키 한 줄 |
 | 로컬 GGUF (파인튜닝) | 0.556 | 18.2초 | $0 (CPU) | GPU 학습, 1.3GiB |
 

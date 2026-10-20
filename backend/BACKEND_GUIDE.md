@@ -27,7 +27,8 @@ Langfuse 는 키가 없으면 스스로 꺼진다 (`app/observability/langfuse.p
 - 출력은 `app/schemas/`의 모델로 검증한다. 필드는 거기서만 정의한다 (SDD 3·4절)
 - LLM 호출은 `services/llm.py`에만. 외부 API 호출은 `services/geo.py`, `routes.py`, `transit_schedule.py`, `access_judge.py`에만
   (`transit_schedule.py`는 첫차·막차. 서울 열린데이터광장과 부산교통공사를 부른다.
-  `access_judge.py`는 출입 절차 판단 모델 TypeSafe Jev. 생성하지 않는 판단 전용이라 llm.py 와 나눴다. llm.py 가 부른다)
+  `access_judge.py`는 출입 절차 판단 모델 TypeSafe Jev. 생성하지 않는 판단 전용이라 llm.py 와 나눴다. llm.py 가 부른다.
+  09-27 결정으로 꺼 둔다(`JEV_ACCESS=0`). 허용 목록에도 없어 지금은 부르지 않는다)
 - 프롬프트를 코드에 문자열로 두지 않는다. Langfuse Prompt 이름으로 가져온다 (SDD 8절)
 - 규칙값을 코드에 적지 않는다. `domain/rules.py`가 `skills/converge/rules/`의 프론트매터를 읽는다 (SDD 7절)
 - 참석자 이름·출발지·좌표·경로를 평문으로 DB에 넣지 않는다 (docs/테이블정의서.md 7절)

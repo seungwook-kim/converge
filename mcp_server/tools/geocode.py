@@ -1,4 +1,4 @@
-"""MCP 도구: geocode — 지명을 좌표로. (SDD 6절, MCP_GUIDE)
+"""MCP 도구: geocode: 지명을 좌표로. (SDD 6절, MCP_GUIDE)
 
 실제 카카오 로컬 호출은 backend/app/services/geo.py 의 geocode_one 이 한다. 이 파일은 그 함수를
 MCP 도구로 감싸기만 한다 (MCP_GUIDE: "실제 API 호출 코드를 여기 다시 쓰지 않는다").

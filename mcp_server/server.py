@@ -1,4 +1,4 @@
-"""MCP 서버 — 필수 조건 5. 도메인 데이터·행동을 MCP 도구로 노출한다. (SDD 6절, MCP_GUIDE)
+"""MCP 서버: 필수 조건 5. 도메인 데이터·행동을 MCP 도구로 노출한다. (SDD 6절, MCP_GUIDE)
 
 MCP(Model Context Protocol)는 LLM이 부를 수 있는 함수 목록을 표준 형식으로 공개하는 규약이다.
 우리 파이프라인(services/geo.py·routes.py)이 이 도구들을 부르고, 채점 때는 Claude Desktop 같은
@@ -31,7 +31,7 @@ class StaticTokenVerifier(TokenVerifier):
     """헤더의 토큰이 MCP_TOKEN과 같은지만 본다.
 
     SDK는 verify_token이 AccessToken을 돌려주면 통과, None이면 401로 응답한다.
-    비교는 hmac.compare_digest로 — 길이·문자 차이에 따른 응답 시간 차이로 토큰을 추측하는 것을 막는다.
+    비교는 hmac.compare_digest로. 길이·문자 차이에 따른 응답 시간 차이로 토큰을 추측하는 것을 막는다.
     """
 
     async def verify_token(self, token: str) -> AccessToken | None:

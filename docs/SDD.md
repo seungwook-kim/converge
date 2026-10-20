@@ -610,7 +610,7 @@ LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 
 10-01 재측정에서 5번이 다시 실패(단계 0.9): 운전자 항목에 태우기를 거꾸로 적음. llm._parse 가 방향을 바로잡은 뒤 단계·슬롯·계약 1.0 (p50 3.66초). 5번 문장 직접 호출은 13번 중 12번. 10-09 같은 문장 직접 호출 29번 모두 done (실패 출력을 못 잡아 코드는 고치지 않음).
 10-09 프롬프트: converge/vision-transcribe v2 (오른쪽 말풍선을 빼먹지 않게. v1 은 같은 캡처에서 내 말풍선 0/5, v2 5/5), converge/slot-extract v16 (예시의 실제 장소명을 가상의 이름으로). staging 에서 회귀셋을 잰 뒤 production 으로 옮겼다 (docs/measurements.md).
 
-### 슬롯 추출 모델 (2026-09-21 결정)
+### 슬롯 추출 모델 (2026-09-21 결정, 09-28 결정으로 대체됨. 기록용)
 
 `google-ai/gemini-3.5-flash-lite` 를 쓴다. 회귀셋 10건에서 슬롯 정확도 0.778, 지연 p50 3.1초였고
 구글 무료 할당 안에서 돈다 (docs/measurements.md).
@@ -691,7 +691,7 @@ Cloud Run 서비스는 하나다 (backend에 MCP 마운트). 프론트는 Vercel
 | 지하철 첫차·막차 | 확인됨 | 서울교통공사 첫차·막차 API(1~9호선만, 민자 노선 제외), 부산교통공사 열차시각표 API. 공공데이터포털 키 하나. 부산 역외부코드 CSV를 레포에 둠 |
 | TMAP 대중교통 도착 시각 지정 | 확인됨, 없음 (10-09) | `searchDttm` 을 03:00·08:00 으로 줘도, 도착 기준으로 보이는 값을 줘도 결과가 같고 응답 `reqDttm` 은 호출 시각이다. 시각 지정이 안 되므로 현재 기준 소요시간으로 역산한다 (지금 routes._transit_once 그대로). 값은 docs/measurements.md |
 | 슬롯 추출 통과율 | 측정됨 (09-21) | 구글 AI Studio 로 옮긴 뒤 회귀셋 10건으로 잰다. 값은 docs/measurements.md. OpenRouter 는 크레딧이 없어 승격이 402 로 죽어 쓰지 않는다 |
-| 소형 모델 최종 선택 | 결정 (09-28, 10-09) | 슬롯 추출은 openai/gpt-4o-mini, 대체 google-ai/gemini-3.5-flash-lite (8절). 파인튜닝 모델(kanana_2.1b-Q4_K_M.gguf, 검증 Exact Match 85.0%)은 쓰지 않고 참고용으로만 둔다 |
+| 소형 모델 최종 선택 | 결정 (09-28, 10-09) | 슬롯 추출은 openai/gpt-4o-mini, 대체 google-ai/gemini-3.5-flash-lite (8절). 파인튜닝 모델(kanana_2.1b-Q4_K_M.gguf, 검증 62건 Exact Match 85.5%)은 쓰지 않고 참고용으로만 둔다 |
 | compose db healthcheck | 적용됨 (09-17) | pg_isready healthcheck + depends_on condition: service_healthy. backend/db/를 initdb에 마운트 |
 | requirements.txt asyncpg | 적용됨 (09-17) | 주석 해제. SQLAlchemy 안 씀, asyncpg 직접. DATABASE_URL은 postgresql:// |
 | 다른 기기에서 로컬 재현 | 확인됨 (10-09) | 새 clone + `cp .env.example .env` 로 확인. DATABASE_URL 이 주석이라 api 가 기동에서 죽던 것을 .env.example 에 compose db 값으로 넣어 고쳤다. 키 없이 어디까지 도는지는 README 3절 |

@@ -1,4 +1,4 @@
-"""MCP 도구: route_transit — 대중교통 경로·소요시간. (SDD 6절, MCP_GUIDE)
+"""MCP 도구: route_transit: 대중교통 경로·소요시간. (SDD 6절, MCP_GUIDE)
 
 실제 TMAP 호출은 backend/app/services/routes.py 의 _transit 이 한다. 이 파일은 그 함수를 감싸기만 한다.
 도보도 이 도구로 대신한다. 짧은 거리는 TMAP 응답에 걷기 구간이 나온다 (routes.route_one).

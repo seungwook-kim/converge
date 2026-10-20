@@ -1,4 +1,4 @@
-"""MCP 도구: departure_calc — 출발 시각 역산. (SDD 6절)
+"""MCP 도구: departure_calc: 출발 시각 역산. (SDD 6절)
 
 7개 도구 중 유일하게 외부 API가 없다. 계산은 backend/app/domain/rules.py 의 calc_departure 가 하고,
 이 파일은 그 함수를 MCP 도구로 감싸기만 한다 (MCP_GUIDE: "실제 코드는 여기 다시 쓰지 않는다").

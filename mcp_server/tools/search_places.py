@@ -1,4 +1,4 @@
-"""MCP 도구: search_places — 좌표 둘레에서 집결 후보(정문·출입구·역)를 찾는다. (SDD 6절, MCP_GUIDE)
+"""MCP 도구: search_places: 좌표 둘레에서 집결 후보(정문·출입구·역)를 찾는다. (SDD 6절, MCP_GUIDE)
 
 실제 카카오 로컬 호출은 backend/app/services/geo.py 의 _nearby 가 하고, 결과 정리는 _as_candidate 가 한다.
 이 파일은 kind 를 검색어로 바꿔 그 둘을 부르기만 한다. 대응은 geo.build_candidates 와 같다

@@ -1,4 +1,4 @@
-"""MCP 도구: route_car — 자동차 경로·소요시간. (SDD 6절, MCP_GUIDE)
+"""MCP 도구: route_car: 자동차 경로·소요시간. (SDD 6절, MCP_GUIDE)
 
 실제 카카오모빌리티(카카오내비) 호출은 backend/app/services/routes.py 의 _car 가 한다. 이 파일은 감싸기만.
 인증은 developers.kakao.com 의 REST 키(KAKAO_REST_KEY) 그대로. 별도 키가 필요하다는 기록이 있었으나

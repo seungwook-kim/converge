@@ -5,9 +5,9 @@
   - 암호화 방식을 바꿔도 이 파일만 고치면 된다.
 
 이 파일이 책임지는 것 세 가지:
-  1. 연결 풀   — DATABASE_URL로 asyncpg 풀을 열고 재사용
-  2. 암호화    — 참석자 이름·출발지·경로·API 응답을 AES-256-GCM으로 (테이블정의서 7절)
-  3. expires_at — 세션 만료 시각 계산. DB 기본값이 없으므로 여기서 넣는다 (테이블정의서 1절, 규칙 session.md)
+  1. 연결 풀: DATABASE_URL로 asyncpg 풀을 열고 재사용
+  2. 암호화: 참석자 이름·출발지·경로·API 응답을 AES-256-GCM으로 (테이블정의서 7절)
+  3. expires_at: 세션 만료 시각 계산. DB 기본값이 없으므로 여기서 넣는다 (테이블정의서 1절, 규칙 session.md)
 
 지금은 위 세 가지의 기반 함수만 있다. 표별 저장·조회 함수(create_session, save_result, ...)는
 다음 조각에서 이 아래에 붙인다.
@@ -320,7 +320,7 @@ async def delete_session(session_id: str, user_id: str) -> bool:
 
     user_id를 WHERE에 같이 걸어서 "본인만"을 SQL 한 줄로 보장한다. 라우터는 False면 403.
     results는 FK ON DELETE CASCADE로 같이 지워진다 (001_init.sql). request_logs·feedback은
-    FK가 없어 남는다 — 집계용 (테이블정의서 6절).
+    FK가 없어 남는다. 집계용 (테이블정의서 6절).
     """
     pool = await get_pool()
     result = await pool.execute(
@@ -421,7 +421,7 @@ async def log_request(
     stage:  slot_extract / vision / geocode / search_places / route_car / route_transit /
             vessel_schedule / first_last_train / judge / validate
     status: ok / retry / fallback / error
-    session_id는 FK 없음 — 세션이 지워진 뒤에도 집계에 남아야 해서 (테이블정의서 6절).
+    session_id는 FK 없음. 세션이 지워진 뒤에도 집계에 남아야 해서 (테이블정의서 6절).
     """
     pool = await get_pool()
     await pool.execute(
@@ -457,7 +457,7 @@ async def daily_cost_usd() -> float:
 async def cache_get(cache_key: str) -> dict | None:
     """캐시 적중이면 {"response": 복호화한 응답 원문, "summary": 요약} 을, 없거나 만료면 None.
 
-    적중 시 hit_count를 1 올린다 — 캐시가 실제로 비용을 얼마나 아꼈는지 EVAL_REPORT에 적을 근거.
+    적중 시 hit_count를 1 올린다. 캐시가 실제로 비용을 얼마나 아꼈는지 EVAL_REPORT에 적을 근거.
     """
     pool = await get_pool()
     row = await pool.fetchrow(
@@ -515,7 +515,7 @@ async def save_feedback(
     edited_pin_count: int = 0,
     re_ask_count: int = 0,
 ) -> None:
-    """피드백 한 줄 INSERT. FK 없음 — 세션이 지워져도 집계에 남는다 (테이블정의서 6절)."""
+    """피드백 한 줄 INSERT. FK 없음. 세션이 지워져도 집계에 남는다 (테이블정의서 6절)."""
     pool = await get_pool()
     await pool.execute(
         """
