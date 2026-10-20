@@ -20,6 +20,7 @@ SDK 버전:
 from __future__ import annotations
 
 import contextvars
+import logging
 import os
 import uuid
 from contextlib import ExitStack, contextmanager
@@ -27,6 +28,7 @@ from typing import Any, Iterator
 
 _client: Any | None = None
 _checked = False
+_log = logging.getLogger(__name__)
 
 
 # 요청 하나의 id. main.py 의 request_id 미들웨어가 넣는다 (SDD 1절, 10-09).
@@ -57,7 +59,8 @@ def _get_client() -> Any | None:
             secret_key=os.environ["LANGFUSE_SECRET_KEY"],
             host=os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
         )
-    except Exception:  # noqa: BLE001  관측 초기화 실패가 서비스를 막지 않는다
+    except Exception as e:  # noqa: BLE001  관측 초기화 실패가 서비스를 막지 않는다
+        _log.warning("Langfuse 클라이언트 생성 실패: %s", type(e).__name__)
         _client = None
     return _client
 
@@ -134,28 +137,30 @@ def trace(
     from langfuse import propagate_attributes
 
     clean = {k: v for k, v in metadata.items() if v is not None}
-    with ExitStack() as stack:
-        try:
-            rid = request_id.get()
-            root = stack.enter_context(
-                client.start_as_current_observation(name=name, trace_context={"trace_id": rid} if rid else None)
-            )
-            stack.enter_context(
-                propagate_attributes(user_id=user_id, session_id=session_id, metadata=clean or None)
-            )
-            trace_id = client.get_current_trace_id() or _new_trace_id()
-        except Exception:  # noqa: BLE001
-            yield Trace(None, _new_trace_id())
-            return
-        try:
-            yield Trace(client, trace_id)
-        finally:
-            del root
+    try:
+        with ExitStack() as stack:
             try:
-                # 서버가 요청 뒤 곧 내려갈 수 있다(Modal 0대 축소). 여기서 보내지 않으면 유실된다
-                client.flush()
-            except Exception:  # noqa: BLE001
-                pass
+                rid = request_id.get()
+                stack.enter_context(
+                    client.start_as_current_observation(name=name, trace_context={"trace_id": rid} if rid else None)
+                )
+                stack.enter_context(
+                    propagate_attributes(user_id=user_id, session_id=session_id, metadata=clean or None)
+                )
+                trace_id = client.get_current_trace_id() or _new_trace_id()
+            except Exception as e:  # noqa: BLE001
+                # 관측 실패가 서비스를 막지는 않지만, 조용히 사라지면 기록이 안 남는 걸 아무도 모른다 (10-20)
+                _log.warning("Langfuse 트레이스 시작 실패: %s", type(e).__name__)
+                yield Trace(None, _new_trace_id())
+                return
+            yield Trace(client, trace_id)
+    finally:
+        # 루트 observation 이 닫힌 "뒤에" 보낸다. 안에서 보내면 루트가 아직 열려 있어 요청과 함께 나가지 않는다 (10-20).
+        # 서버가 요청 뒤 곧 내려갈 수 있다(Modal 0대 축소). 여기서 보내지 않으면 유실된다
+        try:
+            client.flush()
+        except Exception as e:  # noqa: BLE001
+            _log.warning("Langfuse 전송 실패: %s", type(e).__name__)
 
 
 def get_prompt(name: str, label: str = "production") -> tuple[str, str]:
