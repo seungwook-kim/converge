@@ -17,4 +17,4 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r backend/requirements.txt pytest
       - name: 백엔드 시험 (API 키 없이)
-        run: pytest backend/tests -q
+        run: python -m pytest backend/tests -q   # 저장소 루트를 경로에 넣어 from backend... 가 잡히게
