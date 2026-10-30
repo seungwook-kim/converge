@@ -856,6 +856,7 @@ def test_제공자_이름은_모델_접두어로_정한다():
     assert pipeline._provider_of("google-ai/gemini-3.5-flash-lite") == "google"
     assert pipeline._provider_of("local/kanana") == "local"
     assert pipeline._provider_of("anthropic/claude-sonnet-5") == "openrouter"
+    assert pipeline._provider_of("anthropic-ai/claude-haiku-5-5") == "anthropic"  # Claude API 직접 (10-31)
     assert pipeline._provider_of(None) == "openrouter"
 
 

@@ -668,6 +668,8 @@ def _provider_of(model: str | None) -> str:
         return "local"
     if name.startswith("google-ai/"):
         return "google"
+    if name.startswith("anthropic-ai/"):
+        return "anthropic"
     return "openrouter"
 
 
