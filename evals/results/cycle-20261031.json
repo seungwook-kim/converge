@@ -1,0 +1,347 @@
+[
+ {
+  "round": 1,
+  "id": 1,
+  "trace_id": "1140330aa7da47c5842eb2a24d029992",
+  "path": "done",
+  "server_sec": 17.789,
+  "steps": {
+   "geocode": 1.299,
+   "trains": 0.0,
+   "store": 2.191,
+   "rules": 0.001,
+   "extract": 7.915,
+   "checklist": 0.068,
+   "candidates": 0.58,
+   "routes": 5.632,
+   "agent": 17.789,
+   "period": 0.1
+  },
+  "ms": 26993,
+  "stage": "done"
+ },
+ {
+  "round": 1,
+  "id": 2,
+  "trace_id": "81265f78d8e745429ce3944bc0122057",
+  "path": "done",
+  "server_sec": 12.077,
+  "steps": {
+   "agent": 12.077,
+   "checklist": 0.001,
+   "store": 1.736,
+   "geocode": 1.489,
+   "rules": 0.001,
+   "extract": 4.805,
+   "period": 0.0,
+   "candidates": 0.581,
+   "routes": 3.462,
+   "trains": 0.0
+  },
+  "ms": 12545,
+  "stage": "done"
+ },
+ {
+  "round": 1,
+  "id": 3,
+  "trace_id": "f1843473c0ed4d148de3981a62b61051",
+  "path": "short",
+  "server_sec": 4.795,
+  "steps": {
+   "period": 0.0,
+   "extract": 3.716,
+   "agent": 4.795,
+   "store": 1.078
+  },
+  "ms": 5307,
+  "stage": "need_info"
+ },
+ {
+  "round": 1,
+  "id": 4,
+  "trace_id": "084c478a88b640c9a2254002e597f42d",
+  "path": "short",
+  "server_sec": 4.202,
+  "steps": {
+   "agent": 4.202,
+   "period": 0.001,
+   "extract": 3.124,
+   "store": 1.077
+  },
+  "ms": 4656,
+  "stage": "need_info"
+ },
+ {
+  "round": 1,
+  "id": 5,
+  "trace_id": "11f36bba8b164e49bd3d26cf6aea5fd9",
+  "path": "done",
+  "server_sec": 10.282,
+  "steps": {
+   "routes": 2.229,
+   "rules": 0.001,
+   "extract": 3.994,
+   "geocode": 1.337,
+   "checklist": 0.002,
+   "agent": 10.282,
+   "candidates": 0.576,
+   "store": 2.142,
+   "trains": 0.0,
+   "period": 0.0
+  },
+  "ms": 10786,
+  "stage": "done"
+ },
+ {
+  "round": 1,
+  "id": 6,
+  "trace_id": "989213c691b2495ab711361db68f1f15",
+  "path": "short",
+  "server_sec": 4.576,
+  "steps": {
+   "store": 0.891,
+   "agent": 4.576,
+   "period": 0.0,
+   "extract": 3.685
+  },
+  "ms": 5022,
+  "stage": "need_info"
+ },
+ {
+  "round": 1,
+  "id": 7,
+  "trace_id": "992d45a637c4484aa937d43cb8f8dad5",
+  "path": "short",
+  "server_sec": 4.916,
+  "steps": {
+   "period": 0.0,
+   "store": 1.067,
+   "extract": 3.847,
+   "agent": 4.916
+  },
+  "ms": 5387,
+  "stage": "need_info"
+ },
+ {
+  "round": 1,
+  "id": 8,
+  "trace_id": "4650614fe9d34dba8ef4bf1a19343f77",
+  "path": "short",
+  "server_sec": 4.548,
+  "steps": {
+   "store": 1.076,
+   "agent": 4.548,
+   "period": 0.0,
+   "extract": 3.47
+  },
+  "ms": 5168,
+  "stage": "need_info"
+ },
+ {
+  "round": 1,
+  "id": 9,
+  "trace_id": "09651a8c247a414ab713834ea0c54984",
+  "path": "done",
+  "server_sec": 11.159,
+  "steps": {
+   "geocode": 1.3,
+   "rules": 0.001,
+   "trains": 0.0,
+   "checklist": 0.001,
+   "store": 1.442,
+   "routes": 3.962,
+   "candidates": 0.589,
+   "agent": 11.159,
+   "period": 0.0,
+   "extract": 3.864
+  },
+  "ms": 11792,
+  "stage": "done"
+ },
+ {
+  "round": 1,
+  "id": 10,
+  "trace_id": "0a90dc8dd3d6402c88e5c76b8fb94cf0",
+  "path": "short",
+  "server_sec": 1.875,
+  "steps": {
+   "extract": 1.875,
+   "agent": 1.875
+  },
+  "ms": 2337,
+  "stage": "out_of_scope"
+ },
+ {
+  "round": 2,
+  "id": 1,
+  "trace_id": "644ac5c6114e4cd5881847e6fa0e1c93",
+  "path": "done",
+  "server_sec": 8.279,
+  "steps": {
+   "geocode": 1.172,
+   "agent": 8.279,
+   "trains": 0.0,
+   "extract": 3.77,
+   "store": 1.619,
+   "candidates": 0.586,
+   "checklist": 0.0,
+   "rules": 0.002,
+   "routes": 1.128,
+   "period": 0.0
+  },
+  "ms": 8735,
+  "stage": "done"
+ },
+ {
+  "round": 2,
+  "id": 2,
+  "trace_id": "e5e68d05441349709557145607fd129c",
+  "path": "done",
+  "server_sec": 7.585,
+  "steps": {
+   "trains": 0.0,
+   "candidates": 0.641,
+   "extract": 3.638,
+   "checklist": 0.0,
+   "routes": 0.716,
+   "geocode": 1.16,
+   "rules": 0.001,
+   "period": 0.001,
+   "store": 1.427,
+   "agent": 7.585
+  },
+  "ms": 8040,
+  "stage": "done",
+  "note": "브라우저가 응답 본문을 읽지 못함(측정 중 탭 멈춤 시각). 서버 트레이스는 끝까지 계산"
+ },
+ {
+  "round": 2,
+  "id": 3,
+  "trace_id": "97a984b8558f4552ba5d1c807f120d97",
+  "path": "short",
+  "server_sec": 5.147,
+  "steps": {
+   "extract": 4.064,
+   "period": 0.0,
+   "agent": 5.147,
+   "store": 1.083
+  },
+  "ms": 5961,
+  "stage": "need_info"
+ },
+ {
+  "round": 2,
+  "id": 4,
+  "trace_id": "55df17f4a8804bb2810282d09ee28a2c",
+  "path": "short",
+  "server_sec": 4.319,
+  "steps": {
+   "period": 0.0,
+   "agent": 4.319,
+   "store": 1.069,
+   "extract": 3.249
+  },
+  "ms": 4782,
+  "stage": "need_info"
+ },
+ {
+  "round": 2,
+  "id": 5,
+  "trace_id": "90a9bd57e6dd4ed5b964b770f96c651c",
+  "path": "done",
+  "server_sec": 7.428,
+  "steps": {
+   "checklist": 0.0,
+   "candidates": 0.581,
+   "geocode": 1.167,
+   "trains": 0.001,
+   "store": 1.45,
+   "routes": 0.364,
+   "period": 0.0,
+   "rules": 0.0,
+   "extract": 3.862,
+   "agent": 7.428
+  },
+  "ms": 7928,
+  "stage": "done"
+ },
+ {
+  "round": 2,
+  "id": 6,
+  "trace_id": "af2bb08023874e6192ba348a57c19b71",
+  "path": "short",
+  "server_sec": 4.638,
+  "steps": {
+   "extract": 3.735,
+   "store": 0.902,
+   "agent": 4.638,
+   "period": 0.0
+  },
+  "ms": 5104,
+  "stage": "need_info"
+ },
+ {
+  "round": 2,
+  "id": 7,
+  "trace_id": "6bdc1bef66ec401697ad6561feb19d0a",
+  "path": "short",
+  "server_sec": 5.028,
+  "steps": {
+   "agent": 5.028,
+   "period": 0.0,
+   "store": 1.086,
+   "extract": 3.942
+  },
+  "ms": 5482,
+  "stage": "need_info"
+ },
+ {
+  "round": 2,
+  "id": 8,
+  "trace_id": "2d11a1b2214045608895f571aebceb57",
+  "path": "short",
+  "server_sec": 4.794,
+  "steps": {
+   "agent": 4.794,
+   "extract": 3.714,
+   "period": 0.0,
+   "store": 1.079
+  },
+  "ms": 5296,
+  "stage": "need_info"
+ },
+ {
+  "round": 2,
+  "id": 9,
+  "trace_id": "6f0e1660556e41f7a8013abf2a939918",
+  "path": "done",
+  "server_sec": 8.176,
+  "steps": {
+   "extract": 3.805,
+   "period": 0.0,
+   "agent": 8.176,
+   "store": 1.486,
+   "geocode": 1.212,
+   "routes": 1.09,
+   "candidates": 0.577,
+   "trains": 0.0,
+   "checklist": 0.001,
+   "rules": 0.001
+  },
+  "ms": 8642,
+  "stage": "done"
+ },
+ {
+  "round": 2,
+  "id": 10,
+  "trace_id": "e67139f5d53242a9b6398f0e1f5bc2ce",
+  "path": "short",
+  "server_sec": 2.219,
+  "steps": {
+   "extract": 2.218,
+   "agent": 2.219
+  },
+  "ms": 2665,
+  "stage": "out_of_scope"
+ }
+]
