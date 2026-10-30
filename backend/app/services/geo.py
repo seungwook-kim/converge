@@ -149,6 +149,18 @@ async def geocode_one(
 ) -> GeocodedPin:
     """지명 하나를 핀 하나로. bias 는 목적지 좌표 (그 둘레를 먼저 본다)."""
     docs, used = await _search(client, query)
+    return _pin_from(query, docs, used, kind, label, bias)
+
+
+def _pin_from(
+    query: str,
+    docs: list[dict[str, Any]],
+    used: str,
+    kind: str,
+    label: str | None = None,
+    bias: tuple[float, float] | None = None,
+) -> GeocodedPin:
+    """검색 결과에서 자리를 골라 핀으로. bias 는 고를 때만 쓰고 검색어에는 넣지 않는다."""
     if not docs:
         raise GeocodeFailed(f"'{query}' 위치를 찾지 못했습니다")
     doc, confidence = _pick(used, docs, bias)
@@ -222,38 +234,40 @@ async def geocode_all(slots: Slots) -> list[GeocodedPin]:
 
     한 명이 실패해도 나머지는 살린다. 전부 실패하면 예외를 올린다.
     """
-    pins: list[GeocodedPin] = []
+    jobs: list[tuple[str, str, str | None]] = []
+    if slots.destination:
+        jobs.append((slots.destination, "destination", None))
+    for p in slots.participants:
+        if p.origin:
+            jobs.append((p.origin, "participant", p.name))
+        if p.pickup_at:
+            jobs.append((p.pickup_at, "pickup", None))
+    if slots.rendezvous:
+        jobs.append((slots.rendezvous.name, "rendezvous", None))
+
+    # 검색은 목적지까지 한꺼번에 부른다. 목적지 좌표(bias)는 검색어에 들어가지 않고 고를 때만 쓰므로
+    # 기다릴 이유가 없다. 배포 서버(us-east)에서 카카오까지는 왕복마다 연결을 맺느라 한 번이 0.5초 안팎이라,
+    # 목적지 → 나머지로 두 번 기다리면 병렬로 바꿔도 줄지 않았다 (10-31 실측 p50 1.26초, 10-20 1.20초)
     async with httpx.AsyncClient(timeout=TIMEOUT_SEC) as client:
-        # 목적지를 먼저 찾는다. 나머지 지명은 그 둘레를 먼저 보게 된다
-        bias: tuple[float, float] | None = None
-        if slots.destination:
-            try:
-                dest = await geocode_one(client, slots.destination, "destination")
-                pins.append(dest)
-                bias = (dest.lng, dest.lat)
-            except (GeocodeFailed, httpx.HTTPError):
-                pass
+        found = await asyncio.gather(*(_search(client, query) for query, _, _ in jobs), return_exceptions=True)
 
-        # 목적지 다음 지명들은 서로 기다릴 일이 없어 한꺼번에 부른다. 차례로 부르면 사람 수만큼 느려진다
-        # (10-20 실측 지오코딩 p50 1.20초). 핀 순서는 슬롯 순서 그대로 둔다
-        jobs: list[tuple[str, str, str | None]] = []
-        for p in slots.participants:
-            if p.origin:
-                jobs.append((p.origin, "participant", p.name))
-            if p.pickup_at:
-                jobs.append((p.pickup_at, "pickup", None))
-        if slots.rendezvous:
-            jobs.append((slots.rendezvous.name, "rendezvous", None))
+    for result in found:
+        if not isinstance(result, (tuple, GeocodeFailed, httpx.HTTPError)):
+            raise result
 
-        found = await asyncio.gather(
-            *(geocode_one(client, query, kind, label=label, bias=bias) for query, kind, label in jobs),
-            return_exceptions=True,
-        )
-        for pin in found:
-            if isinstance(pin, GeocodedPin):
-                pins.append(pin)
-            elif not isinstance(pin, (GeocodeFailed, httpx.HTTPError)):
-                raise pin
+    # 목적지를 먼저 고른다. 나머지 지명은 그 둘레를 먼저 보게 된다. 핀 순서는 슬롯 순서 그대로 둔다
+    pins: list[GeocodedPin] = []
+    bias: tuple[float, float] | None = None
+    for (query, kind, label), result in zip(jobs, found):
+        if not isinstance(result, tuple):
+            continue
+        try:
+            pin = _pin_from(query, *result, kind, label, None if kind == "destination" else bias)
+        except GeocodeFailed:
+            continue
+        if kind == "destination":
+            bias = (pin.lng, pin.lat)
+        pins.append(pin)
 
     if not pins:
         raise GeocodeFailed("좌표를 하나도 찾지 못했습니다")

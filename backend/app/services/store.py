@@ -188,6 +188,7 @@ async def create_session(
     schedule_confirmed: bool | None = None,
     constraints: list[str] | None = None,
     session_id: str | None = None,
+    status: str = "draft",
 ) -> str:
     """세션 한 건 INSERT. 새 세션 id(uuid 문자열)를 돌려준다.
 
@@ -196,7 +197,8 @@ async def create_session(
     user_id: services/auth.py가 토큰에서 꺼낸 주선자 id. 본문이 아니라 토큰에서 온다 (SDD 2절).
     participants: 평문 리스트. 여기서 암호화한다. 구조는 테이블정의서 1절 participants_enc 설명.
     expires_at: DB 기본값이 없으므로 calc_expires_at으로 계산해 넣는다.
-    status: 처음은 'draft'. meet_at이 없으면 임시 세션이고 이 상태에 머문다 (테이블정의서 6절).
+    status: 기본은 'draft'. meet_at이 없으면 임시 세션이고 이 상태에 머문다 (테이블정의서 6절).
+      파이프라인은 처음 저장할 때 상태를 바로 넣는다. 만든 뒤 UPDATE 로 다시 쓰면 DB 왕복이 늘어난다 (10-31)
     """
     now = datetime.now(timezone.utc)
     pool = await get_pool()
@@ -207,7 +209,7 @@ async def create_session(
             participants_enc, participant_count, rendezvous_enc, access, schedule_confirmed,
             constraints, status, user_id, created_at, updated_at, expires_at, datetime_text
         ) VALUES (COALESCE($16::uuid, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                  'draft', $13, $14, $14, $15, $17)
+                  $18, $13, $14, $14, $15, $17)
         RETURNING id
         """,
         preset, meet_at, purpose, destination_name, destination_lng, destination_lat,
@@ -219,6 +221,7 @@ async def create_session(
         user_id, now, calc_expires_at(meet_at, now),
         session_id,
         datetime_text,
+        status,
     )
     return str(row["id"])
 

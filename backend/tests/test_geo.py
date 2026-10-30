@@ -75,6 +75,33 @@ def test_geocode_all_keeps_slot_order_and_survives_one_failure(monkeypatch) -> N
     ]
 
 
+def test_geocode_all_searches_destination_together_but_picks_near_it(monkeypatch) -> None:
+    # 목적지도 다른 지명과 한꺼번에 검색한다. 그래도 같은 이름이 두 곳이면 목적지 둘레를 고른다 (10-31)
+    from backend.app.schemas.slots import Slots
+
+    started: list[str] = []
+    gate = asyncio.Event()
+
+    async def fake_keyword(client, query, size=geo.SEARCH_SIZE):
+        started.append(query)
+        if len(started) == 2:
+            gate.set()
+        await asyncio.wait_for(gate.wait(), 1)  # 목적지 검색이 끝나기를 기다리면 여기서 멈춘다
+        if query == "창원시청":
+            return [_doc("창원시청", 128.68, 35.23)]
+        return [_doc("마산역", 126.67, 37.64, "SW8"), _doc("마산역", 128.57, 35.23, "SW8")]  # 김포 쪽, 창원 쪽
+
+    monkeypatch.setattr(geo, "_kakao_keyword", fake_keyword)
+    slots = Slots(
+        preset="meeting",
+        destination="창원시청",
+        participants=[{"name": "나", "origin": "마산역", "transport": "transit", "role": "colleague"}],
+    )
+    pins = asyncio.run(geo.geocode_all(slots))
+    assert [p.kind for p in pins] == ["destination", "participant"]
+    assert pins[1].lng == 128.57
+
+
 def _slots(access_required: bool | None):
     from backend.app.schemas.slots import Slots
 

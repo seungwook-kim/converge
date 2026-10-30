@@ -44,12 +44,19 @@ def _get(path: str) -> dict:
 
 
 def _trace(trace_id: str) -> dict | None:
-    """트레이스가 Langfuse 에 들어오기까지 몇 초 걸린다. 잠깐씩 다시 묻는다."""
-    for _ in range(6):
+    """트레이스가 Langfuse 에 들어오기까지 몇 초 걸린다. 잠깐씩 다시 묻는다.
+
+    /api/public/traces/{id} 는 2026-11-16 에 없어져서 v2 observations 로 읽는다 (10-31).
+    돌려주는 모양은 예전과 같게 {"observations": [...]} 로 맞춘다. 429 가 오면 더 길게 쉰다.
+    """
+    for i in range(6):
         try:
-            return _get(f"/api/public/traces/{trace_id}")
+            data = _get(f"/api/public/v2/observations?traceId={trace_id}&limit=100").get("data", [])
+            if data:
+                return {"observations": data}
         except Exception:  # noqa: BLE001
-            time.sleep(5)
+            pass
+        time.sleep(5 + 5 * i)
     return None
 
 

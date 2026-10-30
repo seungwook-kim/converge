@@ -322,7 +322,9 @@ def test_저장할_때_시각_원문을_넘긴다(monkeypatch):
     asyncio.run(session_store.save(session_id=None, user_id="u1", slots=slots, participants=[], result=None,
                                    trace_id="t", status="draft"))
     assert seen["create"]["datetime_text"] == "저녁 7시"
-    assert seen["update"]["datetime_text"] == "저녁 7시"
+    assert seen["create"]["status"] == "draft"
+    # 새 세션은 INSERT 한 번으로 끝낸다. 같은 값을 다시 쓰는 UPDATE 는 DB 왕복만 늘린다 (10-31)
+    assert "update" not in seen
 
 
 def test_이동수단을_되묻는_중인_세션도_공유_링크가_열린다():

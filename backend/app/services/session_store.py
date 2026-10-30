@@ -64,16 +64,20 @@ async def save(
             access=slots.access.model_dump() if slots.access else None,
             schedule_confirmed=slots.schedule_confirmed,
             constraints=slots.constraints,
+            status=status,
         )
-    await store.update_session(
-        session_id,
-        participants=participants,
-        status=status,
-        meet_at=meet_at,
-        datetime_text=slots.datetime,
-        # 재질문으로 집결지를 새로 알게 되면 만들 때가 아니라 여기서 들어온다. 빠뜨리면 다시 열 때 사라진다 (09-27)
-        rendezvous=slots.rendezvous.model_dump() if slots.rendezvous else None,
-    )
+    else:
+        # 새 세션은 INSERT 에 같은 값이 다 들어가므로 UPDATE 를 건너뛴다. 배포 서버(us-east)에서 DB(서울)까지
+        # 왕복 한 번이 수백 ms 라, 같은 값을 다시 쓰던 UPDATE(약속 날짜가 있으면 SELECT 까지)가 저장 시간을 늘렸다 (10-31)
+        await store.update_session(
+            session_id,
+            participants=participants,
+            status=status,
+            meet_at=meet_at,
+            datetime_text=slots.datetime,
+            # 재질문으로 집결지를 새로 알게 되면 만들 때가 아니라 여기서 들어온다. 빠뜨리면 다시 열 때 사라진다 (09-27)
+            rendezvous=slots.rendezvous.model_dump() if slots.rendezvous else None,
+        )
     # 결과가 없으면(되묻기·핀 확인 중) 세션만 남긴다. 링크를 먼저 만들어 줘야 참석자들이 모일 수 있다
     if result is not None:
         await store.save_result(
