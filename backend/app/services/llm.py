@@ -36,7 +36,7 @@ VISION_PROMPT = "converge/vision-transcribe"
 
 # SDD 9절 MODEL_LARGE 와 같은 값을 본다
 # 쓸 수 있는 모델은 아래 셋뿐이다 (09-28 결정, 10-31 CLAUDE 추가). 평소에는 env 가 고른 모델, 돈이 다 되면 FALLBACK.
-#   CLAUDE    Claude API 직접. MODEL_SMALL 로 슬롯 추출을 맡긴다 (10-31)
+#   CLAUDE    Claude API 직접. 10-31 부터 MODEL_SMALL·LARGE·VISION 모두 이것 (env 로 고른다)
 #   PRIMARY   OpenRouter 유료. 슬롯 추출·판정·캡처 읽기 모두
 #   FALLBACK  구글 AI Studio 무료 할당. OpenRouter 크레딧이 떨어지거나(402) 하루 비용 상한에 닿았을 때만
 # env(MODEL_SMALL·MODEL_LARGE·MODEL_VISION)에 다른 이름을 적어도 _client 가 거절한다. 로컬 GGUF·Jev 도 못 쓴다

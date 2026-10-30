@@ -16,7 +16,7 @@ image = modal.Image.from_dockerfile("Dockerfile", context_dir=".").env({"PYTHONP
 
 @app.function(
     image=image,
-    # converge-claude 는 Claude API 키와 MODEL_SMALL 만 담는다 (10-31). 뒤에 둔 비밀값이 같은 키를 덮는다 (Modal 문서).
+    # converge-claude 는 Claude API 키와 MODEL_SMALL·LARGE·VISION 만 담는다 (10-31). 뒤에 둔 비밀값이 같은 키를 덮는다 (Modal 문서).
     # CLI 에 비밀값 고치기가 없고 create --force 는 통째로 덮어써서, 기존 converge 를 건드리지 않고 따로 뒀다
     secrets=[modal.Secret.from_name("converge"), modal.Secret.from_name("converge-claude")],
     cpu=1.0,

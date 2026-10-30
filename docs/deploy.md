@@ -150,10 +150,10 @@ CLI 로는 `python -m modal secret create converge --force KEY=값 ...` 인데, 
 Claude API 는 따로 둔 비밀값 `converge-claude` 에 있다 (10-31). `modal_app.py` 가 `converge` 뒤에 붙여 같은 키를 덮는다.
 
 ```
-ANTHROPIC_API_KEY  MODEL_SMALL=anthropic-ai/claude-haiku-5-5
+ANTHROPIC_API_KEY  MODEL_SMALL  MODEL_LARGE  MODEL_VISION   (MODEL_* 셋 다 anthropic-ai/claude-haiku-5-5)
 ```
 
-슬롯 추출을 gpt-4o-mini 로 되돌리려면 이 비밀값의 MODEL_SMALL 을 바꾸고 다시 올린다.
+gpt-4o-mini 로 되돌리려면 이 비밀값의 MODEL_* 를 바꾸고 다시 올린다. `converge-claude` 는 이 네 키뿐이라 `create --force` 로 통째로 다시 만들어도 된다.
 
 ### 3-3. 올리기
 

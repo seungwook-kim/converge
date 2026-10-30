@@ -613,16 +613,31 @@ Langfuse Prompt 이름과 역할. 코드에 문자열로 두지 않는다.
 |---|---|---|
 | converge/slot-extract | 소형 (MODEL_SMALL) 또는 대형 폴백 | 텍스트 → Slots JSON. GBNF 문법 강제. 출입 절차·집결지·픽업·참석자 역할 추출. 범위 밖이면 out_of_scope true 에 preset null |
 | converge/vision-transcribe | MODEL_VISION (없으면 MODEL_LARGE) | 캡처 → 대화 텍스트 (이름·시각·말풍선 유지). 약속과 무관한 이미지면 빈 문자열 |
-| converge/judge | Sonnet 5 | 후보 표 + 규칙 문서 → rankings JSON (rank·reason·switched_from) |
+| converge/judge | 대형 (MODEL_LARGE) | 후보 표 + 규칙 문서 → rankings JSON (rank·reason·switched_from) |
 
 converge/eval-judge(판정 이유를 LLM 이 0~2점으로 채점)는 두지 않는다 (09-27 결정). evals/run_eval.py 는
 단계·슬롯·계약을 코드로 채점하고, 이유가 현장에 맞는지는 사람이 본다 (EVAL_GUIDE). 채점용 LLM 을 따로 두면
 비용과 흔들림만 늘고 사람 판단을 대신하지 못한다. 그래서 MODEL_EVAL_JUDGE 도 없앴다.
 
+### 판정·캡처 읽기도 Claude Haiku 5.5 (2026-10-31 결정, 바로 아래 결정에 이어)
+
+`MODEL_LARGE`(판정, 소형 실패 시 승격)와 `MODEL_VISION`(캡처 읽기)도 `anthropic-ai/claude-haiku-5-5` 로 바꾼다 (사용자 결정).
+세 자리가 같은 모델이라 슬롯 추출 시도 순서는 [같은 모델, 같은 모델] 이 된다 (`llm.attempt_models`, 다른 모델로 승격 없음).
+gpt-4o-mini 는 허용 목록에 남아 env 만 바꾸면 되돌릴 수 있다.
+
+| 비교 (10-31 로컬, 같은 시각) | openai/gpt-4o-mini | claude-haiku-5-5 (채택) |
+|---|---|---|
+| 판정, 대형 경로 문장 4건 | 4건 한 번에 통과, 전체 7.5~12.2초, 판정 $0.00036~0.00039 | 4건 한 번에 통과, 전체 4.6~9.8초, 판정 $0.00041~0.00042 |
+| 캡처 읽기, 만든 대화 캡처 1장 (720×520) | 같은 4줄, 5.64초, 입력 25,823 토큰, $0.0039 | 같은 4줄, 1.46초, 입력 1,040 토큰, $0.00016 |
+| 회귀셋 10건 (소형·대형 모두 이 모델) | | 1.0 ×2, p50 2.24~2.72초 |
+
+회귀셋 10건은 모두 소형 경로(SDD 5절 라우팅)라 판정을 부르지 않는다. 판정은 참석자 3명·제약·출입 미신청 문장 4건을 따로 돌려 봤다.
+판정 비용은 10% 남짓 늘고, 캡처 읽기 비용은 크게 준다 (gpt-4o-mini 가 이미지를 토큰으로 많이 센다).
+
 ### 슬롯 추출은 Claude Haiku 5.5 (2026-10-31 결정, 아래 09-28 결정의 슬롯 추출 자리를 대신한다)
 
 슬롯 추출(`MODEL_SMALL`)을 `anthropic-ai/claude-haiku-5-5`(Claude API 직접)로 바꾼다 (사용자 결정).
-판정·캡처 읽기·소형 실패 시 승격(`MODEL_LARGE`, `MODEL_VISION`)은 openai/gpt-4o-mini 그대로다.
+판정·캡처 읽기·소형 실패 시 승격(`MODEL_LARGE`, `MODEL_VISION`)은 openai/gpt-4o-mini 그대로였다 (같은 날 위 결정으로 바뀜).
 
 | 선택지 | 회귀셋 10건 (10-31 같은 날, 로컬) | 비용 합계 | 버린 이유 |
 |---|---|---|---|
@@ -657,8 +672,8 @@ LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 
 ### Claude API 를 붙일 때 (2026-10-20 결정, 10-31 연결)
 
 OpenRouter 한도를 넘으면 Claude API 로 넘어갈 수 있게 키 자리(`ANTHROPIC_API_KEY`, 로컬 `.env`)만 만들었다.
-10-31 에 연결해 슬롯 추출에 쓴다 (위 10-31 결정). 배포에서는 Modal 비밀값 `converge-claude`(ANTHROPIC_API_KEY, MODEL_SMALL 만)에 두고
-`modal_app.py` 가 `converge` 뒤에 붙인다. 뒤 비밀값이 같은 키를 덮어 `converge` 의 MODEL_SMALL 보다 앞선다.
+10-31 에 연결해 슬롯 추출에 쓴다 (위 10-31 결정). 배포에서는 Modal 비밀값 `converge-claude`(ANTHROPIC_API_KEY, MODEL_SMALL·LARGE·VISION 만)에 두고
+`modal_app.py` 가 `converge` 뒤에 붙인다. 뒤 비밀값이 같은 키를 덮어 `converge` 의 MODEL_* 보다 앞선다.
 붙일 때 모델은 **`claude-haiku-5-5`(Haiku 5.5) 하나만** 쓴다. Sonnet·Opus 등 상위 모델은 금지한다 (사용자 결정, 비용).
 허용 목록(`llm.ALLOWED_MODELS`)에 넣는 이름도 이것 하나다 (`anthropic-ai/claude-haiku-5-5`).
 10-20 기준 OpenRouter 키 한도 $9 중 $0.26 사용.
@@ -706,8 +721,8 @@ ANTHROPIC_API_KEY=                # anthropic-ai/ 모델을 부를 때. 배포�
                         # google-ai/ 로 시작하면 구글 AI Studio 직접 호출(무료 할당), 아니면 OpenRouter
                         # 비우면 처음부터 대형. 로컬 GGUF 로는 가지 않는다 (09-28 허용 목록)
 GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다
-MODEL_LARGE=openai/gpt-4o-mini
-MODEL_VISION=openai/gpt-4o-mini   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다
+MODEL_LARGE=anthropic-ai/claude-haiku-5-5    # 10-31: 판정·승격도 Claude (8절)
+MODEL_VISION=anthropic-ai/claude-haiku-5-5   # 캡처 읽기. 비우면 MODEL_LARGE 로 읽는다
 LLM_TIMEOUT_SEC=30           # LLM 호출 하나의 상한(초). 기본 30. 넘으면 다음 차례(재시도·대형)로 넘긴다
 COST_LIMIT_USD_PER_REQUEST=0.05
 DAILY_COST_LIMIT_USD=1.0       # 하루 합계 상한. 닿으면 막지 않고 대체 모델(gemini-3.5-flash-lite)로 돈다 (09-28). 비우면 제한 없음 (41번)
