@@ -78,6 +78,8 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
+  // 핀 저장은 계산이 아니다. busy 와 같이 쓰면 핀만 옮겨도 채팅에 "계산 중입니다…" 와 진행 단계가 떴다
+  const [saving, setSaving] = useState(false);
   const [moved, setMoved] = useState<Record<string, [number, number]>>({});
   const [selectedRank, setSelectedRank] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -206,7 +208,7 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
   // 핀 하나를 옮기거나 자기 이름을 고를 때. 여기서는 다시 계산하지 않는다
   const patch = useCallback(
     async (body: ParticipantPatchRequest) => {
-      setBusy(true);
+      setSaving(true);
       setNotice(null);
       try {
         const res = await fetch(`/api/session/${encodeURIComponent(sessionId)}/participants`, {
@@ -233,9 +235,16 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
         });
       } catch (e) {
         setNotice({ kind: "error", text: (e as Error).message });
-        setResponse((cur) => (cur ? { ...cur } : cur)); // 끌어 놓은 핀을 원래 자리로
+        // 끌어 놓은 핀을 원래 자리로. 핀 좌표는 moved 가 덮고 있어서 response 만 새로 만들면 그대로 남았다
+        if (!body.claim) {
+          setMoved((m) => {
+            const rest = { ...m };
+            delete rest[body.name];
+            return rest;
+          });
+        }
       } finally {
-        setBusy(false);
+        setSaving(false);
       }
     },
     [sessionId, headerKey],
@@ -321,7 +330,7 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
                 <strong>위치가 맞나요?</strong> 주황 핀은 위치가 불확실합니다. 핀을 끌거나, 지도 왼쪽 위에서 사람을
                 고른 뒤 지도를 클릭하거나 장소를 검색해 고친 다음 계산하세요.
               </p>
-              <button type="button" className="primary" disabled={busy} onClick={recompute}>
+              <button type="button" className="primary" disabled={busy || saving} onClick={recompute}>
                 이 위치로 계산
               </button>
             </div>
@@ -329,14 +338,14 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
           {stage === "done" && Object.keys(moved).length > 0 && (
             <div className="step">
               <p>핀 {Object.keys(moved).length}개가 바뀌었습니다.</p>
-              <button type="button" className="primary" disabled={busy} onClick={recompute}>
+              <button type="button" className="primary" disabled={busy || saving} onClick={recompute}>
                 바뀐 위치로 다시 계산
               </button>
             </div>
           )}
           {stage === "failed" && (
             <div className="step">
-              <button type="button" disabled={busy} onClick={recompute}>
+              <button type="button" disabled={busy || saving} onClick={recompute}>
                 다시 시도
               </button>
             </div>
@@ -367,7 +376,7 @@ function Plan({ sessionId, auth }: { sessionId: string; auth: AuthState }) {
                   {state === "taken" && <span className="badge badge-muted">다른 사람이 등록</span>}
                   {edited && <span className="muted edited">{edited}</span>}
                   {state === "free" && !mine && (
-                    <button type="button" disabled={busy || !hasPin} onClick={() => claim(p.name)}>
+                    <button type="button" disabled={busy || saving || !hasPin} onClick={() => claim(p.name)}>
                       이 사람이 나예요
                     </button>
                   )}

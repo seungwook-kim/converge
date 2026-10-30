@@ -33,6 +33,7 @@ Next.js. Vercel에 배포. Root Directory = `frontend`.
 | `lib/mock-data.json` | mock 시나리오와 실제 경로 좌표. `routes`는 `scripts/fetch_mock_routes.py`가 채운다 |
 | `lib/demo-preview.ts` | 로그인 전 예시 결과의 고정값. `mock-data.json`(150KB)을 첫 화면 번들에 싣지 않으려고 따로 둔다 |
 | `lib/dev-user.ts` | 로컬 모드 사용자 id. 브라우저 코드는 mock 대신 이 파일을 import 한다 |
+| `lib/capture.ts` | 카톡 캡처를 base64 로. Vercel 본문 한도(4.5MB)를 넘으면 브라우저에서 JPEG 로 줄여 보낸다 (10-30) |
 | `lib/useFoldable.ts` | 지도 위 패널(출발지 고치기·경로선) 접기 상태. 820px 이하 폭에서는 접힌 채 시작 (10-20) |
 | `types/agent.ts` | SDD 2·3·4절 타입을 손으로 옮긴 것. `lib/api-types.ts`가 생기면 대체한다 |
 | `lib/api-types.ts` | 생성물. `backend/app/schemas/`에서 `bash scripts/gen_types.sh`로 만든다. 손으로 고치지 않는다 |

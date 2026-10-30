@@ -6,9 +6,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import AuthGate, { UserBar } from "@/components/AuthGate";
 import DemoPreview from "@/components/DemoPreview";
+import { captureBase64, MAX_CAPTURE_BYTES } from "@/lib/capture";
 import { DEMO_SENTENCE } from "@/lib/demo-preview";
 import { authHeaders, useAuth, type AuthState } from "@/lib/auth";
 import type { AgentResponse, Preset } from "@/types/agent";
@@ -19,8 +20,6 @@ const EXAMPLES = [
   "일요일 오후 1시까지 거제 장승포항. 사상역 3명은 11시에 가덕휴게소에서 모여서 같이 차로 가고, 창원역 2명은 차로 바로 와.",
   "목요일 오후 2시 여의도 사무실 미팅. 저는 강남역에서 지하철, 박대리는 판교역에서 차로 옵니다. 방문자 등록은 해 뒀습니다.",
 ];
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export default function Home() {
   const auth = useAuth();
@@ -116,27 +115,23 @@ function Compose({ auth }: { auth: AuthState }) {
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const pickImage = (file: File | null) => {
     setError(null);
+    // 파일 칸을 비워 둬야 뺀 캡처를 다시 골라도 onChange 가 온다
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return setImage(null);
     if (!["image/png", "image/jpeg"].includes(file.type)) {
       setError("PNG 또는 JPG 캡처만 올릴 수 있습니다");
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
+    if (file.size > MAX_CAPTURE_BYTES) {
       setError("캡처가 5MB 를 넘습니다");
       return;
     }
     setImage(file);
   };
-
-  const readBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
 
   const submit = async () => {
     const trimmed = text.trim();
@@ -148,7 +143,7 @@ function Compose({ auth }: { auth: AuthState }) {
     // 아무 말이 없으면 고장으로 보인다. 12초를 넘기면 그렇다고 알려 준다
     const slowTimer = setTimeout(() => setSlow(true), 12000);
     try {
-      const image_base64 = image ? await readBase64(image) : null;
+      const image_base64 = image ? await captureBase64(image) : null;
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...JSON.parse(headerKey) },
@@ -169,7 +164,9 @@ function Compose({ auth }: { auth: AuthState }) {
         return;
       }
       if (!data.session_id) {
-        setError("계획을 만들지 못했습니다. 문장을 조금 더 자세히 적어 주세요.");
+        // 서버 문구를 먼저 쓴다. LLM 시간 초과·한도 초과도 여기로 오는데 "더 자세히" 를 내면
+        // 사용자는 멀쩡한 문장을 고쳐 쓴다 (서버는 "잠시 뒤 다시 시도" 로 구분해 준다)
+        setError(data.message || "계획을 만들지 못했습니다. 문장을 조금 더 자세히 적어 주세요.");
         return;
       }
       // 첫 응답을 넘겨 두면 다음 화면이 서버에 다시 묻지 않고 바로 그린다 (되묻기 문구 포함)
@@ -216,7 +213,12 @@ function Compose({ auth }: { auth: AuthState }) {
           </select>
           <label className="file-btn">
             카톡 캡처 올리기
-            <input type="file" accept="image/png,image/jpeg" onChange={(e) => pickImage(e.target.files?.[0] ?? null)} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+            />
           </label>
           {image && (
             <button type="button" className="link" onClick={() => pickImage(null)}>

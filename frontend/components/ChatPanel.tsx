@@ -3,6 +3,7 @@
 // 채팅창. 문장 입력, 카톡 캡처 업로드, 되묻기(questions) 표시.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { captureBase64, MAX_CAPTURE_BYTES } from "@/lib/capture";
 import type { Preset, Stage } from "@/types/agent";
 import Progress from "./Progress";
 
@@ -28,22 +29,13 @@ interface Props {
   children?: ReactNode; // 입력창 위에 붙는 단계별 버튼
 }
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-function readBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function ChatPanel({ messages, busy, stage, onSend, children }: Props) {
   const [text, setText] = useState("");
   const [preset, setPreset] = useState<Preset | "">("");
   const [image, setImage] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  // 캡처를 읽는 동안은 busy 가 아직 꺼져 있다. 그사이 Enter 를 또 누르면 같은 말이 두 번 갔다
+  const [reading, setReading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -53,12 +45,14 @@ export default function ChatPanel({ messages, busy, stage, onSend, children }: P
 
   const pickImage = (file: File | null) => {
     setLocalError(null);
+    // 파일 칸을 비워 둬야 뺀 캡처를 다시 골라도 onChange 가 온다
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return setImage(null);
     if (!["image/png", "image/jpeg"].includes(file.type)) {
       setLocalError("PNG 또는 JPG 캡처만 올릴 수 있습니다");
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
+    if (file.size > MAX_CAPTURE_BYTES) {
       setLocalError("캡처가 5MB 를 넘습니다");
       return;
     }
@@ -67,14 +61,17 @@ export default function ChatPanel({ messages, busy, stage, onSend, children }: P
 
   const submit = async () => {
     const trimmed = text.trim();
-    if (busy || (!trimmed && !image)) return;
+    if (busy || reading || (!trimmed && !image)) return;
     let image_base64: string | null = null;
     if (image) {
+      setReading(true);
       try {
-        image_base64 = await readBase64(image);
-      } catch {
-        setLocalError("캡처를 읽지 못했습니다");
+        image_base64 = await captureBase64(image);
+      } catch (e) {
+        setLocalError((e as Error).message || "캡처를 읽지 못했습니다");
         return;
+      } finally {
+        setReading(false);
       }
     }
     onSend({ text: trimmed || null, image_base64, preset: preset || null });
@@ -105,8 +102,8 @@ export default function ChatPanel({ messages, busy, stage, onSend, children }: P
             <p>{m.text}</p>
             {m.questions && m.questions.length > 0 && (
               <ol className="questions">
-                {m.questions.map((q) => (
-                  <li key={q}>{q}</li>
+                {m.questions.map((q, i) => (
+                  <li key={i}>{q}</li>
                 ))}
               </ol>
             )}
@@ -162,7 +159,7 @@ export default function ChatPanel({ messages, busy, stage, onSend, children }: P
             placeholder="예: 민수는 잠실역에서 차로 와. 지호는 태워 갈게"
             rows={3}
           />
-          <button type="submit" disabled={busy || (!text.trim() && !image)}>
+          <button type="submit" disabled={busy || reading || (!text.trim() && !image)}>
             보내기
           </button>
         </div>

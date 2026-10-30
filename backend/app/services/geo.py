@@ -8,6 +8,7 @@ MCP 와의 관계 (SDD 1절, 10-09):
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
@@ -233,23 +234,26 @@ async def geocode_all(slots: Slots) -> list[GeocodedPin]:
             except (GeocodeFailed, httpx.HTTPError):
                 pass
 
+        # 목적지 다음 지명들은 서로 기다릴 일이 없어 한꺼번에 부른다. 차례로 부르면 사람 수만큼 느려진다
+        # (10-20 실측 지오코딩 p50 1.20초). 핀 순서는 슬롯 순서 그대로 둔다
+        jobs: list[tuple[str, str, str | None]] = []
         for p in slots.participants:
             if p.origin:
-                try:
-                    pins.append(await geocode_one(client, p.origin, "participant", label=p.name, bias=bias))
-                except (GeocodeFailed, httpx.HTTPError):
-                    continue
+                jobs.append((p.origin, "participant", p.name))
             if p.pickup_at:
-                try:
-                    pins.append(await geocode_one(client, p.pickup_at, "pickup", bias=bias))
-                except (GeocodeFailed, httpx.HTTPError):
-                    continue
-
+                jobs.append((p.pickup_at, "pickup", None))
         if slots.rendezvous:
-            try:
-                pins.append(await geocode_one(client, slots.rendezvous.name, "rendezvous", bias=bias))
-            except (GeocodeFailed, httpx.HTTPError):
-                pass
+            jobs.append((slots.rendezvous.name, "rendezvous", None))
+
+        found = await asyncio.gather(
+            *(geocode_one(client, query, kind, label=label, bias=bias) for query, kind, label in jobs),
+            return_exceptions=True,
+        )
+        for pin in found:
+            if isinstance(pin, GeocodedPin):
+                pins.append(pin)
+            elif not isinstance(pin, (GeocodeFailed, httpx.HTTPError)):
+                raise pin
 
     if not pins:
         raise GeocodeFailed("좌표를 하나도 찾지 못했습니다")

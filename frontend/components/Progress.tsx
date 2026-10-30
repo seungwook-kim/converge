@@ -32,7 +32,9 @@ interface Props {
 export default function Progress({ busy, stage }: Props) {
   if (!busy && stage === null) return null;
 
-  const doneUntil = stage ? DONE_UNTIL[stage] : null;
+  // 계산 중에 보이는 stage 는 지난 응답 것이다. 그대로 쓰면 done 뒤 다시 보낼 때 네 칸이 다 끝난 것으로 보였다.
+  // 새 요청은 처음부터 다시 돌므로 첫 칸부터 진행 중으로 둔다
+  const doneUntil = stage && !busy ? DONE_UNTIL[stage] : null;
   const doneIndex = doneUntil ? STEPS.findIndex((s) => s.key === doneUntil) : -1;
   // 계산 중이면 끝난 단계 다음 칸이 진행 중이다
   const activeIndex = busy ? Math.min(doneIndex + 1, STEPS.length - 1) : -1;

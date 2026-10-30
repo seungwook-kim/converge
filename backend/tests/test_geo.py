@@ -45,6 +45,36 @@ def test_geocode_one_uses_core_place_and_keeps_confidence(monkeypatch) -> None:
     assert pin.confidence >= 0.8
 
 
+def test_geocode_all_keeps_slot_order_and_survives_one_failure(monkeypatch) -> None:
+    # 출발지는 한꺼번에 찾는다. 늦게 끝난 것이 있어도 핀 순서는 슬롯 순서이고, 한 명이 실패해도 나머지는 산다
+    from backend.app.schemas.slots import Slots
+
+    places = {"강남역": (127.02, 37.49), "잠실역": (127.10, 37.51), "사당역": (126.98, 37.47)}
+
+    async def fake_keyword(client, query, size=geo.SEARCH_SIZE):
+        await asyncio.sleep(0.02 if query == "강남역" else 0)  # 첫 사람이 가장 늦게 끝나게
+        if query in places:
+            return [_doc(query, *places[query], "SW8")]
+        return []
+
+    monkeypatch.setattr(geo, "_kakao_keyword", fake_keyword)
+    slots = Slots(
+        preset="meeting",
+        participants=[
+            {"name": "나", "origin": "강남역", "transport": "transit", "role": "colleague"},
+            {"name": "친구", "origin": "없는곳", "transport": "transit", "role": "colleague"},
+            {"name": "동생", "origin": "잠실역", "transport": "car", "role": "colleague",
+             "pickup": "나", "pickup_at": "사당역"},
+        ],
+    )
+    pins = asyncio.run(geo.geocode_all(slots))
+    assert [(p.kind, p.name) for p in pins] == [
+        ("participant", "나"),
+        ("participant", "동생"),
+        ("pickup", "사당역"),
+    ]
+
+
 def _slots(access_required: bool | None):
     from backend.app.schemas.slots import Slots
 
