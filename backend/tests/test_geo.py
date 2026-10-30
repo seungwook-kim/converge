@@ -7,6 +7,19 @@ from typing import Any
 from backend.app.services import geo
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_region(monkeypatch):
+    """주소 검색은 기본으로 결과 없음. 지역 이름을 보는 시험만 따로 바꾼다."""
+
+    async def none(client, query):
+        return []
+
+    monkeypatch.setattr(geo, "_kakao_region", none)
+
+
 def _doc(name: str, x: float, y: float, code: str = "") -> dict[str, Any]:
     return {"place_name": name, "address_name": "", "road_address_name": "", "x": str(x), "y": str(y),
             "category_group_code": code}
@@ -100,6 +113,34 @@ def test_geocode_all_searches_destination_together_but_picks_near_it(monkeypatch
     pins = asyncio.run(geo.geocode_all(slots))
     assert [p.kind for p in pins] == ["destination", "participant"]
     assert pins[1].lng == 128.57
+
+
+def test_출발지가_지역_이름이면_지역_대표_좌표를_쓴다(monkeypatch) -> None:
+    # 10-31: "하남" 을 키워드로 찾으면 검단산이 1순위라 자동차 경로가 "도로를 탐색할 수 없음" 으로 실패했다
+    from backend.app.schemas.slots import Slots
+
+    async def fake_region(client, query):
+        if query == "하남":
+            return [{"place_name": "경기 하남시", "address_name": "경기 하남시", "road_address_name": "",
+                     "x": "127.2149", "y": "37.5393", "category_group_code": ""}]
+        return []
+
+    async def fake_keyword(client, query, size=geo.SEARCH_SIZE):
+        if query == "하남":
+            return [_doc("검단산", 127.25, 37.52, "AT4")]
+        return [_doc(query, 127.10, 37.51, "SW8")]
+
+    monkeypatch.setattr(geo, "_kakao_region", fake_region)
+    monkeypatch.setattr(geo, "_kakao_keyword", fake_keyword)
+    slots = Slots(
+        preset="meeting",
+        destination="하남",  # 목적지는 지역 이름이어도 키워드 검색 그대로
+        participants=[{"name": "팀장님", "origin": "하남", "transport": "car", "role": "colleague"}],
+    )
+    dest, origin = asyncio.run(geo.geocode_all(slots))
+    assert (dest.lng, dest.lat) == (127.25, 37.52)
+    assert (origin.lng, origin.lat) == (127.2149, 37.5393)
+    assert origin.confidence >= 0.8  # 지역 이름 그대로 맞았으니 되묻지 않는다
 
 
 def _slots(access_required: bool | None):

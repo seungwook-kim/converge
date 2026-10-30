@@ -18,6 +18,7 @@ from backend.app.schemas.result import GeocodedPin
 from backend.app.schemas.slots import Slots
 
 KAKAO_KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
+KAKAO_ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json"
 TIMEOUT_SEC = 8.0
 
 # 같은 이름이 여러 곳에 있을 때 목적지에 가까운 쪽을 고른다 (SDD 6절 geocode 의 bias_lng·bias_lat).
@@ -65,6 +66,26 @@ async def _kakao_keyword(client: httpx.AsyncClient, query: str, size: int = SEAR
     return res.json().get("documents", [])
 
 
+async def _kakao_region(client: httpx.AsyncClient, query: str) -> list[dict[str, Any]]:
+    """카카오 주소 검색에서 지역(시·구·군·동) 결과만. 키워드 검색 결과와 같은 모양으로 바꿔 돌려준다.
+
+    "하남" 을 키워드로 찾으면 검단산(산)이 1순위로 와서 자동차 길찾기가 "시작 지점 주변의 도로를
+    탐색할 수 없음" 으로 실패했다 (10-31). 주소 검색은 지역 이름에 그 지역 대표 좌표를 준다.
+    """
+    res = await client.get(
+        KAKAO_ADDRESS_URL,
+        params={"query": query},
+        headers={"Authorization": f"KakaoAK {_key()}"},
+    )
+    res.raise_for_status()
+    return [
+        {"place_name": d["address_name"], "address_name": d["address_name"], "road_address_name": "",
+         "x": d["x"], "y": d["y"], "category_group_code": ""}
+        for d in res.json().get("documents", [])
+        if d.get("address_type") == "REGION"
+    ]
+
+
 def _strip_tail(query: str) -> str:
     """"김해시청 앞" → "김해시청". 한 낱말뿐이면 그대로 둔다."""
     words = query.split()
@@ -84,8 +105,21 @@ def _variants(query: str) -> list[str]:
     return list(dict.fromkeys(w for w in out if w))
 
 
-async def _search(client: httpx.AsyncClient, query: str) -> tuple[list[dict[str, Any]], str]:
-    """검색어 그대로 → 꼬리말 뗀 말 → 앞말 순으로 찾는다. 결과와 실제로 쓴 검색어를 돌려준다."""
+async def _search(
+    client: httpx.AsyncClient, query: str, region_first: bool = False
+) -> tuple[list[dict[str, Any]], str]:
+    """검색어 그대로 → 꼬리말 뗀 말 → 앞말 순으로 찾는다. 결과와 실제로 쓴 검색어를 돌려준다.
+
+    region_first 면 검색어가 지역 이름인지 주소 검색으로 먼저 본다 (참석자 출발지, SDD 5절 2단계).
+    """
+    if region_first:
+        stripped = _strip_tail(query)
+        try:
+            regions = await _kakao_region(client, stripped)
+        except httpx.HTTPError:  # 주소 검색이 안 되면 예전처럼 키워드 검색으로
+            regions = []
+        if regions:
+            return regions, stripped
     for variant in _variants(query):
         docs = await _kakao_keyword(client, variant)
         if docs:
@@ -249,7 +283,11 @@ async def geocode_all(slots: Slots) -> list[GeocodedPin]:
     # 기다릴 이유가 없다. 배포 서버(us-east)에서 카카오까지는 왕복마다 연결을 맺느라 한 번이 0.5초 안팎이라,
     # 목적지 → 나머지로 두 번 기다리면 병렬로 바꿔도 줄지 않았다 (10-31 실측 p50 1.26초, 10-20 1.20초)
     async with httpx.AsyncClient(timeout=TIMEOUT_SEC) as client:
-        found = await asyncio.gather(*(_search(client, query) for query, _, _ in jobs), return_exceptions=True)
+        # 출발지만 지역 이름을 먼저 본다. "강남에서 보자" 같은 목적지는 대개 역 둘레라 키워드 검색이 맞다
+        found = await asyncio.gather(
+            *(_search(client, query, region_first=kind == "participant") for query, kind, _ in jobs),
+            return_exceptions=True,
+        )
 
     for result in found:
         if not isinstance(result, (tuple, GeocodeFailed, httpx.HTTPError)):

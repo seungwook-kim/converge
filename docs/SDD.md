@@ -458,7 +458,7 @@ LLM(대형)이 만드는 건 candidates의 rank·reason·rejected_reason과 전�
 | 1-1 | 범위 판정 | slots.out_of_scope → out_of_scope 응답 | |
 | 1-2 | 누락 판정 | slots.missing 비어 있지 않으면 need_info. 출발지가 비었는데 missing 에 없으면 코드가 participants[i].origin 을 넣는다. 태워지는 사람(pickup·pickup_at 둘 다 있음)은 빼고. 넣지 않으면 4단계가 그 사람을 경로 계산에서 조용히 뺀다 (10-09, llm._parse). 절차 단서가 없어 slots.access 가 통째로 None 이면 코드가 missing 에 "access.required" 를 넣고 되묻는다("이 장소에 출입 절차가 있나요? (출입증·방문자 등록)"). 없다고 답하면 required=false 로 두고 체크리스트를 만들지 않는다 | |
 | 1-3 | 기간 판정 | domain/rules.parse_meet_date 가 slots.datetime 에서 날짜를 읽는다. 오늘보다 앞이면 need_info("이미 지난 날짜입니다"), 오늘인데 그 시각이 지났으면 need_info("오늘 그 시각은 이미 지났습니다". 요일만 말하면 오늘을 포함해 읽으므로 다음 주를 뜻했는지 추측하지 않고 묻는다), 오늘+30일을 넘으면 need_info("30일 안의 약속만 잡을 수 있습니다"). 날짜를 못 읽으면 판정하지 않고 넘어가며 meet_at 은 None(임시 세션). 30과 기준 시간대는 session.md 의 값. 1-2 보다 먼저 본다: 받을 수 없는 날짜면 빠진 정보를 묻지 않고 날짜부터 되묻고, 임시 세션도 남기지 않는다 (09-23) | 코드라 실패 없음 |
-| 2 | geo.geocode_all | 참석자·집결지·목적지 지명 → 좌표, confidence | 한 명이라도 confidence < 0.8 → need_confirm |
+| 2 | geo.geocode_all | 참석자·집결지·목적지 지명 → 좌표, confidence. 참석자 출발지가 지역 이름("하남", "마포구", "성수동")이면 카카오 주소 검색의 지역 대표 좌표를 먼저 쓴다. 키워드 검색은 지역 이름에 관광지를 돌려준다("하남" → 검단산, 도로가 없어 자동차 경로 실패, 10-31). 같은 이름 지역이 여럿이면 목적지 쪽. 목적지·집결지는 "강남에서 보자" 가 대개 역 둘레라 키워드 검색 그대로 | 한 명이라도 confidence < 0.8 → need_confirm |
 | 2-1 | 핀 확인 | 사용자가 confirmed_participants 반환. 누구 핀이든 고칠 수 있다 (7절 핀 소유권) | |
 | 3 | geo.candidates | 집결 후보 생성: 절차가 있으면 목적지 건물 1층, 없으면 목적지 그 자리 + 가까운 역 하나. 절차 없는 약속에 둘레 정문을 찾지 않는다(학교·아파트 정문이 1순위로 나왔다, 09-27) | 후보 0곳이면 목적지 좌표 자체를 후보로 |
 | 4 | routes.compute_all | 참석자 × 후보, 집결지 있으면 2구간, pickup_at 있으면 운전자 경로에 경유지로 추가하고 태워지는 사람은 탑승 이후 구간만 계산. 캐시 확인 후 API | 타임아웃·5xx 백오프 2회 → 실패 참석자만 "조회 실패", 나머지로 진행 |
