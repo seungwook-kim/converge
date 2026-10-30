@@ -484,6 +484,41 @@ def test_하루_상한에_닿은_요청은_gemini_로_돈다():
     assert llm.effective_model(llm.PRIMARY_MODEL) == llm.PRIMARY_MODEL
 
 
+def test_claude_는_받지_않는_옵션을_빼고_접두어_없이_부른다(monkeypatch):
+    """10-31 실측: Haiku 5.5 는 temperature 와 response_format(json_object) 을 400 으로 거절한다."""
+    from types import SimpleNamespace
+
+    llm.reset_fallback()
+    seen: dict = {}
+
+    async def create(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(llm, "_client", lambda _m: SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    _, used = asyncio.run(llm._create(llm.CLAUDE_MODEL, messages=[], temperature=0, response_format={"type": "json_object"}))
+    assert used == llm.CLAUDE_MODEL
+    assert seen["model"] == "claude-haiku-5-5"
+    assert "temperature" not in seen and "response_format" not in seen
+    # 사고 토큰을 끈다. 켜 두면 같은 JSON 에 출력이 세 배, 시간이 두 배였다
+    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert seen["max_tokens"] == llm.MAX_OUTPUT_TOKENS
+
+
+def test_상위_claude_모델은_허용하지_않는다():
+    # SDD 8절: Claude API 는 Haiku 5.5 하나만
+    with pytest.raises(llm.ModelNotAllowed):
+        llm._client("anthropic-ai/claude-sonnet-5")
+
+
+def test_openrouter_크레딧이_떨어져도_claude_는_그대로_쓴다(monkeypatch):
+    llm.reset_fallback()
+    monkeypatch.setattr(llm, "_credits_out_until", llm.time.monotonic() + 60)
+    assert llm.effective_model(llm.PRIMARY_MODEL) == llm.FALLBACK_MODEL
+    assert llm.effective_model(llm.CLAUDE_MODEL) == llm.CLAUDE_MODEL
+    llm.reset_fallback()
+
+
 def test_이동수단을_비우고_missing_에_안_적어도_되묻기로_받는다():
     """09-28 gpt-4o-mini: "한지훈씨는 인천에서 옵니다" 의 이동수단을 비우고 missing 에 안 적어 세 번 다 실패했다."""
     import json

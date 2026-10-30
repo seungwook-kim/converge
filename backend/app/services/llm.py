@@ -35,13 +35,16 @@ SLOT_PROMPT = "converge/slot-extract"
 VISION_PROMPT = "converge/vision-transcribe"
 
 # SDD 9절 MODEL_LARGE 와 같은 값을 본다
-# 쓸 수 있는 모델은 이 둘뿐이다 (09-28 결정). 평소에는 PRIMARY, 돈이 다 되면 FALLBACK.
+# 쓸 수 있는 모델은 아래 셋뿐이다 (09-28 결정, 10-31 CLAUDE 추가). 평소에는 env 가 고른 모델, 돈이 다 되면 FALLBACK.
+#   CLAUDE    Claude API 직접. MODEL_SMALL 로 슬롯 추출을 맡긴다 (10-31)
 #   PRIMARY   OpenRouter 유료. 슬롯 추출·판정·캡처 읽기 모두
 #   FALLBACK  구글 AI Studio 무료 할당. OpenRouter 크레딧이 떨어지거나(402) 하루 비용 상한에 닿았을 때만
 # env(MODEL_SMALL·MODEL_LARGE·MODEL_VISION)에 다른 이름을 적어도 _client 가 거절한다. 로컬 GGUF·Jev 도 못 쓴다
 PRIMARY_MODEL = "openai/gpt-4o-mini"
 FALLBACK_MODEL = "google-ai/gemini-3.5-flash-lite"
-ALLOWED_MODELS = frozenset({PRIMARY_MODEL, FALLBACK_MODEL})
+# Claude API 직접 호출 (10-31). SDD 8절 "Claude API 를 붙일 때": Haiku 5.5 하나만, 상위 모델 금지
+CLAUDE_MODEL = "anthropic-ai/claude-haiku-5-5"
+ALLOWED_MODELS = frozenset({PRIMARY_MODEL, FALLBACK_MODEL, CLAUDE_MODEL})
 DEFAULT_LARGE = PRIMARY_MODEL
 
 # 크레딧이 떨어진 것을 한 번 보면 이 시간(초) 동안은 처음부터 FALLBACK 으로 간다. 매번 402 를 맞고 돌아오지 않게
@@ -68,8 +71,14 @@ class ModelNotAllowed(LlmUnavailable):
 
 
 def effective_model(model: str) -> str:
-    """이번 호출에 실제로 쓸 모델. 돈이 다 된 상태면 FALLBACK 으로 바꾼다."""
-    if _request_fallback.get() or time.monotonic() < _credits_out_until:
+    """이번 호출에 실제로 쓸 모델. 돈이 다 된 상태면 FALLBACK 으로 바꾼다.
+
+    하루 비용 상한은 모든 모델에 건다. OpenRouter 크레딧 없음(402)은 OpenRouter 로 가는 모델에만 건다.
+    Claude·구글은 키와 지갑이 따로라 OpenRouter 가 비었다고 바꿀 이유가 없다 (10-31)
+    """
+    if _request_fallback.get():
+        return FALLBACK_MODEL
+    if time.monotonic() < _credits_out_until and _is_openrouter(model):
         return FALLBACK_MODEL
     return model
 
@@ -110,7 +119,9 @@ async def _create(model: str, **kwargs: Any) -> tuple[Any, str]:
     # 슬롯 JSON 은 참석자가 많아도 수백 토큰이다
     kwargs.setdefault("max_tokens", MAX_OUTPUT_TOKENS)
     try:
-        res = await _client(model).chat.completions.create(model=_api_model(model), **kwargs, **_extra_body(model))
+        res = await _client(model).chat.completions.create(
+            model=_api_model(model), **_supported(model, kwargs), **_extra_body(model)
+        )
         return res, model
     except Exception as e:  # noqa: BLE001
         if model == FALLBACK_MODEL or not _is_out_of_credits(e):
@@ -124,6 +135,8 @@ async def _create(model: str, **kwargs: Any) -> tuple[Any, str]:
 
 GOOGLE_PREFIX = "google-ai/"
 GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+ANTHROPIC_PREFIX = "anthropic-ai/"
+ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1/"
 
 # 호출 하나의 상한(초). openai SDK 기본값은 600초에 재시도 2회라, 구글 호출 하나가 멈추면 사용자가
 # 5분 넘게 기다리다 502 를 받았다 (09-27, 앞서 09-22 에는 432초). 100회 측정 최대가 21.2초다.
@@ -141,8 +154,8 @@ def _timeout() -> float:
 def _client(model: str = "") -> Any:
     """모델 이름을 보고 어디로 부를지 정한다.
 
-    기본은 OpenRouter 다. 모델 이름이 "google-ai/" 로 시작하면 구글 AI Studio 로 직접 부른다.
-    둘 다 OpenAI 호환 엔드포인트라 클라이언트는 주소와 키만 바꾸면 된다.
+    기본은 OpenRouter 다. 모델 이름이 "google-ai/" 로 시작하면 구글 AI Studio, "anthropic-ai/" 면
+    Claude API 로 직접 부른다. 셋 다 OpenAI 호환 엔드포인트라 클라이언트는 주소와 키만 바꾸면 된다.
 
     구글로 직접 부르는 길을 둔 이유: 무료 할당이 있어서 사이드 프로젝트에서 크레딧 없이 돌릴 수 있다.
     """
@@ -157,6 +170,12 @@ def _client(model: str = "") -> Any:
             raise LlmUnavailable("GEMINI_API_KEY 가 없습니다 (aistudio.google.com 에서 발급)")
         return AsyncOpenAI(api_key=key, base_url=GOOGLE_BASE_URL, timeout=_timeout(), max_retries=0)
 
+    if model.startswith(ANTHROPIC_PREFIX):
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise LlmUnavailable("ANTHROPIC_API_KEY 가 없습니다 (platform.claude.com 에서 발급)")
+        return AsyncOpenAI(api_key=key, base_url=ANTHROPIC_BASE_URL, timeout=_timeout(), max_retries=0)
+
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise LlmUnavailable("OPENROUTER_API_KEY 가 없습니다")
@@ -169,14 +188,37 @@ def _extra_body(model: str) -> dict[str, Any]:
     OpenRouter 는 usage.include 를 주면 응답에 실제 과금액을 실어 준다. 구글 엔드포인트는
     그 이름을 모르고 400 으로 거절한다 (09-21 실측). 그래서 OpenRouter 일 때만 붙인다.
     """
-    if model.startswith(GOOGLE_PREFIX):
+    if model.startswith(ANTHROPIC_PREFIX):
+        # Haiku 5.5 는 기본으로 보이지 않는 사고 토큰을 쓴다. 슬롯 JSON 한 개에 출력 700~1000 토큰, 4~5초가 들었고
+        # 끄면 300 토큰, 1.9초다 (10-31 실측). 회귀셋 정확도는 끈 상태로 쟀다 (docs/measurements.md)
+        return {"extra_body": {"thinking": {"type": "disabled"}}}
+    if not _is_openrouter(model):
         return {}
     return {"extra_body": {"usage": {"include": True}}}
 
 
+def _is_openrouter(model: str) -> bool:
+    return not model.startswith((GOOGLE_PREFIX, ANTHROPIC_PREFIX))
+
+
+def _supported(model: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Claude API 가 받지 않는 옵션을 뺀다 (10-31 실측, OpenAI 호환 엔드포인트).
+
+    temperature: Haiku 5.5 는 "deprecated for this model" 400 으로 거절한다.
+    response_format: json_object 를 받지 않고 json_schema 만 받는다. 빼도 프롬프트가 JSON 만 내라고 하고,
+    _parse_json_block 이 코드 블록으로 감싼 JSON 까지 꺼낸다.
+    """
+    if not model.startswith(ANTHROPIC_PREFIX):
+        return kwargs
+    return {k: v for k, v in kwargs.items() if k not in ("temperature", "response_format")}
+
+
 def _api_model(model: str) -> str:
     """API 에 보낼 이름. 우리 쪽 접두어는 떼고 보낸다."""
-    return model[len(GOOGLE_PREFIX):] if model.startswith(GOOGLE_PREFIX) else model
+    for prefix in (GOOGLE_PREFIX, ANTHROPIC_PREFIX):
+        if model.startswith(prefix):
+            return model[len(prefix):]
+    return model
 
 
 # ── 구글 직접 호출 → OpenRouter 전환 (미리 짜 둔 것. 아직 켜지 않았다) ─────────────────

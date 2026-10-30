@@ -619,7 +619,24 @@ converge/eval-judge(판정 이유를 LLM 이 0~2점으로 채점)는 두지 않�
 단계·슬롯·계약을 코드로 채점하고, 이유가 현장에 맞는지는 사람이 본다 (EVAL_GUIDE). 채점용 LLM 을 따로 두면
 비용과 흔들림만 늘고 사람 판단을 대신하지 못한다. 그래서 MODEL_EVAL_JUDGE 도 없앴다.
 
-### 쓰는 모델 (2026-09-28 결정, 아래 09-21 결정을 대신한다)
+### 슬롯 추출은 Claude Haiku 5.5 (2026-10-31 결정, 아래 09-28 결정의 슬롯 추출 자리를 대신한다)
+
+슬롯 추출(`MODEL_SMALL`)을 `anthropic-ai/claude-haiku-5-5`(Claude API 직접)로 바꾼다 (사용자 결정).
+판정·캡처 읽기·소형 실패 시 승격(`MODEL_LARGE`, `MODEL_VISION`)은 openai/gpt-4o-mini 그대로다.
+
+| 선택지 | 회귀셋 10건 (10-31 같은 날, 로컬) | 비용 합계 | 버린 이유 |
+|---|---|---|---|
+| **claude-haiku-5-5, 사고 끔** | 단계·슬롯·계약 1.0 ×2, p50 2.33~2.66초 | $0.0069 | (채택) |
+| claude-haiku-5-5, 사고 켬(기본값) | 1.0 ×2, p50 5.38~5.59초 | $0.0099 | 보이지 않는 사고 토큰으로 출력 700~1000 토큰 |
+| openai/gpt-4o-mini (그때까지 운영) | 1.0, p50 3.96초 | $0.0067 | 1.3~1.6초 느리다 |
+| google-ai/gemini-3.5-flash-lite | 10-20 1.0 ×5, p50 3.09~3.37초 | $0.0167 (추정) | 사용자가 Claude 로 정함 |
+
+호출: Claude API 의 OpenAI 호환 엔드포인트(`https://api.anthropic.com/v1/`)를 같은 클라이언트로 부른다.
+Haiku 5.5 는 `temperature` 와 `response_format: json_object` 를 400 으로 거절해 `llm._supported` 가 뺀다.
+`thinking: disabled` 를 붙인다(`llm._extra_body`). 단가 입력 $0.10·출력 $0.50 / 100만 토큰 (`costs.py`).
+OpenRouter 크레딧 없음(402)으로 대체 모델로 가는 것은 OpenRouter 모델에만 건다. 하루 비용 상한은 모든 모델에 건다.
+
+### 쓰는 모델 (2026-09-28 결정, 아래 09-21 결정을 대신한다. 슬롯 추출 자리는 10-31 결정이 대신한다)
 
 LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 막아, env 에 다른 이름을 적어도 부르지 않는다.
 로컬 GGUF(파인튜닝 결과물)와 Jev 도 쓰지 않는다.
@@ -637,11 +654,12 @@ LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 
 10-01 재측정에서 5번이 다시 실패(단계 0.9): 운전자 항목에 태우기를 거꾸로 적음. llm._parse 가 방향을 바로잡은 뒤 단계·슬롯·계약 1.0 (p50 3.66초). 5번 문장 직접 호출은 13번 중 12번. 10-09 같은 문장 직접 호출 29번 모두 done (실패 출력을 못 잡아 코드는 고치지 않음).
 10-09 프롬프트: converge/vision-transcribe v2 (오른쪽 말풍선을 빼먹지 않게. v1 은 같은 캡처에서 내 말풍선 0/5, v2 5/5), converge/slot-extract v16 (예시의 실제 장소명을 가상의 이름으로). staging 에서 회귀셋을 잰 뒤 production 으로 옮겼다 (docs/measurements.md).
 
-### Claude API 를 붙일 때 (2026-10-20 결정, 아직 연결 전)
+### Claude API 를 붙일 때 (2026-10-20 결정, 10-31 연결)
 
-OpenRouter 한도를 넘으면 Claude API 로 넘어갈 수 있게 키 자리(`ANTHROPIC_API_KEY`, 로컬 `.env`)만 만들었다. 코드는 아직 읽지 않는다.
+OpenRouter 한도를 넘으면 Claude API 로 넘어갈 수 있게 키 자리(`ANTHROPIC_API_KEY`, 로컬 `.env`)만 만들었다.
+10-31 에 연결해 슬롯 추출에 쓴다 (위 10-31 결정). 배포에서는 Modal 비밀값 `converge` 에도 넣는다.
 붙일 때 모델은 **`claude-haiku-5-5`(Haiku 5.5) 하나만** 쓴다. Sonnet·Opus 등 상위 모델은 금지한다 (사용자 결정, 비용).
-허용 목록(`llm.ALLOWED_MODELS`)에 넣는 이름도 이것 하나다.
+허용 목록(`llm.ALLOWED_MODELS`)에 넣는 이름도 이것 하나다 (`anthropic-ai/claude-haiku-5-5`).
 10-20 기준 OpenRouter 키 한도 $9 중 $0.26 사용.
 
 ### 슬롯 추출 모델 (2026-09-21 결정, 09-28 결정으로 대체됨. 기록용)
@@ -682,7 +700,8 @@ LANGFUSE_HOST=           # https://cloud.langfuse.com
 MCP_TOKEN=               # /mcp Bearer 토큰
 INTERNAL_TOKEN=          # /internal/cleanup
 MODEL_SMALL_PATH=backend/app/models/kanana_2.1b-Q4_K_M.gguf   # 참고용. 허용 목록이 막아 쓰지 않는다 (8절)
-MODEL_SMALL=openai/gpt-4o-mini   # 09-28: 허용 모델은 이것과 대체용 google-ai/gemini-3.5-flash-lite 둘뿐 (llm.ALLOWED_MODELS)
+MODEL_SMALL=anthropic-ai/claude-haiku-5-5   # 10-31: 슬롯 추출은 Claude API. 허용 목록은 이것, openai/gpt-4o-mini, 대체용 google-ai/gemini-3.5-flash-lite (llm.ALLOWED_MODELS)
+ANTHROPIC_API_KEY=                # anthropic-ai/ 모델을 부를 때. 배포는 Modal 비밀값 converge
                         # google-ai/ 로 시작하면 구글 AI Studio 직접 호출(무료 할당), 아니면 OpenRouter
                         # 비우면 처음부터 대형. 로컬 GGUF 로는 가지 않는다 (09-28 허용 목록)
 GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다

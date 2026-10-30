@@ -29,6 +29,8 @@ _RATES: dict[str, tuple[float, float]] = {
     **{f"google-ai/{name}": rate for name, rate in _GEMINI_RATES.items()},
     "openai/gpt-5.6-luna": (5.0, 20.0),
     "openai/gpt-4o-mini": (0.15, 0.6),
+    # 프롬프트 10만 토큰 이하 단가. 슬롯 추출은 수천 토큰이다 (platform.claude.com 가격표, 10-31 확인)
+    "anthropic-ai/claude-haiku-5-5": (0.10, 0.50),
 }
 
 
