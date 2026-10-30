@@ -4,6 +4,21 @@
 
 회귀셋은 `evals/EVAL_GUIDE.md`, 모델 비교는 `docs/compare.md` 에 있다. 여기는 실행 기록이다.
 
+## 배포본 슬롯 추출 Claude 전환 확인 (2026-10-31 1시 48분대 KST, 5건)
+
+재배포 직후 브라우저에서 POST /api/agent 5건을 차례로 보냈다. request_logs 로 모델을 확인했고 세션은 지웠다.
+5건 모두 provider anthropic, 모델 anthropic-ai/claude-haiku-5-5, 실패 0. 표본이 작아 p50 은 내지 않는다.
+
+| 요청 | stage | 화면 기준 | 슬롯 추출(request_logs) | 출력 토큰 |
+|---|---|---|---|---|
+| 1 (콜드 스타트) | done | 16.72초 | 2.65초 | 304 |
+| 2 | done | 4.49초 | 1.50초 | 220 |
+| 3 | done | 6.37초 | 1.61초 | 225 |
+| 4 | need_info | 2.75초 | 1.44초 | 213 |
+| 5 | done | 7.59초 | 1.83초 | 310 |
+
+직전 측정(10-31 1시대, gpt-4o-mini)의 슬롯 추출 p50 은 4.23초였다. 건당 비용은 $0.00068~0.00073.
+
 ## 슬롯 추출 Claude Haiku 5.5 비교 (2026-10-31, 회귀셋 10건, 로컬)
 
 `python evals/run_eval.py --model <모델>`, 같은 시각에 연달아. Claude 는 API 직접(OpenAI 호환 엔드포인트).
