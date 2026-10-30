@@ -6,11 +6,13 @@ on:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    # ubuntu-latest 는 10-19 부터 Ubuntu 26 으로 옮겨 간다는 안내가 떴다. 바뀌는 날 깨지지 않게 고정 (10-31)
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # v4·v5 는 Node 20 이라 폐기 경고가 떴다. Node 24 로 도는 v7 (10-31)
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip

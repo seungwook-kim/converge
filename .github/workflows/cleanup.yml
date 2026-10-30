@@ -11,7 +11,7 @@ on:
 
 jobs:
   cleanup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # ubuntu-latest 이동(Ubuntu 26) 안내 때문에 고정 (10-31)
     timeout-minutes: 5
     steps:
       - name: POST /internal/cleanup
