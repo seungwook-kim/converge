@@ -3,7 +3,7 @@
     python -m modal deploy modal_app.py
 
 - 요청이 없으면 5분 뒤 0대로 내려간다. 다음 첫 요청은 콜드 스타트로 느리다.
-- 키는 Modal 비밀값 `converge` 에 넣는다 (SDD 9절). 이 파일과 이미지에는 키가 없다.
+- 키는 Modal 비밀값 `converge` 에 넣는다 (SDD 9절). Claude API 키와 MODEL_SMALL 은 `converge-claude`. 이 파일과 이미지에는 키가 없다.
 - Dockerfile 의 CMD(uvicorn)는 쓰지 않는다. Modal 이 아래 함수가 돌려주는 앱을 직접 띄운다.
 """
 import modal
@@ -16,7 +16,9 @@ image = modal.Image.from_dockerfile("Dockerfile", context_dir=".").env({"PYTHONP
 
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name("converge")],
+    # converge-claude 는 Claude API 키와 MODEL_SMALL 만 담는다 (10-31). 뒤에 둔 비밀값이 같은 키를 덮는다 (Modal 문서).
+    # CLI 에 비밀값 고치기가 없고 create --force 는 통째로 덮어써서, 기존 converge 를 건드리지 않고 따로 뒀다
+    secrets=[modal.Secret.from_name("converge"), modal.Secret.from_name("converge-claude")],
     cpu=1.0,
     memory=1024,
     scaledown_window=300,

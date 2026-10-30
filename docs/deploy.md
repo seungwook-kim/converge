@@ -147,6 +147,14 @@ MCP_PUBLIC_URL=https://<백엔드 주소>/mcp
 CLI 로는 `python -m modal secret create converge --force KEY=값 ...` 인데, 키가 셸 기록에 남으므로 대시보드가 낫다.
 `--force` 는 통째로 바꾼다. 하나만 바꿀 때도 전부 다시 넣어야 한다.
 
+Claude API 는 따로 둔 비밀값 `converge-claude` 에 있다 (10-31). `modal_app.py` 가 `converge` 뒤에 붙여 같은 키를 덮는다.
+
+```
+ANTHROPIC_API_KEY  MODEL_SMALL=anthropic-ai/claude-haiku-5-5
+```
+
+슬롯 추출을 gpt-4o-mini 로 되돌리려면 이 비밀값의 MODEL_SMALL 을 바꾸고 다시 올린다.
+
 ### 3-3. 올리기
 
 저장소 루트에서 실행한다. 빌드 컨텍스트가 루트여야 `skills/` 와 `mcp_server/` 가 함께 들어간다.

@@ -657,7 +657,8 @@ LLM 은 두 모델만 쓴다. 코드가 허용 목록(llm.ALLOWED_MODELS)으로 
 ### Claude API 를 붙일 때 (2026-10-20 결정, 10-31 연결)
 
 OpenRouter 한도를 넘으면 Claude API 로 넘어갈 수 있게 키 자리(`ANTHROPIC_API_KEY`, 로컬 `.env`)만 만들었다.
-10-31 에 연결해 슬롯 추출에 쓴다 (위 10-31 결정). 배포에서는 Modal 비밀값 `converge` 에도 넣는다.
+10-31 에 연결해 슬롯 추출에 쓴다 (위 10-31 결정). 배포에서는 Modal 비밀값 `converge-claude`(ANTHROPIC_API_KEY, MODEL_SMALL 만)에 두고
+`modal_app.py` 가 `converge` 뒤에 붙인다. 뒤 비밀값이 같은 키를 덮어 `converge` 의 MODEL_SMALL 보다 앞선다.
 붙일 때 모델은 **`claude-haiku-5-5`(Haiku 5.5) 하나만** 쓴다. Sonnet·Opus 등 상위 모델은 금지한다 (사용자 결정, 비용).
 허용 목록(`llm.ALLOWED_MODELS`)에 넣는 이름도 이것 하나다 (`anthropic-ai/claude-haiku-5-5`).
 10-20 기준 OpenRouter 키 한도 $9 중 $0.26 사용.
@@ -701,7 +702,7 @@ MCP_TOKEN=               # /mcp Bearer 토큰
 INTERNAL_TOKEN=          # /internal/cleanup
 MODEL_SMALL_PATH=backend/app/models/kanana_2.1b-Q4_K_M.gguf   # 참고용. 허용 목록이 막아 쓰지 않는다 (8절)
 MODEL_SMALL=anthropic-ai/claude-haiku-5-5   # 10-31: 슬롯 추출은 Claude API. 허용 목록은 이것, openai/gpt-4o-mini, 대체용 google-ai/gemini-3.5-flash-lite (llm.ALLOWED_MODELS)
-ANTHROPIC_API_KEY=                # anthropic-ai/ 모델을 부를 때. 배포는 Modal 비밀값 converge
+ANTHROPIC_API_KEY=                # anthropic-ai/ 모델을 부를 때. 배포는 Modal 비밀값 converge-claude
                         # google-ai/ 로 시작하면 구글 AI Studio 직접 호출(무료 할당), 아니면 OpenRouter
                         # 비우면 처음부터 대형. 로컬 GGUF 로는 가지 않는다 (09-28 허용 목록)
 GEMINI_API_KEY=         # aistudio.google.com/apikey. MODEL_* 가 google-ai/ 일 때만 쓴다
