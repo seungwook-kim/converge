@@ -1,0 +1,162 @@
+[
+ {
+  "round": 1,
+  "id": 1,
+  "ms": 6153,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "de538788dc374de6b30a85532cba96a2"
+ },
+ {
+  "round": 1,
+  "id": 2,
+  "ms": 6437,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "8813553b431643b6baf8c7c7f4bfe911"
+ },
+ {
+  "round": 1,
+  "id": 3,
+  "ms": 2642,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "71a0e365ee8f47a4b10d2155b6285f55"
+ },
+ {
+  "round": 1,
+  "id": 4,
+  "ms": 2447,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "9fcaabf59a43492186a3d206be58a6ed"
+ },
+ {
+  "round": 1,
+  "id": 5,
+  "ms": 5130,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "82ec7519fc3247458482055b4bbfe7a5"
+ },
+ {
+  "round": 1,
+  "id": 6,
+  "ms": 2865,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "6cce4addcc4644ae9bbfb609313f437f"
+ },
+ {
+  "round": 1,
+  "id": 7,
+  "ms": 2371,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "9b8419a2ad7c464bb42ba4823525e04b"
+ },
+ {
+  "round": 1,
+  "id": 8,
+  "ms": 2378,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "a3909ce833d84ac6ba1e5e2d9477d557"
+ },
+ {
+  "round": 1,
+  "id": 9,
+  "ms": 5469,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "2f53e7028252409cb0bf9ba8d67ec0f4"
+ },
+ {
+  "round": 1,
+  "id": 10,
+  "ms": 2012,
+  "status": 200,
+  "stage": "out_of_scope",
+  "trace_id": "dd59751f52814aa485ee59ad09c297cb"
+ },
+ {
+  "round": 2,
+  "id": 1,
+  "ms": 5751,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "5f04c7ff422b4e1ca4e0a66cbf9eb267"
+ },
+ {
+  "round": 2,
+  "id": 2,
+  "ms": 5101,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "439041ff6fe54a95b4444c84811b2dcb"
+ },
+ {
+  "round": 2,
+  "id": 3,
+  "ms": 5220,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "31226968fbde442ba1036fdc7c06ca3a"
+ },
+ {
+  "round": 2,
+  "id": 4,
+  "ms": 2340,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "5b36c55956c147f0bcb8379ff477ece8"
+ },
+ {
+  "round": 2,
+  "id": 5,
+  "ms": 4581,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "3e67c299eb994b8e8d0a38f27427d042"
+ },
+ {
+  "round": 2,
+  "id": 6,
+  "ms": 2380,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "5a862bd72498431498895b2965c5af2a"
+ },
+ {
+  "round": 2,
+  "id": 7,
+  "ms": 2266,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "7bad7813ca7b49de9a2d5488ff42442d"
+ },
+ {
+  "round": 2,
+  "id": 8,
+  "ms": 2365,
+  "status": 200,
+  "stage": "need_info",
+  "trace_id": "f5be2b1e72d64a51bf144dcf81005193"
+ },
+ {
+  "round": 2,
+  "id": 9,
+  "ms": 8820,
+  "status": 200,
+  "stage": "done",
+  "trace_id": "ef60e7eb54ef48138308c45859508a45"
+ },
+ {
+  "round": 2,
+  "id": 10,
+  "ms": 1798,
+  "status": 200,
+  "stage": "out_of_scope",
+  "trace_id": "af4fd6a7662f4f7f952c8c4776a729e7"
+ }
+]
